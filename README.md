@@ -1,2 +1,3 @@
 # six-sigma-hackathon
 For Six Sigma Hackathon Oct 2026
+Created by Tran Ngo
