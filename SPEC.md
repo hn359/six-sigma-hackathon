@@ -12,7 +12,7 @@ The examples after each `FILL IN` show the shape of an answer. They are not hint
 - **Team name:** Battery Ninjas
 - **Track:** on-campus (24 hours). See [`docs/schedule.md`](docs/schedule.md).
 - **Prompt we chose:** 1. Urban Systems, "Bikeshare Fleets" (docks full / docks empty at rush hour; vans dispatched blindly), from the [Devpost](https://six-sigma-hackathon.devpost.com/) challenge page.
-- **Our public repo:** FILL IN. Example: "github.com/our-team/our-tool"
+- **Our public repo:** github.com/hn359/six-sigma-hackathon
 
 ## 2. User and use case (rubric: scope 5, user and use case 5)
 - **User:** the rebalancing dispatcher at a municipal bikeshare, who sends the maintenance and rebalancing vans.
