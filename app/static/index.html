@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bikeshare Dock QC</title>
+<style>
+  :root { --ink:#1d2330; --muted:#5d6678; --line:#d9dde5; --bg:#f7f8fa; --card:#fff;
+          --ok:#2f6fd6; --bad:#d23b3b; --limit:#8a93a6; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  p.lede { color: var(--muted); margin: 0 0 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { font: inherit; padding: 6px 12px; border-radius: 6px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  button:hover { border-color: var(--ok); }
+  .stats { display:flex; flex-wrap:wrap; gap:24px; margin-bottom: 8px; }
+  .stat b { display:block; font-size: 22px; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .send { font-size: 17px; }
+  .send .bad { color: var(--bad); font-weight: 600; }
+  svg { width: 100%; height: auto; display:block; }
+  table { width:100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align:right; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  tr.flag td { color: var(--bad); font-weight: 600; }
+  .how { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .warn { color: #8a5a00; font-size: 13px; }
+  .err { color: var(--bad); }
+  .table-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bikeshare Dock QC</h1>
+  <p class="lede">For the rebalancing dispatcher: which stations are empty or full at rush hour more often than chance explains, and how long they stay that way.</p>
+
+  <div class="card">
+    <h2>Data</h2>
+    <div class="controls">
+      <span>Try a test dataset:</span>
+      <button data-sample="normal_week.csv">normal_week</button>
+      <button data-sample="hot_station.csv">hot_station</button>
+      <button data-sample="edge_case.csv">edge_case</button>
+      <span>or upload yours:</span>
+      <input type="file" id="file" accept=".csv,text/csv">
+    </div>
+    <p class="how">CSV columns: <code>station_id, timestamp, bikes_available, docks_available</code>. Only weekday readings 07:00–09:59 and 16:00–18:59 count.</p>
+  </div>
+
+  <div id="out"></div>
+</main>
+
+<script>
+const out = document.getElementById("out");
+const fmt = (x, d = 3) => x === null || x === undefined ? "–" : Number(x).toFixed(d);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function load(promise, label) {
+  out.innerHTML = `<div class="card">Analysing ${esc(label)}…</div>`;
+  try {
+    const r = await promise;
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.statusText);
+    render(j, label);
+  } catch (e) {
+    out.innerHTML = `<div class="card err">Could not analyse ${esc(label)}: ${esc(e.message)}</div>`;
+  }
+}
+
+document.querySelectorAll("button[data-sample]").forEach(b =>
+  b.addEventListener("click", () => load(fetch(`samples/${b.dataset.sample}`), b.dataset.sample)));
+document.getElementById("file").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  load(fetch("analyze", { method: "POST", body: await f.text(), headers: {"Content-Type": "text/csv"} }), f.name);
+});
+
+function chart(c) {
+  const rows = c.stations, W = 900, H = 320, L = 52, R = 16, T = 16, B = 44;
+  const ymax = Math.min(1, Math.max(0.1, ...rows.map(r => Math.max(r.p, r.ucl))) * 1.15);
+  const x = i => L + (i + 0.5) * (W - L - R) / rows.length;
+  const y = v => T + (1 - v / ymax) * (H - T - B);
+  const step = (key) => rows.map((r, i) => {
+    const half = (W - L - R) / rows.length / 2;
+    return `${i ? "L" : "M"}${x(i) - half},${y(r[key])} L${x(i) + half},${y(r[key])}`;
+  }).join(" ");
+  let ticks = "";
+  for (let k = 0; k <= 4; k++) {
+    const v = ymax * k / 4;
+    ticks += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#eef0f4"/>
+      <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="#5d6678">${v.toFixed(2)}</text>`;
+  }
+  const pts = rows.map((r, i) => `
+    <circle cx="${x(i)}" cy="${y(r.p)}" r="${r.flag ? 6 : 4.5}" fill="${r.flag ? "#d23b3b" : "#2f6fd6"}">
+      <title>${esc(r.station)}: p = ${fmt(r.p)} (${r.d}/${r.n}), UCL = ${fmt(r.ucl)}</title></circle>
+    <text x="${x(i)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="${r.flag ? "#d23b3b" : "#5d6678"}">${esc(r.station)}</text>`).join("");
+  const line = rows.map((r, i) => `${i ? "L" : "M"}${x(i)},${y(r.p)}`).join(" ");
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="p-chart of share of rush-hour readings unusable, by station">
+    ${ticks}
+    <path d="${step("ucl")}" fill="none" stroke="#8a93a6" stroke-dasharray="5 4"/>
+    <path d="${step("lcl")}" fill="none" stroke="#8a93a6" stroke-dasharray="5 4"/>
+    <line x1="${L}" x2="${W - R}" y1="${y(c.pbar)}" y2="${y(c.pbar)}" stroke="#1d2330" stroke-width="1.2"/>
+    <text x="${W - R}" y="${y(c.pbar) - 5}" text-anchor="end" font-size="11" fill="#1d2330">p̄ = ${fmt(c.pbar)}</text>
+    <text x="${W - R}" y="${y(rows[rows.length - 1].ucl) - 5}" text-anchor="end" font-size="11" fill="#5d6678">UCL</text>
+    <path d="${line}" fill="none" stroke="#c4cad6"/>
+    ${pts}
+    <text x="14" y="${(H - B) / 2}" transform="rotate(-90 14 ${(H - B) / 2})" text-anchor="middle" font-size="11" fill="#5d6678">share of readings unusable</text>
+    <text x="${(W + L) / 2}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#5d6678">station</text>
+  </svg>`;
+}
+
+function render(j, label) {
+  const c = j.p_chart;
+  const flagged = c.stations.filter(r => r.flag).sort((a, b) => b.p - a.p);
+  const send = flagged.length
+    ? `Send a van first to: ${flagged.map(r => `<span class="bad">${esc(r.station)}</span> (${esc(r.action)})`).join(", ")}`
+    : "No station is out of control: no van needed beyond routine rebalancing.";
+  const warns = [...c.warnings, ...(j.rows_dropped ? [`${j.rows_dropped} row(s) with a blank or unreadable count were skipped.`] : [])];
+  const av = Object.fromEntries(j.availability.map(a => [a.station, a]));
+  const rows = c.stations.map(r => {
+    const a = av[r.station];
+    return `<tr class="${r.flag ? "flag" : ""}">
+      <td>${esc(r.station)}</td><td>${r.n}</td><td>${r.d}</td><td>${r.empty}</td><td>${r.full}</td>
+      <td>${fmt(r.p)}</td><td>${fmt(r.ucl)}</td><td>${r.flag ? "send a van" : "in control"}</td>
+      <td>${fmt(a.availability)}</td><td>${fmt(a.mttr, 1)}</td><td>${fmt(a.mtbf, 1)}</td><td>${a.episodes}${a.note ? " (" + esc(a.note) + ")" : ""}</td></tr>`;
+  }).join("");
+
+  out.innerHTML = `
+  <div class="card">
+    <h2>${esc(label)}</h2>
+    <div class="stats">
+      <div class="stat"><b>${c.stations.length}</b><span>stations</span></div>
+      <div class="stat"><b>${fmt(c.pbar)}</b><span>network p̄ (share unusable)</span></div>
+      <div class="stat"><b>${flagged.length}</b><span>out of control</span></div>
+      <div class="stat"><b>${fmt(j.reading_minutes, 0)} min</b><span>between readings</span></div>
+    </div>
+    <p class="send">${send}</p>
+    ${warns.map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
+  </div>
+  <div class="card">
+    <h2>p-chart: share of rush-hour readings empty or full</h2>
+    ${chart(c)}
+    <p class="how">How to read this: each dot is one station. The solid line is the network average; the dashed lines are 3-sigma limits. A red dot above its limit is unusable more often than chance explains. Readings 15 minutes apart are correlated, so treat a dot just over the limit with care.</p>
+  </div>
+  <div class="card">
+    <h2>Per station</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Station</th><th>n</th><th>d unusable</th><th>empty</th><th>full</th><th>p</th><th>UCL</th><th>Status</th>
+        <th>Availability</th><th>MTTR (min)</th><th>MTBF (min)</th><th>Outages</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p class="how">Availability = uptime / (uptime + downtime) in rush hours. MTTR = average minutes a station stays empty or full once it gets there; long MTTR with low availability suggests a repair or a bigger station, not just a rebalance. "Empty" stations need bikes brought in; "full" ones need bikes taken away.</p>
+  </div>`;
+}
+</script>
+</body>
+</html>
