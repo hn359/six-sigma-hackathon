@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BikeFlow QC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+  :root { --bg:#f3f4f6; --card:#ffffff; --ink:#111827; --mute:#5b6270; --line:#e3e6eb; --accent:#1f5fbf;
+          --crit:#c53030; --warn:#b7791f; --good:#2f855a; --head:#0f1b2d; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#eef0f3; --mute:#a5acb8; --line:#2a2f3a;
+            --accent:#4f8fe6; --head:#0b1220; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14.5px/1.5 Inter,system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  header, main { max-width:1240px; margin:0 auto; padding:0 20px; }
+  .appbar { background:var(--head); color:#fff; padding:18px 0 16px; margin-bottom:18px; }
+  .appbar .in { max-width:1240px; margin:0 auto; padding:0 20px; display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+  .appbar h1 { margin:0; font-size:20px; font-weight:700; letter-spacing:-.01em; }
+  .appbar .tag { font-size:13px; color:#b9c3d3; }
+  h1 { margin:0 0 4px; font-size:20px; } h2 { margin:0 0 4px; font-size:18px; font-weight:650; letter-spacing:-.01em; }
+  h3 { margin:16px 0 4px; font-size:14px; font-weight:600; }
+  .eyebrow { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent); margin-bottom:2px; }
+  .sub { color:var(--mute); margin:0 0 12px; }
+  .kpis { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); margin:12px 0 4px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .kpi .v { font-size:24px; font-weight:700; line-height:1.15; letter-spacing:-.01em; }
+  .kpi .v small { font-size:14px; font-weight:500; color:var(--mute); }
+  .kpi .l { font-size:12px; color:var(--mute); margin-top:2px; }
+  .kpi.alert .v { color:var(--crit); }
+  .routes { list-style:none; margin:0; padding:0; }
+  .routes li { display:grid; grid-template-columns:22px 1fr auto; gap:8px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .routes .rk { color:var(--mute); font-weight:600; } .routes .n { font-weight:700; font-variant-numeric:tabular-nums; }
+  .routes .rbar { height:6px; border-radius:3px; background:var(--accent); margin-top:4px; }
+  .odgrid { display:grid; gap:18px; grid-template-columns:minmax(0,2.2fr) minmax(240px,1fr); align-items:start; }
+  @media (max-width:900px) { .odgrid { grid-template-columns:1fr; } }
+  .bar { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:end; background:var(--card);
+         border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  label { display:flex; flex-direction:column; font-size:12px; color:var(--mute); gap:3px; }
+  select, input, button { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:6px;
+         background:var(--bg); color:var(--ink); }
+  button { cursor:pointer; background:var(--accent); color:#fff; border-color:var(--accent); min-width:84px; font-weight:600; }
+  select[multiple] { height:96px; min-width:220px; }
+  #clock { font:600 18px/1.2 ui-monospace,Consolas,monospace; min-width:150px; }
+  input[type=range] { padding:0; width:260px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px 22px; margin:18px 0;
+            box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  .how { color:var(--mute); font-size:13px; margin:0 0 6px; }
+  .msg { font-size:13px; margin:4px 0; } .msg.warn { color:#a86b00; } .msg.err { color:var(--crit); }
+  .two { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); }
+  .tiles { display:flex; flex-wrap:wrap; gap:8px 22px; margin:4px 0 6px; }
+  .tile b { display:block; font-size:22px; line-height:1.1; } .tile span { color:var(--mute); font-size:12px; }
+  details { margin-top:8px; font-size:13px; } summary { cursor:pointer; color:var(--mute); }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:6px; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mute); font-weight:600; }
+  .pill { padding:1px 8px; border-radius:10px; font-size:12px; font-weight:600; border:1px solid currentColor; }
+  .HIGH { color:var(--crit); } .MEDIUM { color:#a86b00; } .LOW { color:#0a7d0a; }
+  .scroll { overflow-x:auto; }
+  #console-wrap { max-width:1400px; margin:0 auto; padding:18px 16px 0; }
+  #console { width:100%; height:82vh; min-height:560px; max-height:1750px; resize:vertical; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  body.follow .own { display:none; }
+  .three { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:2px 0 6px; }
+  .seg button { background:var(--card); color:var(--ink); border:0; border-radius:0; min-width:0; padding:6px 14px; }
+  .seg button.on { background:var(--accent); color:#fff; }
+  .moves { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); margin:8px 0 4px; }
+  .move { border:1px solid var(--line); border-left:6px solid var(--line); border-radius:8px; padding:10px 12px; background:var(--bg); }
+  .move.HIGH { border-left-color:#d03b3b; } .move.MEDIUM { border-left-color:#fab219; } .move.LOW { border-left-color:#0ca30c; }
+  .move .n { font-size:26px; font-weight:700; line-height:1; color:var(--ink); }
+  .move .n small { font-size:14px; font-weight:600; color:var(--mute); }
+  .move .route { font-size:15px; margin:6px 0 4px; color:var(--ink); }
+  .move .why { font-size:12px; color:var(--mute); }
+  .move .tag { float:right; font-size:11px; font-weight:700; letter-spacing:.04em; }
+  .nomoves { color:var(--mute); padding:8px 0; }
+  .move.caught { border-left-color:#0ca30c; } .move.missed { border-left-color:#d03b3b; }
+  .board { display:grid; gap:10px; }
+  .row { display:grid; grid-template-columns:minmax(150px,220px) 1fr minmax(170px,240px); gap:14px; align-items:center; }
+  .row .nm { font-weight:600; } .row .nm small { display:block; font-weight:400; color:var(--mute); font-size:12px; }
+  .tank { position:relative; height:26px; border:1.5px solid var(--mute); border-radius:6px; background:var(--bg); overflow:hidden; }
+  .tank .ok { position:absolute; top:0; bottom:0; background:rgba(12,163,12,.16); border-left:1px dashed #0a7d0a; border-right:1px dashed #0a7d0a; }
+  .tank .fill { position:absolute; left:0; top:5px; bottom:5px; border-radius:0 4px 4px 0; }
+  .tank .norm { position:absolute; top:-2px; bottom:-2px; width:3px; margin-left:-1.5px; background:var(--ink); }
+  .tank .cnt { position:absolute; right:8px; top:3px; font-size:13px; font-weight:600; color:var(--ink); }
+  .chip { display:inline-flex; gap:6px; align-items:center; font-size:13px; font-weight:600; padding:4px 10px; border-radius:14px; border:1.5px solid currentColor; }
+  .chip.good { color:#0a7d0a; } .chip.warn { color:#a86b00; } .chip.crit { color:#d03b3b; }
+  .row .say { font-size:12px; color:var(--mute); margin-top:3px; }
+  .days { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); }
+  .day { border:1px solid var(--line); border-radius:8px; padding:6px 8px 0; background:var(--bg); }
+  .day h4 { margin:2px 4px 0; font-size:14px; } .day h4 span { font-weight:500; font-size:12px; margin-left:6px; }
+  @media (max-width:640px) { .row { grid-template-columns:1fr; gap:4px; } }
+  .testkey { display:grid; gap:6px 18px; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); font-size:13px; }
+  .testkey div { display:flex; gap:10px; align-items:baseline; } .testkey .g { font-size:17px; width:18px; text-align:center; line-height:1; }
+  .empty-chart { color:var(--mute); font-size:14px; padding:24px 8px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="console-wrap" hidden>
+  <h1>Yash's dispatch console: his simulation, unchanged</h1>
+  <p class="sub">Use its controls (Simulation / Live, the day, Play, the time slider). The BikeFlow charts below follow whatever day and time it shows.</p>
+  <iframe id="console" title="Yash's dispatch console"></iframe>
+</div>
+<div class="appbar"><div class="in"><h1>BikeFlow QC</h1><span class="tag">Station monitoring and redistribution for the bikeshare dispatcher</span></div></div>
+<header>
+  <p class="sub" id="subtitle">What is unusual at each station, and which bikes should move. Press play to watch the day unfold reading by reading.</p>
+  <div class="bar">
+    <button id="play" class="own">Play</button>
+    <label>Replay clock <span id="clock">-</span></label>
+    <label class="own">Time of day <input type="range" id="slot" min="0" max="0" value="0"></label>
+    <label class="own">Speed <select id="speed"><option value="5000" selected>like Yash's console (5 s / reading)</option>
+      <option value="1500">1.5 s / reading</option><option value="500">0.5 s</option><option value="150">0.15 s</option></select></label>
+    <label class="own">Replay day (To) <input type="date" id="end"></label>
+    <label class="own">From <input type="date" id="start"></label>
+    <label>City <select id="city"></select></label>
+    <label>Control-chart station <select id="spcstation"></select></label>
+  </div>
+  <div class="bar">
+    <label>Stations (inventory, flow) <select id="stations" multiple></select></label>
+    <label>Depot/van bikes <input type="number" id="depot" min="0" placeholder="from data" style="width:100px"></label>
+    <label>Replace data (CSV) <input type="file" id="file" accept=".csv"></label>
+  </div>
+  <div id="status" class="msg"></div>
+  <div class="kpis" id="kpis"></div>
+</header>
+<main>
+  <section>
+    <div class="eyebrow">01 &middot; Station status</div><h2>Which stations need attention right now?</h2>
+    <p class="how">Each bar is one station: how full it is right now. The <b style="color:#0a7d0a">green zone</b> is the healthy range
+      (not too empty, not too full). The <b>black tick</b> is where the station should be at this time on a normal day.</p>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">02 &middot; Today at each station</div><h2>How each station's day is going</h2>
+    <p class="how"><b>Solid line</b> = bikes at the station so far today. <b>Dashed line</b> = a normal day.
+      <b style="color:#0a7d0a">Green band</b> = healthy range. <b style="color:#d03b3b">Red dot</b> = something unusual happened (hover to see what).
+      &#9650; / &#9660; = the van dropped off / picked up bikes.</p>
+    <div class="days" id="days"></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">03 &middot; Rider flow</div><h2>Where are riders going?</h2>
+    <p class="how">Each box counts the trips from one station (row) to another (column). <b>The darker the box, the more riders made that trip.</b>
+      Totals: how many rides left each station, and how many arrived at each.</p>
+    <div class="seg" id="odwin"><button type="button" data-win="hour">Last hour</button><button type="button" data-win="day" class="on">Today so far</button></div>
+    <div class="odgrid">
+      <div id="odmap"></div>
+      <div><h3 style="margin-top:4px">Busiest routes</h3><ul class="routes" id="odtop"></ul><p class="how" id="odnote"></p></div>
+    </div>
+    <h3>Bikes gained or lost, hour by hour</h3>
+    <p class="how"><b style="color:#1c5cab">Blue</b> = more bikes arrived than left in that hour (the station filled up).
+      <b style="color:#b8322f">Red</b> = more left than arrived (it emptied). The number is the net change.</p>
+    <div id="heat"></div>
+    <p class="how" id="flownote"></p>
+  </section>
+
+  <section>
+    <div class="eyebrow">04 &middot; Redistribution</div><h2>What the van should do now</h2>
+    <p class="how" id="planhow">The moves for the time on the clock, most urgent first.</p>
+    <div class="moves" id="planmoves"></div>
+    <h3>Bikes at each station: now and after these moves</h3>
+    <div id="planbars"></div>
+    <div id="planmsg"></div>
+    <details><summary>Table: every station, its action and why</summary><div class="scroll"><table id="plan"></table></div></details>
+  </section>
+
+  <section>
+    <div class="eyebrow">05 &middot; Overnight plan</div><h2>Tonight at closing: set up tomorrow's start</h2>
+    <p class="how">Where riders mostly <b>leave</b> in the morning, the station starts full (up to 80%) so there are bikes to take. Where they mostly <b>arrive</b>, it starts nearly empty (down to 20%) so there are docks to park in. Based on each station's average morning flow.</p>
+    <div class="moves" id="nightmoves"></div>
+    <h3>Bikes at each station: at 10 PM and at tomorrow's 6 AM start</h3>
+    <div id="nightbars"></div>
+    <div id="nightmsg"></div>
+    <details><summary>Table: every station's start and why</summary><div class="scroll"><table id="night"></table></div></details>
+  </section>
+
+  <section>
+    <div class="eyebrow">06 &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
+    <p class="how">Each point is the station's rider net flow in one reading minus what is usual at that time of day (learned from week 1, when no van ran).
+      Around the centre line, <b>Zone C</b> is within 1&sigma;, <b>Zone B</b> 1&ndash;2&sigma; and <b>Zone A</b> 2&ndash;3&sigma;; the dashed red lines are the
+      3&sigma; control limits (course lesson 5: &sigma; = MR&#772; / 1.128, MR UCL = 3.267 MR&#772;). A point that completes one of the eight tests gets that
+      test's symbol and is labelled with every test it fired. Station: <b id="spcname"></b> (change it with "Control-chart station" at the top).</p>
+    <div id="spcmsg"></div>
+    <div id="spcI"></div>
+    <h3>Moving range: the jump from one reading to the next</h3>
+    <div id="spcMR"></div>
+    <h3>The eight tests</h3>
+    <div class="testkey" id="testkey"></div>
+    <h3>Which test fired, at every station today</h3>
+    <p class="how">One row per station. Each symbol is one test that fired at that reading; a reading that fired several tests shows each of them side by side. Hover for the details.</p>
+    <div id="sigmap"></div>
+    <p class="how" id="rulelist"></p>
+  </section>
+
+  <section>
+    <div class="eyebrow">07 &middot; Validation</div><h2>Does the warning system catch real problems?</h2>
+    <div id="scorewrap" hidden>
+      <p class="how" id="scorehow"></p>
+      <div class="moves" id="scorecards"></div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+// The page is served at / (BikeFlow alone) or at /bikeflow/ beside Yash's console (combined.py):
+// BASE is the app root either way, so it also works under a Posit Connect content path.
+const BASE = location.pathname.includes("/bikeflow/")
+  ? location.pathname.slice(0, location.pathname.indexOf("/bikeflow/") + 1) : "./";
+const API = BASE + "api/bikeflow";
+const FOLLOW = new URLSearchParams(location.search).get("follow") === "console";
+let city = null, info = null, cache = {}, timer = null, autoStart = false, playing = false, planBusy = false, planAgain = false, loadId = 0;
+
+/* ---- colour: validated categorical slots (one per station, fixed order), status, diverging ---- */
+const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+const CAT = { light:["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"],
+              dark: ["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"] };
+const stationColor = id => CAT[dark() ? "dark" : "light"][Math.max(0, info.stations.indexOf(id)) % 8];
+const STATUS = { HIGH:"#d03b3b", MEDIUM:"#fab219", LOW:"#0ca30c" };
+const DIVERGE = [[0, "#b8322f"], [0.25, "#e8908c"], [0.5, dark() ? "#383835" : "#f0efec"], [0.75, "#86b6ef"], [1, "#1c5cab"]];
+const ink = () => dark() ? "#f0efec" : "#0b0b0b", muted = () => dark() ? "#c3c2b7" : "#52514e";
+const grid = () => dark() ? "#33332f" : "#e9e8e3";
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = (v, d = 1) => v === null || v === undefined ? "-" : (Number.isInteger(v) ? v : v.toFixed(d));
+const theme = (extra = {}) => ({ paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+  font:{ color: ink(), size:12, family:"system-ui, sans-serif" }, margin:{ t:8, r:12, b:40, l:52 },
+  legend:{ orientation:"h", y:-0.2 }, height:260, hoverlabel:{ font:{ size:12 } }, ...extra });
+const CFG = { responsive:true, displayModeBar:false };
+async function get(path, params = {}) {
+  const q = new URLSearchParams();
+  if (city && !("dataset" in params)) q.append("dataset", city);
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) v.forEach(x => q.append(k, x)); else if (v !== "" && v != null) q.append(k, v);
+  }
+  const r = await fetch(`${API}/${path}?${q}`);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+const msg = (id, text, cls = "warn") => $(id).innerHTML = text ? `<div class="msg ${cls}">${esc(text)}</div>` : "";
+const chosen = () => [...$("stations").selectedOptions].map(o => o.value);
+const label = id => info && info.names && info.names[id] ? `${id} ${info.names[id]}` : id;
+const short = id => id === "DEPOT" ? "Depot" : label(id);
+const emptyChart = (id, text) => { Plotly.purge(id); $(id).innerHTML = `<div class="empty-chart">${esc(text)}</div>`; };
+const plot = (id, data, layout) => { if ($(id).querySelector(".empty-chart")) $(id).innerHTML = ""; Plotly.react(id, data, layout, CFG); };
+
+/* ---- the replay clock: every chart shows readings up to this timestamp ---- */
+function slotTime(i) {
+  const s = info.settings, [h, m] = s.open_time.split(":").map(Number);
+  const t = h * 60 + m + i * s.interval_min;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+}
+const cutoff = () => `${$("end").value}T${slotTime(+$("slot").value)}`;
+const upTo = t => t <= cutoff();
+function showClock() {
+  const d = new Date($("end").value + "T00:00");
+  $("clock").textContent = `${d.toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short" })} ${slotTime(+$("slot").value)}`;
+}
+const hours = t => +t.slice(0, 2) + +t.slice(3) / 60;
+function xaxis(extra = {}) {            // a real time axis; the hours the network is closed are skipped
+  const s = info.settings, multi = $("start").value !== $("end").value;
+  const shut = hours(s.close_time) + s.interval_min / 60, open = hours(s.open_time);
+  return { type:"date", nticks:10, tickangle:0, tickformat: multi ? "%d %b<br>%H:%M" : "%H:%M", gridcolor: grid(),
+           hoverformat:"%a %d %b %H:%M", rangebreaks:[{ pattern:"hour", bounds:[shut, open] }], ...extra };
+}
+
+/* ---- loading ---- */
+async function upload(file) {
+  const r = await fetch(`${API}/dataset`, { method:"POST", body: await file.text() });
+  const body = await r.json();
+  if (!r.ok) { $("status").className = "msg err"; $("status").textContent = body.detail; return; }
+  if (![...$("city").options].some(o => o.value === body.dataset)) $("city").insertAdjacentHTML("beforeend", `<option value="${esc(body.dataset)}">Uploaded CSV</option>`);
+  city = body.dataset; $("city").value = city; cache = {};
+  setInfo(body);
+}
+function setInfo(body) {
+  info = body;
+  const s = body.settings, days = body.days;
+  const slots = (parseInt(s.close_time) * 60 + +s.close_time.slice(3) - parseInt(s.open_time) * 60 - +s.open_time.slice(3)) / s.interval_min;
+  $("slot").max = slots; $("slot").value = slots;
+  $("stations").innerHTML = body.stations.map(x => `<option value="${esc(x)}" selected>${esc(label(x))}</option>`).join("");
+  $("spcstation").innerHTML = body.stations.map(x => `<option value="${esc(x)}">${esc(label(x))}</option>`).join("");
+  const q = new URLSearchParams(location.search), pick = q.get("day");
+  const day = pick && days.includes(pick) ? pick : days[days.length - 1];     // ?day=2026-10-19&at=12:30&station=S02
+  $("start").value = day; $("end").value = day;
+  if (q.get("station") && body.stations.includes(q.get("station"))) $("spcstation").value = q.get("station");
+  autoStart = !q.get("at") && !FOLLOW;       // like his console, the day starts playing from opening
+  if (autoStart) $("slot").value = 0;
+  if (/^\d\d:\d\d$/.test(q.get("at") || "")) {
+    const [h, m] = q.get("at").split(":").map(Number), [oh, om] = s.open_time.split(":").map(Number);
+    $("slot").value = Math.min(slots, Math.max(0, Math.round((h * 60 + m - oh * 60 - om) / s.interval_min)));
+  }
+  $("start").min = $("end").min = days[0]; $("start").max = $("end").max = days[days.length - 1];
+  $("status").className = "msg";
+  $("status").textContent = `${body.dataset_name || body.dataset || ""}: ${body.stations.length} stations, ${days.length} days (${days[0]} to ${days[days.length - 1]}), ${body.readings} readings every ${s.interval_min} min (${s.open_time}-${s.close_time}); fleet ${s.fleet}, spec ${Math.round(s.band_low_share * 100)}-${Math.round(s.band_high_share * 100)}% of each station's docks. ` +
+    `Net flow: ${body.flow_source}.` + (body.issue_count ? ` ${body.issue_count} rows skipped (first: ${body.issues[0]})` : "");
+  loadAll();
+}
+
+async function loadAll() {
+  if (!info) return;
+  const id = ++loadId;
+  const st = chosen(), range = { start: $("start").value, end: $("end").value };
+  if (!st.length) { $("status").textContent = "Select at least one station."; return; }
+  const ok = p => p.then(v => ({ v }), e => ({ e: e.message }));
+  const [inv, flow, score, ...spcs] = await Promise.all([
+    ok(get("inventory", { station: st, ...range })),
+    ok(get("flow", { station: st, ...range })),
+    (cache.scoreCity === city && cache.score) ? Promise.resolve(cache.score) : ok(get("scorecard")),
+    ...info.stations.map(x => ok(get("spc", { station: x, ...range, measure: "net_flow" })))]);
+  if (id !== loadId) return;                       // a newer filter change superseded this load
+  const his = await hisFrames(range.end);
+  if (id !== loadId) return;
+  cache = { inv, flow, score, his, scoreCity: city, spc: Object.fromEntries(info.stations.map((x, i) => [x, spcs[i]])) };
+  render();
+  if (autoStart) { autoStart = false; play(); }
+}
+
+/* Yash's console API (same server in combined.py): his frames carry each station's expected path,
+   "where it should be on a normal day" (README: E = start plan + usual flow so far). Optional: on
+   the BikeFlow server alone they are absent and the dashed line is left out. */
+async function hisFrames(day) {
+  try {
+    const sc = await (await fetch(`${BASE}scenarios?dataset=${encodeURIComponent(city)}`)).json();
+    const hit = Object.entries(sc).find(([, days]) => Array.isArray(days) && days.includes(day));
+    if (!hit) return null;
+    const [scenario, days] = hit;
+    const r = await fetch(`${BASE}frames/${scenario}?dataset=${encodeURIComponent(city)}&day=${days.indexOf(day)}`);
+    if (!r.ok) return null;
+    const d = await r.json(), at = {};
+    for (const f of d.frames) at[f.as_of] = Object.fromEntries(f.stations.map(x => [x.station_id, x]));
+    return { at, policy: scenario !== "week1", times: d.frames.map(f => f.as_of) };
+  } catch (e) { return null; }
+}
+
+/* ---- rendering (clipped to the replay clock; no network) ---- */
+function render() {
+  if (!cache.inv) return;                   // the first load has not arrived yet
+  showClock();
+  renderBoard(); renderDays(); renderHeat(); renderScorecard(); renderKpis(); scheduleTrips();
+  renderSpc(); renderSignalMap();
+  schedulePlan();
+}
+
+/* 1. Control chart: reading minus usual, flat centre line, zones A/B/C, test numbers on signals */
+const testNo = code => code === "mr" ? "MR" : code.replace("rule", "");
+// One symbol and one colour per test (the validated categorical palette, reversed so test 1 is red;
+// every symbol also carries its test number, so colour is never the only cue).
+const TESTS = [
+  ["rule1", "diamond",       "◆", ["#e34948", "#e66767"], "Test 1: one point beyond Zone A (beyond 3σ)"],
+  ["rule2", "square",        "■", ["#6250d6", "#9085e9"], "Test 2: two of three points in a row in Zone A or beyond, same side"],
+  ["rule3", "triangle-up",   "▲", ["#008300", "#008300"], "Test 3: four of five points in a row in Zone B or beyond, same side"],
+  ["rule4", "triangle-down", "▼", ["#e87ba4", "#d55181"], "Test 4: eight points in a row on the same side of the centre line"],
+  ["rule5", "star",          "★", ["#eda100", "#c98500"], "Test 5: six points in a row steadily increasing or decreasing"],
+  ["rule6", "hexagon",       "⬢", ["#1baf7a", "#199e70"], "Test 6: fifteen points in a row in Zone C, both sides"],
+  ["rule7", "cross",         "✚", ["#eb6834", "#d95926"], "Test 7: eight points in a row on both sides with none in Zone C"],
+  ["rule8", "x",             "✖", ["#2a78d6", "#3987e5"], "Test 8: fourteen points in a row alternating up and down"],
+  ["mr",    "circle-open",   "○", ["#111827", "#eef0f3"], "MR: a jump between readings above the moving-range limit"]];
+const testColor = t => t[3][dark() ? 1 : 0];
+const firstTest = signals => TESTS.find(t => signals.includes(t[0]));
+function renderSpc() {
+  const sid = $("spcstation").value, c = cache.spc[sid];
+  $("spcname").innerHTML = stName(sid);
+  $("testkey").innerHTML = TESTS.map(t => `<div><span class="g" style="color:${testColor(t)}">${t[2]}</span><span>${esc(t[4])}</span></div>`).join("");
+  if (!c || c.e) { emptyChart("spcI", c ? c.e : "No data"); Plotly.purge("spcMR"); $("spcMR").innerHTML = ""; return; }
+  const d = c.v, lim = d.limits;
+  msg("spcmsg", d.warnings.join(" "));
+  $("rulelist").textContent = `${d.method}. ${d.note}`;
+  if (!lim) { emptyChart("spcI", "No control limits for this day: " + d.warnings.join(" ")); return; }
+  const pts = d.points.filter(p => upTo(p.t) && p.residual !== null), x = pts.map(p => p.t);
+  const s = lim.sigma, cl = lim.cl, line = dark() ? "#a5acb8" : "#4b5563";
+  // the three zones on each side, the 1 and 2 sigma lines, the control limits and the centre line
+  const band = (lo, hi, fill) => ({ type:"rect", xref:"paper", x0:0, x1:1, y0:cl + lo * s, y1:cl + hi * s, fillcolor:fill, line:{ width:0 }, layer:"below" });
+  const zC = "rgba(47,133,90,.10)", zB = "rgba(183,121,31,.12)", zA = "rgba(197,48,48,.11)";
+  const hline = (k, color, dash, width) => ({ type:"line", xref:"paper", x0:0, x1:1, y0:cl + k * s, y1:cl + k * s, line:{ color, dash, width } });
+  const shapes = [band(-1, 1, zC), band(1, 2, zB), band(-2, -1, zB), band(2, 3, zA), band(-3, -2, zA),
+    hline(1, muted(), "dot", 1), hline(-1, muted(), "dot", 1), hline(2, muted(), "dot", 1), hline(-2, muted(), "dot", 1),
+    hline(3, "#c53030", "dash", 1.6), hline(-3, "#c53030", "dash", 1.6), hline(0, ink(), "solid", 1.2)];
+  const evs = (info.events || []).filter(e => e.station === sid && $("start").value <= e.day && e.day <= $("end").value);
+  const plus = (t, m) => { const v = hours(t) * 60 + m; return `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`; };
+  for (const e of evs) shapes.push({ type:"rect", xref:"x", yref:"paper", x0:`${e.day}T${e.from}`, x1:`${e.day}T${plus(e.to, Math.floor(info.settings.interval_min / 2))}`,
+    y0:0, y1:1, fillcolor:"rgba(98,80,214,.08)", line:{ color:"rgba(98,80,214,.55)", width:1, dash:"dot" }, layer:"below" });
+  const right = (k, t, bold) => ({ xref:"paper", x:1.006, xanchor:"left", y:cl + k * s, yanchor:"middle", showarrow:false, text: bold ? `<b>${t}</b>` : t,
+    font:{ size:11, color: muted() } });
+  const annotations = [
+    right(0.5, "Zone C", true), right(1.5, "Zone B", true), right(2.5, "Zone A", true),
+    right(-0.5, "Zone C", true), right(-1.5, "Zone B", true), right(-2.5, "Zone A", true),
+    right(3, `UCL +3σ (${fmt(cl + 3 * s, 2)})`), right(-3, `LCL −3σ (${fmt(cl - 3 * s, 2)})`), right(0, `CL (${fmt(Math.abs(cl) < 0.005 ? 0 : cl, 2)})`),
+    ...evs.map(e => ({ x:`${e.day}T${e.from}`, xanchor:"left", yref:"paper", y:1.0, yanchor:"bottom", showarrow:false,
+                       text:`planted: ${e.kind.replace("_", " ")}`, font:{ size:11, color:"#6250d6" } }))];
+  const yr = Math.max(3.8 * s, ...pts.map(p => Math.abs(p.residual - cl) + 1.0 * s));
+  const data = [{ x, y: pts.map(p => p.residual), name:"net flow vs usual", mode:"lines+markers", showlegend:false,
+    line:{ color: line, width:1.6 }, marker:{ size:5, color: line },
+    text: pts.map(p => `${p.t.slice(11)}: ${fmt(p.x)} vs usual ${fmt(p.expected, 1)} (${p.z >= 0 ? "+" : ""}${fmt(p.z, 1)}σ)`),
+    hovertemplate:"%{text}<extra></extra>" }];
+  for (const t of TESTS) {                       // a flagged point shows the symbol of the first test it fired
+    const mine = pts.filter(p => p.signals.length && firstTest(p.signals) === t);
+    if (!mine.length) continue;
+    data.push({ x: mine.map(p => p.t), y: mine.map(p => p.residual), name: t[4].split(":")[0], mode:"markers+text",
+      marker:{ symbol: t[1], size: t[0] === "mr" ? 13 : 13, color: testColor(t), line:{ color: dark() ? "#171a21" : "#ffffff", width: t[0] === "mr" ? 2.5 : 1.5 } },
+      text: mine.map(p => p.signals.map(testNo).join(",")), textposition: mine.map(p => p.residual >= cl ? "top center" : "bottom center"),
+      textfont:{ size:11, color: ink() }, cliponaxis:false,
+      customdata: mine.map(p => `<b>${p.t.slice(11)}</b>: ${fmt(p.x)} vs usual ${fmt(p.expected, 1)} (${p.z >= 0 ? "+" : ""}${fmt(p.z, 1)}σ)<br>` + p.reasons.join("<br>")),
+      hovertemplate:"%{customdata}<extra></extra>" });
+  }
+  plot("spcI", data, theme({ height:380, shapes, annotations, margin:{ t:22, r:118, b:44, l:56 }, xaxis: xaxis(),
+    legend:{ orientation:"h", y:-0.16, font:{ size:11 } },
+    yaxis:{ title:`bikes per ${info.settings.interval_min} min vs usual`, range:[cl - yr, cl + yr], zeroline:false, gridcolor: grid(),
+            tickvals:[-3, -2, -1, 0, 1, 2, 3].map(k => cl + k * s), ticktext:["−3σ", "−2σ", "−1σ", "0", "+1σ", "+2σ", "+3σ"] } }));
+  const mp = pts.filter(p => p.mr !== null), mf = mp.filter(p => p.signals.includes("mr")), mrT = TESTS[8];
+  plot("spcMR", [
+    { x: mp.map(p => p.t), y: mp.map(p => p.mr), name:"moving range", mode:"lines+markers", line:{ color: line, width:1.4 }, marker:{ size:4, color: line },
+      hovertemplate:"MR %{y:.2f}<extra></extra>" },
+    { x: mf.map(p => p.t), y: mf.map(p => p.mr), name:"MR above its limit", mode:"markers",
+      marker:{ symbol: mrT[1], size:13, color: testColor(mrT), line:{ color: testColor(mrT), width:2.5 } }, hoverinfo:"skip" }],
+    theme({ height:180, showlegend:false, margin:{ t:8, r:118, b:30, l:56 }, xaxis: xaxis(),
+      yaxis:{ title:"MR", rangemode:"tozero", gridcolor: grid() },
+      shapes:[{ type:"line", xref:"paper", x0:0, x1:1, y0:lim.mr_ucl, y1:lim.mr_ucl, line:{ color:"#c53030", dash:"dash", width:1.6 } },
+              { type:"line", xref:"paper", x0:0, x1:1, y0:lim.mr_bar, y1:lim.mr_bar, line:{ color: ink(), width:1.2 } }],
+      annotations:[{ xref:"paper", x:1.006, xanchor:"left", y:lim.mr_ucl, text:`UCL (${fmt(lim.mr_ucl, 2)})`, showarrow:false, font:{ size:11, color:muted() } },
+                   { xref:"paper", x:1.006, xanchor:"left", y:lim.mr_bar, text:`MR̄ (${fmt(lim.mr_bar, 2)})`, showarrow:false, font:{ size:11, color:muted() } }] }));
+}
+
+function renderScorecard() {
+  const sc = cache.score, evs = info.events || [];
+  $("scorewrap").hidden = !(sc && sc.v && evs.length);
+  if ($("scorewrap").hidden) return;
+  const d = sc.v, pct = v => v === null || v === undefined ? "-" : `${(100 * v).toFixed(1)}%`;
+  $("scorehow").innerHTML = `The simulation hid these problems in ${esc(evs[0].day)}'s data on purpose. Did the red dots go off when they started? ` +
+    `(Normal is learned from week 1, when no van ran.) ` +
+    `on the ordinary days ${esc(d.quiet_days[0])} to ${esc(d.quiet_days[d.quiet_days.length - 1])} the same chart flags <b>${pct(d.false_alarm_rate_tests_only)}</b> of readings by the eight tests ` +
+    `(${pct(d.false_alarm_rate)} with the MR chart), so one flag on its own is a prompt to look, not proof.`;
+  $("scorecards").innerHTML = d.events.map(e => {
+    const ok = !!e.first_flag;
+    return `<div class="move ${ok ? "caught" : "missed"}"><span class="tag ${ok ? "LOW" : "HIGH"}">${ok ? "CAUGHT" : "MISSED"}</span>
+      <div class="n">${ok ? esc(e.first_flag) : "—"} <small>${ok ? (e.minutes_after_start ? `+${e.minutes_after_start} min` : "at the start") : "not flagged"}</small></div>
+      <div class="route">${esc(stName(e.station))}: <b>${esc(e.kind.replace("_", " "))}</b></div>
+      <div class="why">${esc(e.what)}, ${esc(e.from)}-${esc(e.to)}. ${ok ? `First flag by ${e.tests.map(testNo).map(t => t === "MR" ? "the MR chart" : "test " + t).join(" and ")}; ${e.flagged_in_window} of ${e.readings_in_window} readings in the window flagged.` : ""}</div></div>`;
+  }).join("");
+}
+
+function renderSignalMap() {
+  // one row per station; each test that fired at a reading is its own symbol, set side by side
+  const ids = info.stations, n = TESTS.length;
+  const off = k => (k - (n - 1) / 2) * 0.075;
+  const data = TESTS.map((t, k) => {
+    const xs = [], ys = [], hv = [];
+    ids.forEach((sid, row) => {
+      const c = cache.spc[sid];
+      if (!c || c.e) return;
+      for (const p of c.v.points) if (upTo(p.t) && p.signals.includes(t[0])) {
+        xs.push(p.t); ys.push(row + off(k));
+        hv.push(`<b>${stName(sid)} ${p.t.slice(11)}</b><br>${esc(t[4])}<br>all tests at this reading: ${p.signals.map(testNo).join(", ")}`);
+      }
+    });
+    return { x: xs, y: ys, name: t[4].split(":")[0], mode:"markers",
+             marker:{ symbol: t[1], size:10, color: testColor(t), line:{ color: t[0] === "mr" ? testColor(t) : (dark() ? "#171a21" : "#ffffff"), width: t[0] === "mr" ? 2 : 1 } },
+             customdata: hv, hovertemplate:"%{customdata}<extra></extra>" };
+  });
+  const any = data.some(t => t.x.length);
+  const day = $("end").value, open = `${day}T${info.settings.open_time}`, close = `${day}T${slotTime(+$("slot").max)}`;
+  plot("sigmap", data, theme({ height: 130 + 52 * ids.length, margin:{ t:8, r:12, b:40, l:10 },
+      legend:{ orientation:"h", y:-0.12, font:{ size:11 } }, xaxis: xaxis(multiDay() ? {} : { range:[open, close] }),
+      yaxis:{ tickvals: ids.map((_, k) => k), ticktext: ids.map(stName), range:[ids.length - 0.5, -0.5], gridcolor: grid(), zeroline:false, automargin:true },
+      shapes: ids.slice(1).map((_, k) => ({ type:"line", xref:"paper", x0:0, x1:1, y0:k + 0.5, y1:k + 0.5, line:{ color: grid(), width:1 } })),
+      annotations: any ? [] : [{ xref:"paper", yref:"paper", x:0.5, y:0.5, text:"No test has fired yet today", showarrow:false, font:{ color: muted() } }] }));
+}
+const multiDay = () => $("start").value !== $("end").value;
+
+/* plain words for a station's state at the clock; uses only numbers the API sent */
+function lastAtOrBefore(arr, key = "t") { let out = null; for (const x of arr) if (upTo(x[key])) out = x; return out; }
+function stationState(sid) {
+  const inv = cache.inv.v.stations.find(x => x.station_id === sid);
+  const now = inv && lastAtOrBefore(inv.series);
+  if (!now) return null;
+  const [lo, hi] = inv.band, cap = now.capacity;
+  const spc = cache.spc[sid] && cache.spc[sid].v, pt = spc && lastAtOrBefore(spc.points);
+  const recent = pt && pt.t === now.t && pt.signals.length ? pt : null;
+  const his = cache.his && cache.his.policy && cache.his.at[now.t] && cache.his.at[now.t][sid];
+  const normal = his && his.expected_bikes != null ? his.expected_bikes : null;
+  let word, cls, icon;
+  if (now.bikes === 0) [word, cls, icon] = ["Empty: no bikes to rent", "crit", "&#10005;"];
+  else if (now.bikes >= cap) [word, cls, icon] = ["Full: no room to park", "crit", "&#10005;"];
+  else if (now.bikes < lo) [word, cls, icon] = ["Nearly empty", "warn", "&#9888;"];
+  else if (now.bikes > hi) [word, cls, icon] = ["Nearly full", "warn", "&#9888;"];
+  else if (recent) [word, cls, icon] = [recent.residual < 0 ? "Emptying faster than normal" : "Filling faster than normal", "warn", "&#9888;"];
+  else [word, cls, icon] = ["OK", "good", "&#10003;"];
+  return { inv, now, lo, hi, cap, normal, word, cls, icon, recent };
+}
+function renderBoard() {
+  if (cache.inv.e) { $("board").innerHTML = `<div class="msg err">${esc(cache.inv.e)}</div>`; return; }
+  $("board").innerHTML = cache.inv.v.stations.map(x => {
+    const st = stationState(x.station_id);
+    if (!st) return "";
+    const pc = v => `${Math.max(0, Math.min(100, 100 * v / st.cap))}%`;
+    const say = st.normal == null ? "" : `On a normal day it would have about ${Math.round(st.normal)} now.`;
+    return `<div class="row"><div class="nm">${stName(x.station_id)}<small>${st.cap} docks</small></div>
+      <div class="tank" title="${st.now.bikes} of ${st.cap} bikes; healthy range ${st.lo}-${st.hi}">
+        <div class="ok" style="left:${pc(st.lo)};width:calc(${pc(st.hi)} - ${pc(st.lo)})"></div>
+        <div class="fill" style="width:${pc(st.now.bikes)};background:${stationColor(x.station_id)}"></div>
+        ${st.normal == null ? "" : `<div class="norm" style="left:${pc(st.normal)}" title="normal for this time: ${Math.round(st.normal)}"></div>`}
+        <div class="cnt">${st.now.bikes} of ${st.cap}</div></div>
+      <div><span class="chip ${st.cls}">${st.icon} ${st.word}</span><div class="say">${esc(say)}</div></div></div>`;
+  }).join("");
+}
+function renderDays() {
+  if (cache.inv.e) { $("days").innerHTML = ""; return; }
+  const want = cache.inv.v.stations.map(x => x.station_id);
+  if ($("days").dataset.ids !== want.join(",")) {        // one small chart per station
+    $("days").innerHTML = want.map(sid => `<div class="day"><h4 id="dh-${sid}"></h4><div id="dc-${sid}"></div></div>`).join("");
+    $("days").dataset.ids = want.join(",");
+  }
+  for (const sid of want) {
+    const st = stationState(sid), inv = cache.inv.v.stations.find(x => x.station_id === sid);
+    $(`dh-${sid}`).innerHTML = `${stName(sid)}${st ? `<span class="${st.cls === "good" ? "LOW" : st.cls === "warn" ? "MEDIUM" : "HIGH"}">${st.icon} ${st.word}</span>` : ""}`;
+    const pts = inv.series.filter(p => upTo(p.t)), col = stationColor(sid), cap = inv.capacity, [lo, hi] = inv.band;
+    const data = [];
+    if (cache.his && cache.his.policy) {
+      const times = cache.his.times.filter(t => t.startsWith($("end").value));
+      data.push({ x: times, y: times.map(t => cache.his.at[t][sid] && cache.his.at[t][sid].expected_bikes), mode:"lines", name:"normal day",
+                  line:{ color: muted(), dash:"dash", width:1.5 }, hovertemplate:"normal day: about %{y:.0f} bikes<extra></extra>" });
+    }
+    data.push({ x: pts.map(p => p.t), y: pts.map(p => p.bikes), mode:"lines", name:"bikes", line:{ color: col, width:2.5 },
+                hovertemplate:"%{y} bikes<extra></extra>" });
+    const spc = cache.spc[sid] && cache.spc[sid].v, byT = Object.fromEntries(pts.map(p => [p.t, p]));
+    const odd = spc ? spc.points.filter(p => upTo(p.t) && p.signals.length && byT[p.t]) : [];
+    const per = info.settings.interval_min;
+    data.push({ x: odd.map(p => p.t), y: odd.map(p => byT[p.t].bikes), mode:"markers", name:"unusual",
+                marker:{ color:"#d03b3b", size:9, line:{ color: dark() ? "#1a1a19" : "#fcfcfb", width:1.5 } },
+                customdata: odd.map(p => `Unusual at ${p.t.slice(11)}: ${Math.abs(Math.round(p.residual))} ${p.residual < 0 ? "more bikes left" : "more bikes came in"} than normal in ${per} minutes`),
+                hovertemplate:"%{customdata}<extra></extra>" });
+    for (const [test, sym, word] of [[v => v > 0, "triangle-up", "dropped off"], [v => v < 0, "triangle-down", "picked up"]]) {
+      const v = pts.filter(p => p.van && test(p.van));
+      data.push({ x: v.map(p => p.t), y: v.map(p => p.bikes), mode:"markers", name:`van ${word}`,
+                  marker:{ symbol: sym, size:10, color: ink() }, customdata: v.map(p => `van ${word} ${Math.abs(p.van)} bikes`),
+                  hovertemplate:"%{customdata}<extra></extra>" });
+    }
+    plot(`dc-${sid}`, data, theme({ height:200, showlegend:false, margin:{ t:6, r:8, b:28, l:30 },
+      xaxis: xaxis({ nticks:5, range:[`${$("end").value}T${info.settings.open_time}`, `${$("end").value}T${slotTime(+$("slot").max)}`] }),
+      yaxis:{ range:[0, cap + 0.5], tickvals:[Math.round(cap / 2), cap], gridcolor: grid() },
+      shapes:[{ type:"rect", xref:"paper", x0:0, x1:1, y0:lo, y1:hi, fillcolor:"rgba(12,163,12,.12)", line:{ width:0 }, layer:"below" }] }));
+  }
+}
+
+/* 3. Where are bikes going: last hour (one bar per station) and hour by hour (a few big boxes) */
+const signed = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v);
+function windowTotals(s, from, to) {
+  const r = { net:0, gained:0, lost:0, n:0 };
+  for (const b of s.bars) if (b.t > from && b.t <= to) { r.n++; r.net += b.net_flow; if (b.net_flow > 0) r.gained += b.net_flow; else r.lost -= b.net_flow; }
+  return r;
+}
+const stName = x => esc(info.names && info.names[x] || x);
+/* origin-destination counts come from the API (trips.csv); the page only draws them */
+let odWin = "day", tripsBusy = false, tripsAgain = false, odDayTotal = null;
+function scheduleTrips() { if (tripsBusy) { tripsAgain = true; return; } loadTrips(); }
+async function loadTrips() {
+  tripsBusy = true;
+  const day = $("end").value, slot = +$("slot").value, perHour = Math.round(60 / info.settings.interval_min);
+  const dayFrom = `${day}T00:00`, hourFrom = `${day}T${slotTime(Math.max(0, slot - perHour))}`;
+  try {
+    const whole = await get("trips", { start: dayFrom, end: cutoff() });
+    odDayTotal = whole.total;
+    const m = odWin === "day" ? whole : await get("trips", { start: hourFrom, end: cutoff() });
+    renderOD(m); renderKpis();
+  } catch (e) {
+    odDayTotal = null;
+    emptyChart("odmap", e.message.includes("no trip records") ? "This dataset has no trip records, so the from-to view is not available." : e.message);
+    $("odtop").innerHTML = "";
+  }
+  tripsBusy = false;
+  if (tripsAgain) { tripsAgain = false; loadTrips(); }
+}
+const SEQ = () => dark()
+  ? [[0, "#1b2230"], [0.2, "#1c3a66"], [0.45, "#1f5fbf"], [0.75, "#5b9be8"], [1, "#cfe2fb"]]
+  : [[0, "#f5f8fc"], [0.2, "#cde2fb"], [0.45, "#86b6ef"], [0.75, "#2a6ac4"], [1, "#0d2f5e"]];
+// long station names on two lines: "Cascadilla Hall<br>(dorms)", "Green St<br>transit center"
+function wrapName(t) {
+  if (t.includes(" (")) return t.replace(" (", "<br>(");
+  if (t.length <= 14) return t;
+  const words = t.split(" "), half = t.length / 2;
+  let acc = 0, k = 0;
+  while (k < words.length - 1 && acc + words[k].length < half) acc += words[k++].length + 1;
+  return words.slice(0, Math.max(1, k)).join(" ") + "<br>" + words.slice(Math.max(1, k)).join(" ");
+}
+function renderOD(m) {
+  const names = m.stations.map(x => stName(x)), n = m.stations.length;
+  const z = m.matrix.map((r, i) => r.map((v, j) => i === j ? null : v));
+  const top = Math.max(1, ...m.matrix.flat());
+  const when = odWin === "hour" ? `in the hour to ${slotTime(+$("slot").value)}` : `from opening to ${slotTime(+$("slot").value)}`;
+  const cell = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const v = m.matrix[i][j], strong = v / top > 0.55;
+    cell.push({ x: j, y: i, text: i === j ? "—" : String(v), showarrow:false,
+                font:{ size:14, color: i === j ? muted() : strong ? "#ffffff" : ink(), family:"Inter, sans-serif" } });
+  }
+  const tot = [
+    ...m.left.map((v, i) => ({ x: n - 0.5 + 0.12, y: i, xanchor:"left", text:`<b>${v}</b>`, showarrow:false, font:{ size:13, color: ink() } })),
+    ...m.arrived.map((v, j) => ({ x: j, y: n - 0.5 + 0.12, yanchor:"top", text:`<b>${v}</b>`, showarrow:false, font:{ size:13, color: ink() } })),
+    { x: n - 0.5 + 0.12, y: -0.5 - 0.1, xanchor:"left", yanchor:"bottom", text:"left", showarrow:false, font:{ size:11, color: muted() } },
+    { x: -0.5, y: n - 0.5 + 0.12, xanchor:"right", yanchor:"top", text:"arrived", showarrow:false, font:{ size:11, color: muted() } }];
+  plot("odmap", [{ type:"heatmap", z, x: [...Array(n).keys()], y: [...Array(n).keys()], zmin:0, zmax: top, colorscale: SEQ(),
+      xgap:3, ygap:3, hoverongaps:false, showscale:true,
+      colorbar:{ title:{ text:"trips", side:"right" }, thickness:10, len:0.75, outlinewidth:0 },
+      customdata: m.matrix.map((r, i) => r.map((v, j) => `<b>${names[i]} → ${names[j]}</b><br>${v} trip${v === 1 ? "" : "s"} ${when}`)),
+      hovertemplate:"%{customdata}<extra></extra>" }],
+    theme({ height: 140 + 62 * n, margin:{ t:64, r:70, b:70, l:10 },
+      xaxis:{ tickvals:[...Array(n).keys()], ticktext: names.map(wrapName), side:"top", tickangle:0, showgrid:false, zeroline:false,
+              title:{ text:"<b>To</b>: where riders parked", standoff:6 }, range:[-0.5, n - 0.5 + 0.9], automargin:true },
+      yaxis:{ tickvals:[...Array(n).keys()], ticktext: names, autorange:false, range:[n - 0.5 + 0.9, -0.5], showgrid:false, zeroline:false,
+              title:{ text:"<b>From</b>: where riders took the bike", standoff:6 }, automargin:true },
+      annotations:[...cell, ...tot] }));
+  const best = m.top.slice(0, 6), mx = Math.max(1, ...best.map(r => r.trips));
+  $("odtop").innerHTML = best.length ? best.map((r, k) => `<li><span class="rk">${k + 1}</span>
+      <div>${stName(r.from)} &rarr; <b>${stName(r.to)}</b><div class="rbar" style="width:${Math.round(100 * r.trips / mx)}%"></div></div>
+      <span class="n">${r.trips}</span></li>`).join("") : `<li><span></span><span class="how">No trips yet ${when}.</span><span></span></li>`;
+  $("odnote").textContent = `${m.total} trips ${when}. From the simulation's trip records (data/<city>/trips.csv); they add up exactly to the change in bikes at every station.`;
+}
+function renderKpis() {
+  if (!cache.inv || cache.inv.e) { $("kpis").innerHTML = ""; return; }
+  const states = cache.inv.v.stations.map(x => stationState(x.station_id)).filter(Boolean);
+  const attention = states.filter(st => st.cls !== "good").length;
+  const docked = states.reduce((a, st) => a + st.now.bikes, 0), S = info.settings;
+  let unusual = 0;
+  for (const sid of info.stations) { const c = cache.spc[sid]; if (c && c.v) unusual += c.v.points.filter(p => upTo(p.t) && p.signals.length).length; }
+  const k = (v, l, cls = "") => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  $("kpis").innerHTML = [
+    k(`${attention}<small> / ${states.length}</small>`, "stations needing attention", attention ? "alert" : ""),
+    k(`${docked}<small> / ${S.fleet}</small>`, "bikes docked / fleet"),
+    S.depot_from_fleet ? k(S.fleet - docked, "bikes in the depot") : "",
+    k(odDayTotal == null ? "—" : odDayTotal, "rider trips today so far"),
+    k(unusual, "unusual readings today (red dots)"),
+  ].join("");
+}
+function renderHeat() {
+  const c = cache.flow;
+  if (c.e) { emptyChart("heat", c.e); return; }
+  const day = $("end").value, S = info.settings;
+  const first = +S.open_time.slice(0, 2), last = +slotTime(+$("slot").max).slice(0, 2);
+  const hrs = Array.from({ length: last - first + 1 }, (_, k) => first + k);
+  const lab = h => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+  const rows = c.v.stations.slice().reverse();
+  const cell = (st, h) => {                               // net bikes in that hour, so far
+    let n = 0, net = 0, inn = 0, out = 0;
+    for (const b of st.bars) if (b.t.startsWith(day) && +b.t.slice(11, 13) === h && upTo(b.t)) { n++; net += b.net_flow; if (b.net_flow > 0) inn += b.net_flow; else out -= b.net_flow; }
+    return n ? { net, inn, out } : null;
+  };
+  const grid2 = rows.map(st => hrs.map(h => cell(st, h)));
+  let M = 3;                                              // a scale that does not jump while replaying
+  for (const st of rows) for (const h of hrs) {
+    let net = 0; for (const b of st.bars) if (b.t.startsWith(day) && +b.t.slice(11, 13) === h) net += b.net_flow; M = Math.max(M, Math.abs(net));
+  }
+  plot("heat", [{ type:"heatmap", x: hrs.map(lab), y: rows.map(st => stName(st.station_id)),
+      z: grid2.map(r => r.map(v => v ? v.net : null)), zmin:-M, zmax:M, zmid:0, colorscale: DIVERGE, xgap:4, ygap:4, hoverongaps:false,
+      text: grid2.map(r => r.map(v => v ? signed(v.net) : "")), texttemplate:"%{text}", textfont:{ size:13, color: ink() },
+      customdata: grid2.map(r => r.map(v => v ? `${v.inn} came in, ${v.out} left` : "not yet")),
+      hovertemplate:"%{y}, %{x}: %{customdata}<extra></extra>",
+      colorbar:{ thickness:12, len:0.9, tickvals:[-M, 0, M], ticktext:[`losing ${M}`, "0", `gaining ${M}`] } }],
+    theme({ height: 80 + 50 * rows.length, margin:{ t:8, r:10, b:40, l:10 }, xaxis:{ side:"bottom", tickangle:0 }, yaxis:{ automargin:true } }));
+  $("flownote").textContent = `Counts riders only: ${c.v.source}. Only station totals are known, not who rode where.`;
+}
+
+/* 4 and 5. Plans: the moves as plain cards, and bikes now vs after as simple bars */
+const RANK = ["HIGH", "MEDIUM", "LOW"];
+function moveCards(id, p, empty) {
+  const moves = p.transfers.filter(t => t.bikes > 0).slice()
+    .sort((a, b) => RANK.indexOf(a.priority) - RANK.indexOf(b.priority) || b.bikes - a.bikes);
+  const total = moves.reduce((a, t) => a + t.bikes, 0), f = p.fleet;
+  const head = `<div class="how" style="grid-column:1/-1">${moves.length ? `<b>${total} bikes in ${moves.length} move${moves.length === 1 ? "" : "s"}.</b> ` : ""}` +
+    `Depot: ${f.reserve_before} → ${f.reserve_after} bikes. Docked: ${f.docked} → ${f.docked_after} of the ${f.fleet}-bike fleet.</div>`;
+  const name = x => x === "DEPOT" ? "Depot" : stName(x);
+  const row = x => p.rows.find(r => r.station_id === x);
+  const plain = t => {
+    const to = row(t.to), from = row(t.from);
+    if (p.kind === "overnight") {
+      const r = to || from, leave = r.role === "mostly departures";
+      return to ? `${stName(to.station_id)}: riders ${leave ? "leave" : "arrive"} in the morning, so it starts with ${to.target} bikes (${Math.round(to.target_share * 100)}%).`
+                : `${stName(from.station_id)}: riders arrive in the morning, so it starts with only ${from.target} bikes (${Math.round(from.target_share * 100)}%), leaving room to park.`;
+    }
+    if (!to) return `${stName(from.station_id)} has ${from.bikes} bikes, more than it needs: take ${t.bikes} back to the depot.`;
+    const soon = to.projected !== null && Math.round(to.projected) !== to.bikes ? ` and about ${Math.round(to.projected)} in an hour` : "";
+    const src = from ? `${stName(from.station_id)} has ${from.bikes}, more than it needs.` : "Taken from the depot.";
+    return `${stName(to.station_id)} has ${to.bikes} bikes now${soon}. ${src}`;
+  };
+  const cards = moves.map(t => {
+    const why = plain(t);
+    return `<div class="move ${t.priority}"><span class="tag ${t.priority}">${t.priority}</span>
+      <div class="n">${t.bikes} <small>bike${t.bikes === 1 ? "" : "s"}</small></div>
+      <div class="route">${name(t.from)} &rarr; <b>${name(t.to)}</b></div>
+      <div class="why">${esc(why)}</div></div>`;
+  }).join("");
+  const short = p.rows.filter(r => r.short).map(r => `${stName(r.station_id)} is still ${r.short} short`);
+  $(id).innerHTML = head + (cards || `<div class="nomoves">&#10003; ${esc(empty)}</div>`) +
+    (short.length ? `<div class="msg err" style="grid-column:1/-1">${short.join("; ")}: no donor station or depot bikes left.</div>` : "");
+}
+function planBars(id, p, overnight) {
+  const rows = info.stations.map(x => p.rows.find(r => r.station_id === x)).filter(Boolean).reverse();
+  const role = r => r.role === "mostly departures" ? "riders leave" : r.role === "mostly arrivals" ? "riders arrive" : r.role;
+  const ticks = rows.map(r => overnight
+    ? `${stName(r.station_id)}<br><span style="font-size:11px;color:${muted()}">${role(r)}: start ${Math.round(r.target_share * 100)}%</span>`
+    : stName(r.station_id));
+  const S = info.settings, capMax = Math.max(...rows.map(r => r.capacity));
+  const shapes = rows.flatMap((r, i) => [
+    ...(overnight
+      ? [S.arrive_share, S.depart_share].map(sh => ({ type:"line", x0: sh * r.capacity, x1: sh * r.capacity, y0:i - 0.45, y1:i + 0.45, line:{ color: muted(), dash:"dot", width:1.5 } }))
+      : [{ type:"rect", x0:r.band[0], x1:r.band[1], y0:i - 0.45, y1:i + 0.45, fillcolor:"rgba(12,163,12,.10)", line:{ width:0 }, layer:"below" }]),
+    { type:"line", x0:r.capacity, x1:r.capacity, y0:i - 0.45, y1:i + 0.45, line:{ color: ink(), width:1.5 } }]);
+  const notes = [{ xref:"paper", x:1, xanchor:"right", yref:"paper", y:1.02, yanchor:"bottom", showarrow:false, font:{ size:11, color: muted() },
+    text: overnight ? `dotted marks: ${Math.round(S.arrive_share * 100)}% (room to park) and ${Math.round(S.depart_share * 100)}% (bikes to take) of each station's docks; solid tick = docks`
+                    : `green = in spec (${Math.round(S.band_low_share * 100)}-${Math.round(S.band_high_share * 100)}% of docks); solid tick = docks` }];
+  plot(id, [
+    { type:"bar", orientation:"h", name: overnight ? "6 AM start (after the van)" : "after these moves", y: ticks, x: rows.map(r => r.after),
+      marker:{ color: rows.map(r => stationColor(r.station_id)) }, text: rows.map(r => `<b>${r.after}</b>`), textposition:"outside", cliponaxis:false,
+      textfont:{ color: ink() }, hovertemplate:"%{x} bikes<extra></extra>" },
+    { type:"bar", orientation:"h", name: overnight ? "at 10 PM" : "now", y: ticks, x: rows.map(r => r.bikes),
+      marker:{ color: dark() ? "#6f6e69" : "#c9c8c2" }, text: rows.map(r => r.bikes), textposition:"outside", cliponaxis:false,
+      textfont:{ color: muted() }, hovertemplate:"%{x} bikes<extra></extra>" } ],
+    theme({ barmode:"group", bargap:0.3, bargroupgap:0.08, height: 90 + 62 * rows.length, margin:{ t:28, r:30, b:56, l:10 },
+      xaxis:{ range:[0, capMax + 1], title:"bikes", gridcolor: grid() }, yaxis:{ automargin:true },
+      legend:{ orientation:"h", y:-0.18, traceorder:"reversed" }, shapes, annotations: notes }));
+}
+function planTable(id, p) {
+  $(id).innerHTML = `<tr><th>Station</th><th>Bikes / cap</th><th>Target</th><th>Projected</th><th>Surplus (+) / shortage (−)</th>
+    <th>Action</th><th>After</th><th>Priority and why</th></tr>` +
+    p.rows.map(r => `<tr><td>${esc(label(r.station_id))}</td><td>${r.bikes} / ${r.capacity}</td><td>${fmt(r.target)}</td>
+      <td>${r.projected === null ? "n/a" : fmt(r.projected)}</td><td>${r.gap > 0 ? "+" : ""}${fmt(r.gap)}</td>
+      <td>${esc(r.action)}</td><td>${r.after}</td>
+      <td><span class="pill ${r.priority}">${r.priority}</span> ${esc(r.reason)}<div class="how">${esc(r.projection_basis)}</div></td></tr>`).join("");
+}
+function schedulePlan() { if (planBusy) { planAgain = true; return; } loadPlans(); }
+async function loadPlans() {
+  planBusy = true;
+  const depot = $("depot").value;
+  try {
+    const p = await get("plan", { at: cutoff(), depot_bikes: depot });
+    moveCards("planmoves", p, "No moves needed right now: every station is where it should be.");
+    planBars("planbars", p, false); planTable("plan", p); msg("planmsg", p.notes.join(" "));
+  } catch (e) { $("planmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; emptyChart("planbars", ""); $("plan").innerHTML = ""; }
+  try {
+    const p = await get("plan/overnight", { day: $("end").value, depot_bikes: depot });
+    moveCards("nightmoves", p, "No moves needed tonight: every station already has its morning start.");
+    planBars("nightbars", p, true); planTable("night", p); msg("nightmsg", p.notes.join(" "));
+  } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; emptyChart("nightbars", ""); $("night").innerHTML = ""; }
+  planBusy = false;
+  if (planAgain) { planAgain = false; loadPlans(); }
+}
+
+/* ---- play / pause ---- */
+function stop() { playing = false; clearInterval(timer); $("play").textContent = "Play"; }
+function play() {
+  if (+$("slot").value >= +$("slot").max) $("slot").value = 0;     // replay from opening
+  playing = true; $("play").textContent = "Pause"; render();
+  clearInterval(timer);
+  timer = setInterval(() => {
+    if (+$("slot").value >= +$("slot").max) return stop();
+    $("slot").value = +$("slot").value + 1; render();
+  }, +$("speed").value);
+}
+async function chooseCity(key) {
+  if (!key) throw new Error("no datasets");
+  city = key; $("city").value = key; cache = {};
+  setInfo(await get("summary"));
+}
+$("city").addEventListener("change", () => { stop(); chooseCity($("city").value); });
+$("play").addEventListener("click", () => playing ? stop() : play());
+$("slot").addEventListener("input", () => { if (info) render(); });
+$("speed").addEventListener("change", () => { if (playing) play(); });
+$("file").addEventListener("change", e => e.target.files[0] && upload(e.target.files[0]));
+["stations","start","end"].forEach(id => $(id).addEventListener("change", () => { stop(); loadAll(); }));
+$("spcstation").addEventListener("change", () => { if (info && cache.inv) renderSpc(); });
+$("depot").addEventListener("change", schedulePlan);
+document.querySelectorAll("#odwin button").forEach(b => b.addEventListener("click", () => {
+  odWin = b.dataset.win;
+  document.querySelectorAll("#odwin button").forEach(x => x.classList.toggle("on", x === b));
+  if (info) scheduleTrips();
+}));
+
+
+/* ---- follow Yash's console (?follow=console): his day and time drive every chart ----
+   His console is served by the same server (combined.py), so this page can read the reading time
+   it prints next to its slider ("2026-10-19 08:30"). In his Live mode the slider is hidden, so the
+   time comes from his /latest route instead. Nothing in his code is changed. */
+let liveAsOf = null, lastLive = 0, followMsg = "";
+function consoleState() {
+  try {
+    const doc = $("console").contentDocument;
+    if (!doc) return null;
+    const pick = doc.querySelector('select[aria-label="Simulated city"]');
+    if (pick && pick.value && pick.value !== city) return { city: pick.value };
+    const out = doc.querySelector(".replay output");
+    const m = out && out.textContent.match(/(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d)/);
+    if (m) return { t: `${m[1]}T${m[2]}` };
+    const src = doc.querySelector('[aria-label="Data source"] [aria-checked="true"]');
+    if (src && src.textContent.trim() === "Live") return { live: true };
+  } catch (e) { /* the console is still loading */ }
+  return null;
+}
+function slotOf(hm) {
+  const s = info.settings, [h, m] = hm.split(":").map(Number), [oh, om] = s.open_time.split(":").map(Number);
+  return Math.round((h * 60 + m - oh * 60 - om) / s.interval_min);
+}
+async function follow() {
+  if (!info) return;
+  const c = consoleState();
+  if (c && c.city) {                       // his console switched city: switch with it
+    if ([...$("city").options].some(o => o.value === c.city)) await chooseCity(c.city);
+    return;
+  }
+  let t = c && c.t;
+  if (c && c.live) {
+    if (Date.now() - lastLive > 5000) {
+      lastLive = Date.now();
+      try { liveAsOf = (await (await fetch(BASE + "latest")).json()).as_of; } catch (e) { liveAsOf = null; }
+    }
+    t = liveAsOf;
+  }
+  let note = t ? "" : "Waiting for the console to show a reading time...";
+  if (t && !info.days.includes(t.slice(0, 10))) { note = `The console shows ${t.slice(0, 10)}, which is not in this dataset.`; t = null; }
+  if (note !== followMsg) { followMsg = note; msg("followmsg", note); }
+  if (!t) return;
+  const day = t.slice(0, 10), slot = slotOf(t.slice(11, 16));
+  if (day !== $("end").value) {
+    $("start").value = day; $("end").value = day; $("slot").value = slot; loadAll();
+  } else if (slot !== +$("slot").value) {
+    $("slot").value = slot; render();
+  }
+}
+if (FOLLOW) {
+  document.body.classList.add("follow");
+  $("city").disabled = true; $("city").title = "Follows the city chosen in Yash's console";
+  $("console-wrap").hidden = false;
+  // ?dataset= opens his console on that city; the charts below then follow whatever it shows
+  const wantCity = new URLSearchParams(location.search).get("dataset");
+  $("console").src = BASE + (wantCity ? `?dataset=${encodeURIComponent(wantCity)}` : "");
+  $("subtitle").textContent = "Following the console above: every chart, signal and plan shows its day up to its current reading.";
+  $("status").insertAdjacentHTML("afterend", '<div id="followmsg"></div>');
+  setInterval(follow, 400);
+}
+
+if (typeof Plotly === "undefined") {
+  $("status").className = "msg err";
+  $("status").textContent = "The chart library (Plotly) could not be loaded from the CDN: check the internet connection and reload.";
+} else get("datasets").then(d => {
+  $("city").innerHTML = d.datasets.map(x => `<option value="${esc(x.id)}">${esc(x.name || x.id)}</option>`).join("");
+  const want = FOLLOW ? null : new URLSearchParams(location.search).get("dataset");   // in follow mode the console decides
+  const def = (d.datasets.find(x => x.id === want) || d.datasets.find(x => x.default) || d.datasets[0] || {}).id;
+  return chooseCity(def);
+}).catch(() => {
+  $("status").textContent = "Upload a station-snapshot CSV to begin (columns: station_id, timestamp, bikes_available or bikes, capacity or docks_available).";
+});
+</script>
+</body>
+</html>

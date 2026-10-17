@@ -139,6 +139,38 @@ tasks:
       code follows it from a fresh clone and it works.
     result: ""
 
+  - id: H-09
+    title: BikeFlow Analyze - slot-adjusted I-MR chart, inventory chart, net-flow chart (PROPOSED)
+    points: "supports 25 - valid analyses relevant to quality control"
+    status: todo
+    owner: ""
+    started_at: ""
+    owns: ["app/bikeflow/config.py", "app/bikeflow/data.py", "app/bikeflow/qc.py", "app/bikeflow/analyze.py", "tests/test_bikeflow.py"]
+    notes: >
+      Proposed on branch jasmine. Reads any station-snapshot CSV; needs the team's
+      historical dataset to be meaningful. Known answers are in the test file.
+    definition_of_done: >
+      pytest tests/test_bikeflow.py passes, including the I-MR known answer
+      (CL 0, sigma 2.5/1.128, flag at residual -8), the constant-data case
+      (limits undefined, no flags), missing data and capacity violations.
+    result: ""
+
+  - id: H-10
+    title: BikeFlow Improve - redistribution plan and 10 PM overnight plan (PROPOSED)
+    points: "supports 25 - an effective, working tool"
+    status: todo
+    owner: ""
+    started_at: ""
+    owns: ["app/bikeflow/plan.py", "app/bikeflow/api.py", "app/bikeflow/server.py", "app/bikeflow/dashboard/", "tests/test_bikeflow_api.py"]
+    notes: >
+      Proposed on branch jasmine. Historical-average baseline only; no distances,
+      van capacity or labor limits are assumed.
+    definition_of_done: >
+      pytest tests/test_bikeflow.py tests/test_bikeflow_api.py passes (empty and full
+      stations, insufficient donors, capacity violations, 120-bike conservation) and
+      app/bikeflow/testme.sh serves a page that returns 200 with plans for a CSV.
+    result: ""
+
   - id: H-08
     title: Reproducible public repo, submitted on Devpost
     points: "5 - Tool Documentation: fully reproducible code, posted publicly to GitHub"

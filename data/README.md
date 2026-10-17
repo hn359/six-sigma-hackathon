@@ -27,6 +27,7 @@ The fleet is as many bikes as docks. At the start of the baseline week half the 
 | `week2_policy.csv` | 7 days × readings × stations | Mon 12 – Sun 18 Oct. Each day starts at the night plan; the van goes on a chart signal or a reading outside the spec limits |
 | `event_day.csv` | 1 day × readings × stations | Mon 19 Oct: the policy, plus a planted slow drain and a planted crowd (see `about.json`) |
 | `van_log.csv` | one per van stop | every stop in week 2 and on the event day |
+| `trips.csv` | one per rider trip | every completed simulated trip, all 15 days: where it started and ended |
 | `about.json` | 1 | the city's name, reading interval, hours, docks, fleet, seed and the planted event |
 
 Expected results (checked by `tests/test_data.py`):
@@ -66,6 +67,18 @@ market, park, lodging, dining).
 | `bikes_before`, `bikes_moved`, `bikes_after` | the station's bikes before and after the stop, and the signed move |
 | `from_station` / `to_station` | the other station the bikes came from or went to, if any |
 | `station_bikes`, `reserve_bikes` | how many of the moved bikes came from (or went to) that station and the reserve depot |
+
+**`trips.csv`** (added for the BikeFlow origin-destination heat map; recording it draws no random
+numbers, so every other file is byte-for-byte unchanged)
+
+| Column | Meaning |
+|---|---|
+| `timestamp` | the reading that ends the interval the trip happened in (trips are not timed inside it) |
+| `from_station` | where the rider took the bike |
+| `to_station` | where the rider docked it (if the planned station was full, the station they rode on to) |
+
+Lost rentals (an empty station) are not trips and are not listed. A real system gets this from its
+trip history (most bikeshare operators publish monthly trip files with start and end stations).
 
 **`about.json`**: `id`, `name`, `interval_minutes`, `first_reading`, `last_reading`,
 `readings_per_day`, `stations`, `docks`, `fleet`, `seed`, `simulated` (always true), and `event`

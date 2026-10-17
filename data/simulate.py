@@ -140,8 +140,10 @@ def poisson(rng, lam):
         k += 1
 
 
-def run_day(city, rng, day0, start, policy=None, event=False):
-    """Simulate one day. Returns (rows, van_log, totals). rows: one dict per station per reading."""
+def run_day(city, rng, day0, start, policy=None, event=False, trips_out=None):
+    """Simulate one day. Returns (rows, van_log, totals). rows: one dict per station per reading.
+    trips_out, if given, receives one dict per completed trip (reading time, from, to); recording
+    them draws no random numbers, so every other output is unchanged."""
     N, ids, cap = city.n, city.ids, city.cap
     ev = city.cfg["event"] if event else None
     bikes = list(start)
@@ -178,6 +180,9 @@ def run_day(city, rng, day0, start, policy=None, event=False):
                     dest = min(room, key=lambda j: bikes[j] / cap[j])
                 bikes[i] -= 1
                 bikes[dest] += 1
+                if trips_out is not None:
+                    trips_out.append({"timestamp": city.stamp(day0, k), "from_station": ids[i],
+                                      "to_station": ids[dest]})
             if policy:
                 for i in range(N):
                     hist[i].append((bikes[i] - before[i]) - policy["mu"][i][k])
@@ -265,17 +270,18 @@ def build(key):
     city = City(key)
     rng = random.Random(city.cfg["seed"])
     day = lambda d: datetime.combine(city.cfg["first_day"], datetime.min.time()) + timedelta(days=d)
-    week1 = [run_day(city, rng, day(d), city.base_start) for d in range(7)]
+    trips = []
+    week1 = [run_day(city, rng, day(d), city.base_start, trips_out=trips) for d in range(7)]
     mu, imr, C, plans = history(city, [w[0] for w in week1])
     bad = [city.ids[i] for i, p in enumerate(plans) if not p["feasible"]]
     if bad:
         raise RuntimeError(f"{key}: normal swing too wide for one start plan at {bad}: retune the rates")
     starts = [p["start"] for p in plans]
     policy = {"mu": mu, "imr": imr, "path": [p["path"] for p in plans]}
-    week2 = [run_day(city, rng, day(7 + d), starts, policy) for d in range(7)]
-    event = run_day(city, rng, day(14), starts, policy, event=True)
+    week2 = [run_day(city, rng, day(7 + d), starts, policy, trips_out=trips) for d in range(7)]
+    event = run_day(city, rng, day(14), starts, policy, event=True, trips_out=trips)
     return {"city": city, "week1": week1, "week2": week2, "event": event, "mu": mu, "imr": imr,
-            "C": C, "plans": plans}
+            "C": C, "plans": plans, "trips": trips}
 
 
 def write(folder, name, rows, fields):
@@ -304,6 +310,8 @@ def main(keys=None):
         log_fields = ["timestamp", "station_id", "trigger", "direction", "bikes_before", "bikes_moved",
                       "bikes_after", "from_station", "to_station", "station_bikes", "reserve_bikes"]
         write(folder, "van_log.csv", [r for d in sim["week2"] for r in d[1]] + sim["event"][1], log_fields)
+        # every completed rider trip, stamped with the reading that ends its interval
+        write(folder, "trips.csv", sim["trips"], ["timestamp", "from_station", "to_station"])
         write(folder, "stations.csv",
               [{"station_id": s[0], "name": s[1], "lat": s[2], "lon": s[3], "capacity": s[4], "role": s[5]}
                for s in city.st], ["station_id", "name", "lat", "lon", "capacity", "role"])
