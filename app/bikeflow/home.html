@@ -94,7 +94,7 @@
     <h3>The tabs</h3>
     <ul>
       <li><b><a href="#map" data-open="map">Map and dispatch</a></b>: the live map, its time bar, each station's status and where riders are going.</li>
-      <li><b><a href="#night" data-open="night">Redistribution</a></b>: which bikes the van should move now, and the 10 PM plan that sets every station for the 6 AM opening.</li>
+      <li><b><a href="#night" data-open="night">Redistribution</a></b>: which bikes the van should move now, from where to where.</li>
       <li><b><a href="#spc" data-open="spc">SPC charts</a></b>: each station's day and its control chart, and the statistics behind them.</li>
     </ul>
     <h3>Authors</h3>
@@ -122,7 +122,7 @@
           <li><b>Map and dispatch</b>: <b>1 Station status</b> (how full each station is now, against the healthy range
             and a normal day) and <b>2 Rider flow</b> (which routes riders took).</li>
           <li><b>Redistribution</b>: <b>1 Redistribution</b> (which bikes the van should move now, from where
-            to where) and <b>2 Tomorrow's bike plan</b>, the 10 PM plan that sets each station for the 6 AM opening.</li>
+            to where).</li>
           <li><b>SPC charts</b>: <b>1 Today at each station</b> (bikes through the day; red dots are unusual readings) and
             <b>2 Control chart</b> (the station's I-MR chart with the eight tests).</li>
         </ul></li>
@@ -192,8 +192,7 @@
     <div class="eyebrow">End of day</div>
     <h2>Redistribution at the end of each day</h2>
     <p>At closing, the dispatcher gets a plan that the van finishes <b>by 10 PM</b>, so every station
-      opens at <b>6 AM</b> with the right number of bikes for the morning rush. It is <b>2 Tomorrow's bike plan</b> in the
-      <a href="#night" data-open="night">Redistribution</a> tab.</p>
+      opens at <b>6 AM</b> with the right number of bikes for the morning rush.</p>
     <h3>1. Decide each station's starting level</h3>
     <ol>
       <li><b>Learn the morning pattern from week 1.</b> For each station, average its rider net flow
@@ -345,8 +344,8 @@ cd app/frontend &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ../..
 <div role="tabpanel" id="panel-tool" aria-labelledby="tab-map" hidden>
   <div class="tabtext" data-tab="map"><p>Play or drag the time bar on the map: it is the only control, and the
     other tabs follow it. How to act on it: <a href="#use" data-open="about">How a dispatcher uses it</a> in About.</p></div>
-  <div class="tabtext" data-tab="night"><p>What the van should move now, and the plan for tonight, at the time shown on the map's time bar (set it in
-    <a href="#map" data-open="map">Map and dispatch</a>). How the plan is made: <a href="#endofday" data-open="about">End-of-day redistribution</a> in About.</p></div>
+  <div class="tabtext" data-tab="night"><p>What the van should move now, at the time shown on the map's time bar (set it in
+    <a href="#map" data-open="map">Map and dispatch</a>). How the van decides: <a href="#decide" data-open="about">What the tool decides</a> in About.</p></div>
   <div class="tabtext" data-tab="spc"><p>Each station's day and its control chart, at the time shown on the map's
     time bar. What the charts compute: <a href="#stats" data-open="about">The statistics</a> in About.</p></div>
 

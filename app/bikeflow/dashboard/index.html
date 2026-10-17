@@ -77,6 +77,7 @@
   /* tab views from the home page (#map, #night, #spc); with no view the page shows everything.
      Off the Map tab the console keeps running off screen, so its clock still drives every tab. */
   body[data-view] main > section:not(.in-view) { display:none; }
+  body[data-view] .not-in-tabs { display:none; }      /* parts of a section kept off the tabs */
   body[data-view] .appbar, body[data-view] #console-wrap > h1, body[data-view] #console-wrap > .sub,
   body[data-view] #subtitle { display:none; }
   body[data-view] #console { height:760px; max-height:none; resize:none; }
@@ -190,7 +191,7 @@
     <label>City <select id="city"></select></label>
     <label>Control-chart station <select id="spcstation"></select></label>
   </div>
-  <div class="bar">
+  <div class="bar not-in-tabs">
     <label>Stations (inventory, flow) <select id="stations" multiple></select></label>
     <label>Depot/van bikes <input type="number" id="depot" min="0" placeholder="from data" style="width:100px"></label>
     <label>Replace data (CSV) <input type="file" id="file" accept=".csv"></label>
@@ -224,11 +225,13 @@
       <div id="odmap"></div>
       <div><h3 style="margin-top:4px">Busiest routes</h3><ul class="routes" id="odtop"></ul><p class="how" id="odnote"></p></div>
     </div>
+    <div class="not-in-tabs">
     <h3>Bikes gained or lost, hour by hour</h3>
     <p class="how"><b style="color:#1c5cab">Blue</b> = more bikes arrived than left in that hour (the station filled up).
       <b style="color:#b8322f">Red</b> = more left than arrived (it emptied). The number is the net change.</p>
     <div id="heat"></div>
     <p class="how" id="flownote"></p>
+    </div>
   </section>
 
   <section data-view="night">
@@ -241,7 +244,7 @@
     <details><summary>Table: every station, its action and why</summary><div class="scroll"><table id="plan"></table></div></details>
   </section>
 
-  <section data-view="night">
+  <section data-view="none">
     <div class="eyebrow"><span class="secno">5</span> &middot; Tomorrow's bike plan</div><h2>Use Week 1's pattern to set bikes tonight</h2>
     <p class="how">Week 1 teaches us where morning rides start and end. After Week 1, each night the van uses that pattern to set tomorrow's bikes by 10 PM. Stations are ready for riders at 6 AM.</p>
     <div class="night-steps" aria-label="How the overnight plan works">
