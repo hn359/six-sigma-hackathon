@@ -3,7 +3,7 @@
 import pytest
 
 from app.qc import (
-    dispatch_trigger, imr_limits, imr_limits_days, out_of_spec, p_chart_phase, run_rules,
+    spec_limits, dispatch_trigger, imr_limits, imr_limits_days, out_of_spec, p_chart_phase, run_rules,
     rush_slots, start_plan, van_move, van_priority,
 )
 
@@ -94,6 +94,16 @@ def test_dispatch_trigger_signal_or_out_of_spec():
     assert dispatch_trigger(None, 17) == "out of spec"
     assert dispatch_trigger(None, 4) is None and dispatch_trigger(None, 16) is None
     assert out_of_spec(3) and not out_of_spec(10)
+
+
+def test_spec_limits_scale_with_station_size():
+    assert spec_limits(20) == (4, 16)          # the SPEC's 20-dock station
+    assert spec_limits(12) == (2, 10)          # 2.4 -> 2, 9.6 -> 10
+    assert spec_limits(31) == (6, 25)          # 6.2 -> 6, 24.8 -> 25
+    assert spec_limits(25) == (5, 20)
+    for bad in (0, -5, 12.5):
+        with pytest.raises(ValueError):
+            spec_limits(bad)
 
 
 # ---- night plan and rush hours -------------------------------------------------

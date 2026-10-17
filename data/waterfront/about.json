@@ -1,0 +1,36 @@
+{
+  "id": "waterfront",
+  "name": "Ithaca waterfront: leisure riding, midday and evening peaks",
+  "interval_minutes": 15,
+  "first_reading": "08:00",
+  "last_reading": "22:45",
+  "readings_per_day": 60,
+  "stations": 4,
+  "docks": [
+    25,
+    30,
+    20,
+    15
+  ],
+  "fleet": 90,
+  "seed": 9200,
+  "simulated": true,
+  "event": {
+    "slow_drain": {
+      "station": "W03",
+      "from": "09:00",
+      "to": "10:30",
+      "extra_rentals_per_reading": 1
+    },
+    "crowd": {
+      "station": "W02",
+      "from": "16:00",
+      "to": "17:00",
+      "riders_per_reading": 5,
+      "coming_from": [
+        "W01",
+        "W03"
+      ]
+    }
+  }
+}

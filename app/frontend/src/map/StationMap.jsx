@@ -17,27 +17,47 @@ function FollowSelected({ station }) {
 }
 
 // stations: one replay frame (see sampleFrames.js for the shape).
+// Dark mode: the same OpenStreetMap tiles (no API key), darkened by a CSS filter on the
+// 'dark-tiles' class (see src/dispatch/dispatch.css), plus brighter colours and bigger dots.
+const DARK = {
+  url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  colors: { empty: '#ff4d4d', full: '#4da3ff', ok: '#3ddc84' },
+  // The console draws each station's gauge and halo itself (src/dispatch/VanLayer.jsx), centred
+  // on the point; the dot stays as an invisible click target so selecting still works.
+  clickRadius: 30,
+  selected: '#ffffff',
+}
+
 // children: extra layers drawn inside the map (the console adds the van, the depot and counts).
-export function StationMap({ stations, selectedId, onSelect, children, className = 'map' }) {
+// dark: optional dark mode; without it the map looks exactly as before.
+export function StationMap({ stations, selectedId, onSelect, children, className = 'map', dark = false }) {
   const { placed, missing } = splitPlaceable(stations)
   const selected = placed.find((s) => s.station_id === selectedId)
 
   return (
     <div className="map-wrap">
       <MapContainer center={ITHACA_CENTER} zoom={ITHACA_ZOOM} className={className} scrollWheelZoom>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        {dark
+          ? <TileLayer attribution={DARK.attribution} url={DARK.url} maxZoom={19} className="dark-tiles" />
+          : <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />}
         {placed.map((s) => {
-          const style = markerStyle(s)
+          const base = markerStyle(s)
+          const style = dark
+            ? { ...base, radius: DARK.clickRadius, color: DARK.colors[colorKey(base)], fillColor: DARK.colors[colorKey(base)],
+                fillOpacity: 0, opacity: 0 }
+            : base
           const isSel = s.station_id === selectedId
           return (
             <Fragment key={s.station_id}>
               <CircleMarker
                 center={[s.lat, s.lon]}
                 radius={style.radius}
-                pathOptions={{ ...style, weight: isSel ? 3 : style.weight, color: isSel ? '#111' : style.color }}
+                pathOptions={{ ...style, weight: isSel ? 3 : style.weight, color: isSel ? (dark ? DARK.selected : '#111') : style.color,
+                  opacity: isSel ? 1 : style.opacity }}
                 eventHandlers={{ click: () => onSelect?.(s.station_id) }}
               >
                 <Tooltip direction="top" offset={[0, -style.radius]}>
@@ -55,7 +75,7 @@ export function StationMap({ stations, selectedId, onSelect, children, className
         {children}
         <FollowSelected station={selected} />
       </MapContainer>
-      <Legend />
+      <Legend colors={dark ? DARK.colors : COLORS} sizeNote={dark ? 'bigger halo = more severe; ring = share of docks filled' : undefined} />
       {missing.length > 0 && (
         <p className="map-missing">
           Not on the map (no coordinates): {missing.map((s) => s.station_id).join(', ')}
@@ -65,13 +85,18 @@ export function StationMap({ stations, selectedId, onSelect, children, className
   )
 }
 
-function Legend() {
+// which palette entry a base marker colour is
+function colorKey(style) {
+  return Object.keys(COLORS).find((k) => COLORS[k] === style.color) ?? 'ok'
+}
+
+function Legend({ colors = COLORS, sizeNote = 'bigger dot = more severe' }) {
   return (
     <ul className="map-legend" aria-label="Map legend">
-      <li><span className="dot" style={{ background: COLORS.empty }} /> too empty</li>
-      <li><span className="dot" style={{ background: COLORS.full }} /> too full</li>
-      <li><span className="dot" style={{ background: COLORS.ok }} /> in control</li>
-      <li>bigger dot = more severe</li>
+      <li><span className="dot" style={{ background: colors.empty }} /> too empty</li>
+      <li><span className="dot" style={{ background: colors.full }} /> too full</li>
+      <li><span className="dot" style={{ background: colors.ok }} /> in control</li>
+      <li>{sizeNote}</li>
     </ul>
   )
 }

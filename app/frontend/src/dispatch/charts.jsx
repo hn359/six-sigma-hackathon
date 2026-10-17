@@ -2,18 +2,18 @@
 // x, trigger, the chart's xbar and sigma, the p-chart limits); nothing is computed here.
 
 const W = 260
-const SLOTS = 64
-const LSL = 4
-const USL = 16
 
-function axis(x, y0) {
-  return [0, 16, 32, 48].map((k) => (
-    <text key={k} x={x(k)} y={y0 + 13} textAnchor="middle">{['06:00', '10:00', '14:00', '18:00'][k / 16]}</text>
-  ))
+// Four time labels spread over the day, read from the frames themselves (any interval, any hours).
+function axis(x, y0, frames) {
+  const n = frames.length
+  return [0, 1, 2, 3].map((q) => {
+    const k = Math.round((q * (n - 1)) / 4)
+    return <text key={q} x={x(k)} y={y0 + 13} textAnchor="middle">{frames[k]?.as_of.slice(11, 16)}</text>
+  })
 }
 
-function Rush({ x, rush, top, bottom }) {
-  const w = (W - 28) / (SLOTS - 1)
+function Rush({ x, rush, top, bottom, slots }) {
+  const w = (W - 28) / Math.max(1, slots - 1)
   return rush.map((k) => <rect key={k} className="c-rush" x={x(k) - w / 2} y={top} width={w} height={bottom - top} />)
 }
 
@@ -22,10 +22,13 @@ const line = (pts) => pts.map(([px, py], n) => `${n ? 'L' : 'M'}${px.toFixed(1)}
 // Bikes at one station so far today: spec band, expected path, the readings, van moves.
 export function BikesChart({ frames, i, id, capacity = 20, rush = [], policy }) {
   const H = 118, L = 22, R = 6, T = 6, B = 18
-  const x = (k) => L + (k * (W - L - R)) / (SLOTS - 1)
+  const SLOTS = frames.length
+  const x = (k) => L + (k * (W - L - R)) / Math.max(1, SLOTS - 1)
   const y = (v) => T + (1 - v / capacity) * (H - T - B)
   const rows = frames.slice(0, i + 1).map((f) => f.stations.find((s) => s.station_id === id))
   const all = frames.map((f) => f.stations.find((s) => s.station_id === id))
+  const LSL = all[0]?.lsl ?? 4
+  const USL = all[0]?.usl ?? 16
   const path = []
   rows.forEach((s, k) => {
     path.push([x(k), y(s.bikes)])
@@ -33,7 +36,7 @@ export function BikesChart({ frames, i, id, capacity = 20, rush = [], policy }) 
   })
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Bikes at ${id} today`}>
-      <Rush x={x} rush={rush} top={T} bottom={H - B} />
+      <Rush x={x} rush={rush} top={T} bottom={H - B} slots={SLOTS} />
       <rect className="c-band" x={L} y={y(USL)} width={W - L - R} height={y(LSL) - y(USL)} />
       {[0, LSL, USL, capacity].map((v) => <text key={v} x={L - 4} y={y(v) + 4} textAnchor="end">{v}</text>)}
       <line className="c-spec" x1={L} x2={W - R} y1={y(LSL)} y2={y(LSL)} />
@@ -48,7 +51,7 @@ export function BikesChart({ frames, i, id, capacity = 20, rush = [], policy }) 
             : `M${x(k) - 4},${y(s.bikes_after_van) - 8} L${x(k) + 4},${y(s.bikes_after_van) - 8} L${x(k)},${y(s.bikes_after_van) - 2} Z`} />
       ))}
       <line className="c-now" x1={x(i)} x2={x(i)} y1={T} y2={H - B} />
-      {axis(x, H - B)}
+      {axis(x, H - B, frames)}
     </svg>
   )
 }
@@ -57,18 +60,19 @@ export function BikesChart({ frames, i, id, capacity = 20, rush = [], policy }) 
 export function IChart({ frames, i, id, meta, rush = [] }) {
   const H = 112, L = 22, R = 26, T = 6, B = 18
   if (!meta || !(meta.sigma > 0)) return <p className="c-note">No chart: no variation in the history.</p>
+  const SLOTS = frames.length
   const pts = []
   for (let k = 1; k <= i && k < frames.length; k++) {
     const s = frames[k].stations.find((t) => t.station_id === id)
     if (s && s.x !== null) pts.push([k, s])
   }
   const span = Math.max(3.6 * meta.sigma, ...pts.map(([, s]) => Math.abs(s.x - meta.xbar) + 0.3))
-  const x = (k) => L + (k * (W - L - R)) / (SLOTS - 1)
+  const x = (k) => L + (k * (W - L - R)) / Math.max(1, SLOTS - 1)
   const y = (v) => T + (1 - (v - meta.xbar + span) / (2 * span)) * (H - T - B)
   const zone = (z) => y(meta.xbar + z * meta.sigma)
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Control chart at ${id}`}>
-      <Rush x={x} rush={rush} top={T} bottom={H - B} />
+      <Rush x={x} rush={rush} top={T} bottom={H - B} slots={SLOTS} />
       {[1, 2, -1, -2].map((z) => <line key={z} className="c-zone" x1={L} x2={W - R} y1={zone(z)} y2={zone(z)} />)}
       {[3, -3].map((z) => <line key={z} className="c-lim" x1={L} x2={W - R} y1={zone(z)} y2={zone(z)} />)}
       <line className="c-cl" x1={L} x2={W - R} y1={zone(0)} y2={zone(0)} />
@@ -88,7 +92,7 @@ export function IChart({ frames, i, id, meta, rush = [] }) {
         )
       })}
       <line className="c-now" x1={x(i)} x2={x(i)} y1={T} y2={H - B} />
-      {axis(x, H - B)}
+      {axis(x, H - B, frames)}
     </svg>
   )
 }
@@ -122,7 +126,7 @@ export function PChart({ pc }) {
       {days.map((d, j) => (
         <g key={j}>
           <circle className={`c-pt ${cls(d)}`} cx={x(j)} cy={y(d.p)} r="4.5">
-            <title>{`${d.phase === 1 ? 'Week 1' : 'Week 2'} ${dn[j % 7]}: ${d.d}/64 = ${d.p.toFixed(3)} (${d.status})`}</title>
+            <title>{`${d.phase === 1 ? 'Week 1' : 'Week 2'} ${dn[j % 7]}: ${d.d}/${pc.n ?? 64} = ${d.p.toFixed(3)} (${d.status})`}</title>
           </circle>
           <text x={x(j)} y={H - B + 14} textAnchor="middle">{dn[j % 7]}</text>
         </g>

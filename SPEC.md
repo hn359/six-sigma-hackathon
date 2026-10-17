@@ -26,7 +26,7 @@ cannot measure costs points.
 | Input | Type and units | Where the user gets it |
 |---|---|---|
 | `readings.csv`, one row per station per 15 minutes: `station_id`, `timestamp`, `bikes`, `capacity`, `van_moved` | text, ISO datetime, count, count, signed count (+ bikes the van dropped, − bikes it took) | the system's station feed (GBFS `station_status`) polled every 15 minutes, plus the van's own log |
-| Parameters: LSL = 4 bikes and USL = 16 bikes (per 20-dock station), van limit 10 bikes per stop, one stop per 15 minutes | counts | fixed by the network; the dispatcher can change them |
+| Parameters: spec limits LSL = 20% and USL = 80% of a station's docks (4 and 16 bikes at a 20-dock station), van limit 10 bikes per stop, one stop per reading | counts | fixed by the network; the dispatcher can change them |
 
 ## 4. The statistics, and why (rubric: valid QC analysis 25)
 Say the method in words before any code exists. Load the `stats-first-steering` skill first.
@@ -134,11 +134,7 @@ Fixed for every team:
 2-3 small CSVs in `data/`, invented but shaped like real field data, each showing one behavior.
 `data/README.md` is the codebook: every file, every column with units, and what it would take to
 collect this data for real.
-- **Datasets** (made by a seeded simulation, `data/simulate.py`): `week1_baseline.csv` (7 days,
-  no rebalancing, everyone starts at 10 bikes), `week2_policy.csv` (7 days, nightly start plan
-  and chart-driven van; the p-charts should show fewer out-of-spec readings), `event_day.csv` (one
-  day with the policy plus a planted surge of returns at S5 at 18:00-18:45, which the I-MR chart
-  must flag with rule 1, and a slow extra drain at S2 from 10:00, which rules 2-4 must catch).
+- **Datasets** (made by a seeded simulation, `data/simulate.py`): three simulated cities in `data/<city>/`, chosen to differ (Collegetown: 5 × 20 docks, 15-minute readings; Downtown: 6 stations of 12-31 docks, 10-minute readings; Waterfront: 4 stations of 15-30 docks, 08:00-22:45, leisure demand). Each has `week1_baseline.csv` (7 days, no van), `week2_policy.csv` (7 days, night plan + chart-driven van; far fewer out-of-spec readings), `event_day.csv` (one day with a planted slow drain and a planted crowd that the I-MR chart or the safety net must catch), `van_log.csv`, `stations.csv` and `about.json`. Collegetown is the reference city for every number in section 4. The codebook is `data/README.md`; the full method is in the README.
 
 ## 8. Documentation and reproducibility (rubric: docs 10, public repo 5)
 - `README.md` says what the tool does, for whom, every input and parameter, how to run it in one

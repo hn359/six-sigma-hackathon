@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.app import app
 
 client = TestClient(app)
-DATA = Path(__file__).resolve().parent.parent / "data"
+DATA = Path(__file__).resolve().parent.parent / "data" / "collegetown"
 
 
 def test_health_and_scenarios():
@@ -71,3 +71,67 @@ def test_replay_upload_and_bad_input():
 def test_latest_and_unknown_scenario():
     assert len(client.get("/latest").json()["stations"]) == 5
     assert client.get("/frames/nope").status_code == 404
+
+
+# ---- every dataset, and uploads the tool has never seen ----------------------------
+
+import pytest  # noqa: E402
+
+ROOT = DATA.parent
+KEYS = [d["id"] for d in client.get("/datasets").json()]
+
+
+def test_three_datasets_are_served():
+    assert sorted(KEYS) == ["collegetown", "downtown", "waterfront"]
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_api_recomputes_every_event_van_stop_in_every_dataset(key):
+    body = client.get(f"/frames/event?dataset={key}").json()
+    frames = {f["as_of"]: f for f in body["frames"]}
+    event_date = body["date"]
+    with open(ROOT / key / "van_log.csv") as fh:
+        stops = [r for r in csv.DictReader(fh) if r["timestamp"].startswith(event_date)]
+    assert stops
+    for v in stops:
+        st = next(s for s in frames[v["timestamp"]]["stations"] if s["station_id"] == v["station_id"])
+        assert st["trigger"] == v["trigger"]
+        assert frames[v["timestamp"]]["van"]["bikes_moved"] == int(v["bikes_moved"])
+    for f in body["frames"]:
+        for s in f["stations"]:
+            assert (s["trigger"] is None) == (s["bikes_to_move"] is None)
+            assert s["lsl"] < s["usl"] <= s["capacity"]
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_summary_for_every_dataset(key):
+    body = client.get(f"/summary?dataset={key}").json()
+    assert body["kpis"]["out_of_spec_week2"] < body["kpis"]["out_of_spec_week1"]
+    assert all(p["feasible"] for p in body["plan"])
+    assert body["rush_slots"] and len(body["rush_times"]) == len(body["rush_slots"])
+
+
+def test_upload_of_an_unknown_network_learns_its_own_history():
+    # Downtown's two weeks with every station renamed: the tool has no history for these ids.
+    rename = lambda text: text.replace("D0", "X0")
+    readings = rename((ROOT / "downtown" / "week1_baseline.csv").read_text()) + \
+        "".join(rename((ROOT / "downtown" / "week2_policy.csv").read_text()).splitlines(keepends=True)[1:])
+    files = {"readings": ("r.csv", readings.encode()),
+             "stations": ("s.csv", rename((ROOT / "downtown" / "stations.csv").read_text()).encode())}
+    r = client.post("/replay", files=files)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["history"] == "learned from 7 day(s) of the upload"     # the van-free week
+    assert len(body["frames"]) == 7 * 96                                 # the policy week, 10-minute readings
+    assert body["frames"][0]["as_of"].endswith("06:00") and body["frames"][1]["as_of"].endswith("06:10")
+    # Same history as the built-in dataset, so the same signals and moves come out.
+    built_in = client.get("/frames/week2?dataset=downtown&day=0").json()["frames"]
+    for a, b in zip(built_in, body["frames"][:96]):
+        assert [s["trigger"] for s in a["stations"]] == [s["trigger"] for s in b["stations"]]
+
+
+def test_upload_off_grid_reading_is_rejected_clearly():
+    text = (ROOT / "collegetown" / "event_day.csv").read_text().replace("2026-10-19T06:15", "2026-10-19T06:17", 1)
+    files = {"readings": ("r.csv", text.encode()), "stations": ("s.csv", (ROOT / "collegetown" / "stations.csv").read_bytes())}
+    r = client.post("/replay", files=files)
+    assert r.status_code == 400 and "grid" in r.json()["detail"]

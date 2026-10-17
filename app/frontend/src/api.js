@@ -56,17 +56,17 @@ export function fetchLatest() {
 
 // Dispatch console routes (app/app.py).
 
-/** GET /frames/{scenario}?day=d: {"frames": [Frame x 64], "chart": {station_id: {xbar, sigma, ...}}}. */
-export function fetchFrames(scenario, day = 0) {
-  return getJson(`/frames/${encodeURIComponent(scenario)}?day=${day}`)
+/** GET /datasets: [{id, name, interval_minutes, stations, docks, days: {week1, week2, event}}]. */
+export function fetchDatasets() {
+  return getJson('/datasets')
 }
 
-/** GET /scenarios: {"week1": [dates], "week2": [dates], "event": [date]}. */
-export function fetchScenarios() {
-  return getJson('/scenarios')
+/** GET /frames/{scenario}?day=d&dataset=id: {"frames": [Frame per reading], "chart": {station_id: {xbar, sigma, lsl, usl}}}. */
+export function fetchFrames(scenario, day = 0, dataset = 'collegetown') {
+  return getJson(`/frames/${encodeURIComponent(scenario)}?day=${day}&dataset=${encodeURIComponent(dataset)}`)
 }
 
-/** GET /summary: night plan, rush slots, weekly p-charts and before/after counts. */
-export function fetchSummary() {
-  return getJson('/summary')
+/** GET /summary?dataset=id: night plan, rush slots, weekly p-charts and before/after counts. */
+export function fetchSummary(dataset = 'collegetown') {
+  return getJson(`/summary?dataset=${encodeURIComponent(dataset)}`)
 }

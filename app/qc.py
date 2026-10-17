@@ -15,7 +15,8 @@ Vocabulary
 import math
 
 D2 = 1.128          # d2 for moving ranges of 2 consecutive points
-LSL, USL = 4, 16    # spec limits, bikes per 20-dock station
+LSL, USL = 4, 16    # spec limits, bikes per 20-dock station (= spec_limits(20))
+LOW_SHARE, HIGH_SHARE = 0.20, 0.80   # spec limits as a share of docks, for any station size
 VAN_MAX = 10        # most bikes the van moves in one stop
 
 RULE_NAMES = {
@@ -100,6 +101,19 @@ def _sig(rule, side):
 
 
 # ---- dispatch --------------------------------------------------------------
+
+def spec_limits(capacity, low=LOW_SHARE, high=HIGH_SHARE):
+    """Spec limits in bikes for a station: below LSL it is nearly empty, above USL nearly full.
+
+    LSL = round(low x capacity), USL = round(high x capacity), halves rounded up.
+    20 docks -> (4, 16); 12 docks -> (2, 10); 31 docks -> (6, 25).
+    """
+    if not isinstance(capacity, int) or capacity <= 0:
+        raise ValueError(f"capacity must be a positive whole number of docks (got {capacity})")
+    if not 0 <= low < high <= 1:
+        raise ValueError("need 0 <= low share < high share <= 1")
+    return _round_half_up(low * capacity), _round_half_up(high * capacity)
+
 
 def out_of_spec(bikes, lsl=LSL, usl=USL):
     return bikes < lsl or bikes > usl

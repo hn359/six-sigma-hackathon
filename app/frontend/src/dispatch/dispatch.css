@@ -1,6 +1,20 @@
-/* Additions under and on Jim's station map. Uses the starter's tokens from styles.css. */
-:root { --warn: #b26b00; --band: #e4f0e9; --soft: #dcecf2; }
-@media (prefers-color-scheme: dark) { :root { --warn: #e5a443; --band: #16302a; --soft: #173442; } }
+/* Additions under and on Jim's station map. Black theme for the whole page: it overrides the
+   starter's tokens from styles.css, so stations, signals and the van stand out. */
+:root, :root:not([data-theme]) {
+  --bg: #050608; --fg: #f2f5f7; --muted: #9aa6b2; --line: #2a323b; --accent: #4da3ff;
+  --bad: #ff4d4d; --ok: #3ddc84; --panel: #11151a;
+  --warn: #ffb020; --band: #10261a; --soft: #13263a;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); }
+.leaflet-container { background: #000; }
+/* dark map without an API key: invert the normal tiles, keep hues, dim them */
+.dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.72) contrast(0.88) saturate(0.15); }
+.leaflet-tooltip { background: #11151a; color: #f2f5f7; border-color: #2a323b; box-shadow: 0 2px 8px rgba(0, 0, 0, .6); }
+.leaflet-tooltip-top::before { border-top-color: #11151a; }
+.leaflet-bar a, .leaflet-bar a:hover { background: #11151a; color: #f2f5f7; border-bottom-color: #2a323b; }
+.leaflet-control-attribution { background: rgba(0, 0, 0, .6) !important; color: #9aa6b2; }
+.leaflet-control-attribution a { color: #4da3ff; }
 
 .map-page h2 { font-size: 1rem; margin: 0 0 8px; }
 .map-page h2 span { font-weight: 400; font-size: 0.85rem; color: var(--muted); margin-left: 6px; }
@@ -9,20 +23,41 @@
 .d-sim .sample-note { flex-basis: 100%; margin: 2px 0; }
 .d-speed { display: inline-flex; gap: 6px; align-items: center; margin: 0; font-weight: 400; font-size: 0.9rem; color: var(--muted); }
 .d-reserve { font-size: 0.9rem; color: var(--muted); }
-.map-page .map { height: 600px; }
+.map-page .map { height: 640px; border-color: var(--line); }
+.map-page .act-row { background: var(--panel); color: var(--fg); }
+.map-page .detail, .map-page .contract-error { background: var(--panel); }
 
-/* map labels, depot and van (Leaflet divIcons) */
-.d-count { background: transparent; border: 0; transform: translate(14px, -9px); white-space: nowrap;
-  font: 700 12px/1.2 system-ui, sans-serif; color: #111; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; }
-.d-count small { display: block; font: 500 10.5px ui-monospace, Menlo, monospace; }
-.d-count.sig small { color: #b3261e; } .d-count.oos small { color: #9a5c00; } .d-count.fix small { color: #1f5fa8; }
-.d-count.back small, .d-count.ok small { color: #1b7a3a; }
-.d-depot { background: #dcecf2; border: 2px solid #1f5fa8; border-radius: 6px; padding: 3px 7px; transform: translate(-50%, -50%);
-  font: 700 11px ui-monospace, Menlo, monospace; color: #13212c; white-space: nowrap; }
-.d-van { background: #1f5fa8; color: #fff; border-radius: 5px; padding: 3px 7px; transform: translate(-50%, -50%); white-space: nowrap;
-  font: 800 11px ui-monospace, Menlo, monospace; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
-.d-van small { display: block; font-weight: 500; font-size: 10px; }
-.d-route { stroke: #1f5fa8; stroke-width: 3; stroke-dasharray: 7 6; fill: none; }
+/* map labels, depot and van (Leaflet divIcons): a zero-size anchor at the point, the box inside */
+.d-anchor { background: none; border: 0; pointer-events: none; }
+/* a station: a ring gauge (bikes / docks) centred on the point, its name centred underneath */
+.d-pin { --c: #3ddc84; position: absolute; left: 0; top: 0; transform: translate(-50%, -26px);
+  display: flex; flex-direction: column; align-items: center; gap: 5px; pointer-events: none; }
+.d-pin .halo { position: absolute; left: 50%; top: 26px; width: var(--h); height: var(--h); border-radius: 50%;
+  transform: translate(-50%, -50%); background: var(--c); opacity: .16; box-shadow: 0 0 0 1px var(--c); z-index: -1; }
+.d-pin .ring { position: relative; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--c) var(--occ), #222a33 0); box-shadow: 0 0 0 2px #05070a, 0 4px 14px rgba(0, 0, 0, .7); }
+.d-pin .n { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #0a0d11;
+  color: #fff; font: 800 17px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.d-pin .label { background: rgba(8, 11, 15, .92); border: 1px solid #2a323b; border-top: 2px solid var(--c); border-radius: 6px;
+  padding: 3px 8px 4px; text-align: center; white-space: nowrap; color: #f2f5f7; font: 600 12px/1.25 system-ui, sans-serif;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .6); }
+.d-pin .label b { color: var(--c); font-weight: 800; margin-right: 2px; }
+.d-pin .label small { display: block; font: 600 10px ui-monospace, Menlo, monospace; color: var(--c); text-transform: uppercase; letter-spacing: .04em; }
+.d-pin.sig { --c: #ff4d4d; } .d-pin.oos { --c: #ffb020; } .d-pin.fix { --c: #4da3ff; }
+.d-pin.sig .ring { animation: d-pulse 1.1s ease-in-out infinite; }
+@keyframes d-pulse { 50% { box-shadow: 0 0 0 2px #05070a, 0 0 0 9px rgba(255, 77, 77, .35), 0 4px 14px rgba(0, 0, 0, .7); } }
+@media (prefers-reduced-motion: reduce) { .d-pin.sig .ring { animation: none; } }
+.leaflet-control-scale-line { background: rgba(8, 11, 15, .8); color: #cfd6dd; border-color: #9aa6b2; }
+.d-depot { position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
+  background: #0b1a2a; border: 2px solid #4da3ff; border-radius: 7px; padding: 4px 9px;
+  font: 700 12px ui-monospace, Menlo, monospace; color: #cfe6ff; box-shadow: 0 3px 10px rgba(0, 0, 0, .6); }
+.d-van { position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap; text-align: center;
+  background: #ffd23f; color: #111; border-radius: 6px; padding: 4px 9px;
+  font: 800 12px ui-monospace, Menlo, monospace; box-shadow: 0 0 0 2px #000, 0 0 16px rgba(255, 210, 63, .75); }
+.d-van small { display: block; font-weight: 600; font-size: 10.5px; }
+/* parked: sit above the depot or the station gauge instead of covering it */
+.d-van.parked { transform: translate(-50%, -60px); }
+.d-route { stroke: #ffd23f; stroke-width: 3; stroke-dasharray: 7 6; fill: none; }
 
 .d-section { margin-top: 20px; }
 .d-feed { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; border-top: 1px solid var(--line); }

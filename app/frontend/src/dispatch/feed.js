@@ -2,7 +2,14 @@
 // arrive in the frames from the API (app/qc.py). This file only turns frames into words,
 // colours and a van route.
 
-export const DEPOT = { id: 'depot', name: 'Reserve depot (Collegetown)', lat: 42.4422, lon: -76.4856 }
+// The reserve depot is drawn just off the middle of whichever network is shown.
+export function depotOf(stations = []) {
+  const pts = stations.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lon))
+  if (!pts.length) return { id: 'depot', name: 'Reserve depot', lat: 0, lon: 0 }
+  const lat = pts.reduce((a, s) => a + s.lat, 0) / pts.length
+  const lon = pts.reduce((a, s) => a + s.lon, 0) / pts.length
+  return { id: 'depot', name: 'Reserve depot', lat: lat + 0.0002, lon: lon - 0.0003 }
+}
 
 export const clock = (asOf) => (asOf ? asOf.slice(11, 16) : '')
 export const slotClock = (k) => {
@@ -21,7 +28,7 @@ export function stationStatus(frames, i, id) {
   if (!s) return { cls: 'ok', text: '' }
   if (s.van_moved) return { cls: 'fix', text: `van ${s.van_moved > 0 ? '+' : ''}${s.van_moved}` }
   if (s.trigger?.startsWith('rule')) return { cls: 'sig', text: `${s.trigger}, ${s.direction === 'empty' ? 'draining' : 'filling'}` }
-  if (s.trigger) return { cls: 'oos', text: s.bikes < 4 ? 'below 4 bikes' : 'above 16 bikes' }
+  if (s.trigger) return { cls: 'oos', text: s.bikes < (s.lsl ?? 4) ? `below ${s.lsl ?? 4} bikes` : `above ${s.usl ?? 16} bikes` }
   for (let j = i - 1; j >= Math.max(0, i - 2); j--) {
     const p = frames[j].stations.find((x) => x.station_id === id)
     if (p?.van_moved) return { cls: 'back', text: 'back in control' }

@@ -1,28 +1,41 @@
 # Data codebook
 
-**All files here are invented.** `simulate.py` makes them with a fixed seed (5300), so
-`python data/simulate.py` rebuilds exactly the same files. They are shaped like a real bikeshare
-station feed, but no number is real.
+**Every file here is invented.** [`simulate.py`](simulate.py) writes them with a fixed seed per
+city, so `python data/simulate.py` rebuilds exactly the same files. They are shaped like a real
+bikeshare station feed, but no number is real. How the simulation works, step by step, is in the
+main [README](../README.md#how-the-datasets-are-generated).
 
-## The network
+## Three simulated cities
 
-Five stations at real Ithaca places (from the map), **20 docks each** (100 docks). The fleet is 100
-bikes: 50 docked at the start (10 per station on Monday 5 October 2026, 06:00, which is t0) and 50 in
-the reserve depot. A reading every 15 minutes, 06:00-21:45: 64 per station per day.
+Each folder is one network. They differ on purpose, to show the tool works for any network.
 
-## Files
+| Folder | Stations | Docks | Readings | Story |
+|---|---|---|---|---|
+| [`collegetown/`](collegetown/) | 5 (S01-S05) | 20 each (fleet 100) | every 15 min, 06:00-21:45, 64 a day | student commute around College Ave |
+| [`downtown/`](downtown/) | 6 (D01-D06) | 19, 15, 27, 31, 23, 12 (fleet 127) | every 10 min, 06:00-21:50, 96 a day | office commute around the Commons |
+| [`waterfront/`](waterfront/) | 4 (W01-W04) | 25, 30, 20, 15 (fleet 90) | every 15 min, 08:00-22:45, 60 a day | leisure riding by the inlet |
+
+The fleet is as many bikes as docks. At the start of the baseline week half the docks are filled
+(⌊docks/2⌋ per station) and the rest of the fleet sits in the reserve depot.
+
+## Files in each folder
 
 | File | Rows | What it shows |
 |---|---|---|
-| `stations.csv` | 5 | the stations: id, name, position, docks, role in the demand model |
-| `week1_baseline.csv` | 2,240 | Mon 5 – Sun 11 Oct. Every station starts at 10, **no van**. Phase I: the history the tool learns from |
-| `week2_policy.csv` | 2,240 | Mon 12 – Sun 18 Oct. The night plan sets each start; the van goes on a chart signal or a reading outside 4-16 |
-| `event_day.csv` | 320 | Mon 19 Oct, with the policy and two planted problems (below) |
-| `van_log.csv` | one per van stop | every van stop in week 2 and on the event day |
+| `stations.csv` | one per station | id, name, position, docks, role in the demand model |
+| `week1_baseline.csv` | 7 days × readings × stations | Mon 5 – Sun 11 Oct 2026. **No van.** Phase I: the history the tool learns from |
+| `week2_policy.csv` | 7 days × readings × stations | Mon 12 – Sun 18 Oct. Each day starts at the night plan; the van goes on a chart signal or a reading outside the spec limits |
+| `event_day.csv` | 1 day × readings × stations | Mon 19 Oct: the policy, plus a planted slow drain and a planted crowd (see `about.json`) |
+| `van_log.csv` | one per van stop | every stop in week 2 and on the event day |
+| `about.json` | 1 | the city's name, reading interval, hours, docks, fleet, seed and the planted event |
 
-Expected results: out-of-spec readings fall from 607 in week 1 to 19 in week 2, and lost rentals
-from 19 to 0. On the event day the van is sent to S03 during its slow drain and to S02 (rule 1)
-during the crowd.
+Expected results (checked by `tests/test_data.py`):
+
+| City | Out-of-spec readings: baseline → policy | Lost rentals | Event |
+|---|---|---|---|
+| collegetown | 607 → 19 | 19 → 0 | S03 slow drain gets bikes; the S02 crowd is caught by rule 1 at 18:15 |
+| downtown | 838 → 16 | 15 → 0 | D06 slow drain gets bikes; the D04 crowd is caught by rule 1 at 17:20 |
+| waterfront | 186 → 9 | 3 → 0 | the W03 drain gets bikes; the W02 festival crowd is caught by rule 1 at 16:15 |
 
 ## Columns
 
@@ -30,16 +43,18 @@ during the crowd.
 
 | Column | Type and units | Meaning |
 |---|---|---|
-| `station_id` | text | S01-S05, as in `stations.csv` |
+| `station_id` | text | as in `stations.csv` |
 | `timestamp` | ISO 8601 local time, `YYYY-MM-DDTHH:MM` | when the reading was taken |
-| `bikes` | count, 0-20 | bikes docked at that moment, **before** any van move at this time |
-| `capacity` | count | docks at the station (20) |
+| `bikes` | count, 0 to `capacity` | bikes docked at that moment, **before** any van move at this time |
+| `capacity` | count | docks at the station |
 | `van_moved` | signed count | bikes the van dropped (+) or took (−) right after this reading; 0 if none |
 
 Rider net flow between two readings = `bikes` now − `bikes` before − `van_moved` before.
+Spec limits for a station: LSL = round(0.2 × capacity), USL = round(0.8 × capacity).
 
-**`stations.csv`**: `station_id`, `name`, `lat` and `lon` (decimal degrees), `capacity` (docks),
-`role` (the demand pattern used for the station).
+**`stations.csv`**: `station_id`, `name`, `lat` and `lon` (decimal degrees, approximate Ithaca places),
+`capacity` (docks), `role` (the demand pattern: residential, campus, offices, transit hub, shopping,
+market, park, lodging, dining).
 
 **`van_log.csv`**
 
@@ -52,36 +67,30 @@ Rider net flow between two readings = `bikes` now − `bikes` before − `van_mo
 | `from_station` / `to_station` | the other station the bikes came from or went to, if any |
 | `station_bikes`, `reserve_bikes` | how many of the moved bikes came from (or went to) that station and the reserve depot |
 
-## How the data is simulated
+**`about.json`**: `id`, `name`, `interval_minutes`, `first_reading`, `last_reading`,
+`readings_per_day`, `stations`, `docks`, `fleet`, `seed`, `simulated` (always true), and `event`
+(`slow_drain`: station, window, extra rentals per reading; `crowd`: station, window, riders per
+reading, where they come from).
 
-- **Rentals:** in each 15-minute slot, rentals at a station ~ Poisson(rate). Rates per 15 minutes:
+## How the data is simulated (short)
 
-  | Role (station) | 06:00-06:59 | 07:00-09:59 | 10:00-15:59 | 16:00-18:59 | 19:00-21:59 |
-  |---|---|---|---|---|---|
-  | residential (S01 North Campus) | 0.12 | 0.70 | 0.15 | 0.40 | 0.15 |
-  | campus (S02 Ho Plaza) | 0.08 | 0.30 | 0.18 | 0.80 | 0.15 |
-  | residential (S03 Fall Creek) | 0.12 | 0.65 | 0.15 | 0.40 | 0.15 |
-  | transit hub (S04 Commons) | 0.12 | 0.55 | 0.18 | 0.70 | 0.15 |
-  | shopping (S05 Wegmans) | 0.10 | 0.45 | 0.20 | 0.50 | 0.20 |
+- Rentals at a station in one reading interval ~ **Poisson**(rate for that station and time of day).
+- Each rider rides to another station picked with time-of-day weights (homes in the evening,
+  campus/offices in the morning, market and park midday…).
+- A rental at an empty station is **lost**. A return to a full station goes on to the emptiest
+  station with room.
+- Bikes are never created or lost: the script checks docked + reserve = fleet after every reading.
+- The rates were tuned so each station's normal daily swing fits inside its spec band, so a single
+  06:00 start plan exists. Every day has the same demand: no weekends and no weather.
 
-- **Destinations:** each rider picks another station with weights (S01..S05): morning rush 0.6, 2.0,
-  0.6, 1.8, 1; evening rush 2.2, 0.6, 2.2, 1, 1; midday 1, 1, 1, 1, 1.2; otherwise 1.3, 0.8, 1.3, 1, 1.
-  So homes drain and campus fills in the morning, and the reverse in the evening.
-- **Limits:** a rental at an empty station is lost; a return to a full station goes on to the
-  emptiest station with room. Bikes are never created or lost: the script checks
-  docks + reserve = 100 after every reading.
-- **Planted problems (event day only):** S03 Fall Creek gets one extra rental every 15 minutes from
-  10:15 to 13:00 (a slow drain), and 4 extra riders per 15 minutes ride from S04 or S05 to S02 Ho
-  Plaza from 18:15 to 19:00 (a crowd).
-- **The rates were tuned** so each station's normal daily swing is at most 12 bikes. A single 06:00
-  start can then keep its normal day inside 4-16, which the night plan needs. Every day has the same
-  demand: no weekends and no weather.
+The exact rates and weights for each city are in `DATASETS` at the top of [`simulate.py`](simulate.py).
 
 ## Collecting this for real
 
 Bikeshare systems publish a public [GBFS](https://gbfs.org) feed. Its `station_status` file gives
 `station_id`, `num_bikes_available` and `last_reported` for every station, and
 `station_information` gives `name`, `lat`, `lon` and `capacity`. A script that saves
-`station_status` every 15 minutes gives the readings files. `van_moved` comes from the van crew's own
-log: bikes dropped or taken at each stop, with the time. Two weeks of polling give the same history
-as here. Treat disabled bikes and docks as missing, and drop readings whose `last_reported` is stale.
+`station_status` every 10-15 minutes gives the readings files. `van_moved` comes from the van crew's
+own log: bikes dropped or taken at each stop, with the time. Two weeks of polling give the same
+history as here: one week without rebalancing (or with the van log) to learn from, one to judge.
+Treat disabled bikes and docks as missing, and drop readings whose `last_reported` is stale.
