@@ -8,6 +8,7 @@ const good = () => ({
   station_id: 'S03', name: 'Fall Creek', lat: 42.4495, lon: -76.4953, capacity: 11,
   bikes: 2, occupancy: 2 / 11, gap: -0.37, direction: 'empty', severity: 3,
   rule: '1 point beyond 3 sigma', target_occupancy: 0.55, bikes_to_move: 4,
+  chart: { value: -0.37, center: 0, ucl: 0.3, lcl: -0.3 },
   chronic_flag: true, availability: 0.71,
 })
 const frameOf = (...stations) => ({ as_of: '2026-10-12T08:30', stations })
@@ -24,7 +25,10 @@ describe('validateFrame accepts', () => {
     expect(validateFrame(example).errors).toEqual([])
   })
   it('an in-control station with a null move', () => {
-    expect(errorsFor({ severity: 0, direction: 'ok', bikes_to_move: null, rule: null })).toEqual([])
+    expect(errorsFor({
+      severity: 0, direction: 'ok', bikes_to_move: null, rule: null,
+      chart: { value: -0.1, center: 0, ucl: 0.3, lcl: -0.3 },
+    })).toEqual([])
   })
 })
 
@@ -55,6 +59,19 @@ describe('validateFrame rejects, naming station and rule', () => {
   it('rule 5: removing more bikes than the station has', () => {
     expect(errorsFor({ bikes: 10, occupancy: 10 / 11, direction: 'full', bikes_to_move: -11 }).join())
       .toMatch(/rule 5/)
+  })
+  it('rule 7: a point outside the limits that is not severity 3', () => {
+    expect(errorsFor({ severity: 2, rule: '2 of 3 beyond 2 sigma' }).join()).toMatch(/rule 7: .*outside/)
+  })
+  it('rule 7: severity 3 with the point inside the limits', () => {
+    expect(errorsFor({ chart: { value: -0.1, center: 0, ucl: 0.3, lcl: -0.3 } }).join()).toMatch(/rule 7: .*inside/)
+  })
+  it('rule 7: limits out of order, or not numbers', () => {
+    expect(errorsFor({ chart: { value: -0.37, center: 0, ucl: -0.3, lcl: 0.3 } }).join()).toMatch(/rule 7: chart limits/)
+    expect(errorsFor({ chart: { value: null, center: 0, ucl: 0.3, lcl: -0.3 } }).join()).toMatch(/rule 7: chart needs/)
+  })
+  it('rule 7: no chart at all is allowed', () => {
+    expect(errorsFor({ chart: undefined })).toEqual([])
   })
   it('rule 6: a missing lat', () => {
     expect(errorsFor({ lat: null }).join()).toMatch(/rule 6/)

@@ -49,6 +49,16 @@ export function validateStation(s) {
     }
   }
 
+  // rule 7: the chart point, if sent. Limits in order, and a point outside
+  // them is exactly a severity-3 signal ("1 point beyond 3 sigma").
+  if (s.chart !== undefined && s.chart !== null) {
+    const c = s.chart
+    if (![c.value, c.center, c.ucl, c.lcl].every(isNum)) e.push('rule 7: chart needs numbers value, center, ucl, lcl')
+    else if (!(c.lcl <= c.center && c.center <= c.ucl)) e.push(`rule 7: chart limits out of order (lcl ${c.lcl}, center ${c.center}, ucl ${c.ucl})`)
+    else if (sevOk && (c.value > c.ucl || c.value < c.lcl) !== (s.severity === 3))
+      e.push(`rule 7: chart value ${c.value.toFixed(3)} is ${c.value > c.ucl || c.value < c.lcl ? 'outside' : 'inside'} the limits but severity is ${s.severity}`)
+  }
+
   // rule 6: coordinates
   if (!isNum(s.lat) || !isNum(s.lon) || Math.abs(s.lat) > 90 || Math.abs(s.lon) > 180)
     e.push('rule 6: lat/lon missing or out of range')

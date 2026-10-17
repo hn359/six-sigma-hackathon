@@ -85,3 +85,36 @@ export function splitPlaceable(stations) {
 export function pct(x) {
   return Number.isFinite(x) ? `${Math.round(x * 100)}%` : '—'
 }
+
+// One station's chart points from frames[0..upto], for the per-station control
+// chart. Readings without a chart object are skipped. The limits are taken as
+// sent, reading by reading (they may change with time of day).
+export function stationSeries(frames, upto, stationId) {
+  const out = []
+  const last = Math.min(upto, frames.length - 1)
+  for (let k = 0; k <= last; k += 1) {
+    const s = frames[k].stations.find((x) => x.station_id === stationId)
+    const c = s?.chart
+    if (!c) continue
+    out.push({
+      as_of: frames[k].as_of, value: c.value, center: c.center, ucl: c.ucl, lcl: c.lcl,
+      severity: clampSeverity(s.severity), direction: s.direction,
+    })
+  }
+  return out
+}
+
+// Fixed y-range for a station over ALL frames, so the chart does not rescale
+// while the replay plays.
+export function seriesRange(frames, stationId) {
+  const all = stationSeries(frames, frames.length - 1, stationId)
+  if (all.length === 0) return null
+  let lo = Infinity
+  let hi = -Infinity
+  for (const p of all) {
+    lo = Math.min(lo, p.lcl, p.value)
+    hi = Math.max(hi, p.ucl, p.value)
+  }
+  const pad = (hi - lo || 1) * 0.08
+  return { lo: lo - pad, hi: hi + pad }
+}

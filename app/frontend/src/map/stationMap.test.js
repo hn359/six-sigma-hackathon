@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   bikesToMoveLabel, clampSeverity, COLORS, directionLabel, markerStyle,
-  rankStations, splitPlaceable,
+  rankStations, seriesRange, splitPlaceable, stationSeries,
 } from './stationMap.js'
 import { FRAMES } from './sampleFrames.js'
 
@@ -63,6 +63,28 @@ describe('splitPlaceable', () => {
     ])
     expect(placed.map((s) => s.station_id)).toEqual(['C', 'A'])
     expect(missing.map((s) => s.station_id)).toEqual(['B'])
+  })
+})
+
+describe('stationSeries and seriesRange', () => {
+  const fr = (t, value, severity) => ({
+    as_of: `2026-10-12T${t}`,
+    stations: [{ station_id: 'A', severity, direction: severity ? 'full' : 'ok', chart: { value, center: 0, ucl: 0.3, lcl: -0.3 } },
+      { station_id: 'B', severity: 0, direction: 'ok' }],
+  })
+  const frames = [fr('08:00', 0.1, 0), fr('08:15', 0.2, 1), fr('08:30', 0.5, 3)]
+  it('takes the points up to the current reading only', () => {
+    expect(stationSeries(frames, 1, 'A').map((p) => p.value)).toEqual([0.1, 0.2])
+    expect(stationSeries(frames, 9, 'A')).toHaveLength(3)
+  })
+  it('skips a station the back end sent no chart for', () => {
+    expect(stationSeries(frames, 2, 'B')).toEqual([])
+    expect(seriesRange(frames, 'B')).toBeNull()
+  })
+  it('fixes the y-range over the whole day, limits included', () => {
+    const r = seriesRange(frames, 'A')
+    expect(r.lo).toBeLessThan(-0.3)
+    expect(r.hi).toBeGreaterThan(0.5)
   })
 })
 

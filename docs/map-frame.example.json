@@ -15,7 +15,12 @@
       "rule": "1 point beyond 3 sigma",
       "target_occupancy": 0.55,
       "bikes_to_move": 7,
-      "chronic_flag": false,
+      "chart": {
+        "value": -0.4833,
+        "center": 0,
+        "ucl": 0.39,
+        "lcl": -0.39
+      },
       "availability": null
     },
     {
@@ -32,7 +37,12 @@
       "rule": "1 point beyond 3 sigma",
       "target_occupancy": 0.45,
       "bikes_to_move": -12,
-      "chronic_flag": false,
+      "chart": {
+        "value": 0.5065,
+        "center": 0,
+        "ucl": 0.39,
+        "lcl": -0.39
+      },
       "availability": null
     },
     {
@@ -49,7 +59,12 @@
       "rule": "1 point beyond 3 sigma",
       "target_occupancy": 0.55,
       "bikes_to_move": 6,
-      "chronic_flag": true,
+      "chart": {
+        "value": -0.55,
+        "center": 0,
+        "ucl": 0.39,
+        "lcl": -0.39
+      },
       "availability": 0.71
     },
     {
@@ -66,7 +81,12 @@
       "rule": null,
       "target_occupancy": 0.5,
       "bikes_to_move": null,
-      "chronic_flag": false,
+      "chart": {
+        "value": -0.0263,
+        "center": 0,
+        "ucl": 0.3,
+        "lcl": -0.3
+      },
       "availability": null
     },
     {
@@ -83,7 +103,12 @@
       "rule": null,
       "target_occupancy": 0.5,
       "bikes_to_move": null,
-      "chronic_flag": false,
+      "chart": {
+        "value": 0.0333,
+        "center": 0,
+        "ucl": 0.39,
+        "lcl": -0.39
+      },
       "availability": null
     }
   ]

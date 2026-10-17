@@ -1,16 +1,17 @@
 // Station map page. Three data sources:
 //   Sample - invented frames in src/map/sampleFrames.js, so the map works before the API exists
 //   Upload - POST /replay with a readings CSV and a stations CSV, stepped through with the slider
-//   Live   - GET /latest; the map changes once per new 15-min reading
+//   Live   - GET /today (today's readings so far); the map changes once per new 15-min reading
 // Every frame is checked against docs/map-contract.md before it is trusted.
 // Run `npm run dev` and open /map.html.
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ActionList, StationMap } from './map/StationMap.jsx'
-import { FRAMES as SAMPLE_FRAMES } from './map/sampleFrames.js'
+import { ChartGrid } from './map/StationChart.jsx'
+import { CHART_OF as SAMPLE_CHART_OF, FRAMES as SAMPLE_FRAMES } from './map/sampleFrames.js'
 import { validateFrame } from './map/contract.js'
 import { bikesToMoveLabel, directionLabel, pct, READING_EVERY_MIN } from './map/stationMap.js'
-import { API_URL, fetchLatest, replayFromCsv } from './api.js'
+import { API_URL, fetchToday, replayFromCsv } from './api.js'
 import './styles.css'
 
 // The feed has a new reading every 15 min. Live mode asks the server once a
@@ -42,6 +43,7 @@ function Preview() {
   const [selectedId, setSelectedId] = useState(null)
   const [status, setStatus] = useState('') // what the API is doing, or why it failed
   const [files, setFiles] = useState({ readings: null, stations: null })
+  const [chartOf, setChartOf] = useState(SAMPLE_CHART_OF)
   const [now, setNow] = useState(Date.now())
 
   const frame = frames[Math.min(i, frames.length - 1)]
@@ -62,14 +64,17 @@ function Preview() {
     let cancelled = false
     const pull = async () => {
       try {
-        const f = await fetchLatest()
+        const res = await fetchToday()
         if (cancelled) return
-        // same reading as on screen: keep it, so the map changes once per reading
-        setFrames((old) => (old[0]?.as_of === f?.as_of ? old : [f]))
-        setI(0)
+        const got = Array.isArray(res?.frames) ? res.frames : []
+        if (got.length === 0) throw new Error('the reply has no frames')
+        // same newest reading as on screen: keep it, so the map changes once per reading
+        setFrames((old) => (old[old.length - 1]?.as_of === got[got.length - 1].as_of ? old : got))
+        setI(got.length - 1)
+        setChartOf(res.chart_of ?? '')
         setStatus(`Live from ${API_URL}: a new reading every ${READING_EVERY_MIN} min`)
       } catch (err) {
-        if (!cancelled) setStatus(`Cannot reach ${API_URL}/latest (${err.message}).`)
+        if (!cancelled) setStatus(`Cannot reach ${API_URL}/today (${err.message}).`)
       }
       if (!cancelled) setNow(Date.now())
     }
@@ -82,9 +87,9 @@ function Preview() {
     setPlaying(false)
     setSource(next)
     setStatus('')
-    if (next === 'sample') { setFrames(SAMPLE_FRAMES); setI(SAMPLE_START) }
-    if (next === 'upload') { setFrames([]); setI(0) }
-    if (next === 'live') { setFrames([]); setI(0); setStatus(`Connecting to ${API_URL}/latest ...`) }
+    if (next === 'sample') { setFrames(SAMPLE_FRAMES); setI(SAMPLE_START); setChartOf(SAMPLE_CHART_OF) }
+    if (next === 'upload') { setFrames([]); setI(0); setChartOf('') }
+    if (next === 'live') { setFrames([]); setI(0); setChartOf(''); setStatus(`Connecting to ${API_URL}/today ...`) }
   }
 
   async function upload(e) {
@@ -96,6 +101,7 @@ function Preview() {
       if (!Array.isArray(res?.frames) || res.frames.length === 0) throw new Error('the reply has no frames')
       setFrames(res.frames)
       setI(0)
+      setChartOf(res.chart_of ?? '')
       setStatus(`${res.frames.length} frames from ${API_URL}/replay`)
     } catch (err) {
       setStatus(`Upload failed: ${err.message}`)
@@ -187,6 +193,10 @@ function Preview() {
             )}
           </aside>
         </div>
+      )}
+      {frame && (
+        <ChartGrid frames={frames} upto={Math.min(i, frames.length - 1)}
+          selectedId={selectedId} onSelect={setSelectedId} chartOf={chartOf} />
       )}
     </main>
   )

@@ -44,7 +44,7 @@ export function replayFromCsv(readingsFile, stationsFile) {
   return getJson('/replay', { method: 'POST', body })
 }
 
-/** GET /latest. Returns one Frame for the newest reading the server holds. */
-export function fetchLatest() {
-  return getJson('/latest')
+/** GET /today. Returns {"frames": [Frame, ...]}: today's readings so far, oldest first. */
+export function fetchToday() {
+  return getJson('/today')
 }
