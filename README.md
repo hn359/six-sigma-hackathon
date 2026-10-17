@@ -2,9 +2,14 @@
 
 # 🚲 Bikeshare Dispatch: where to send the van (Battery Ninjas)
 
-> ## ▶ Run the demo
+> ## ▶ Open the tool
 >
-> You need **Python 3.11+** and **Node.js 20+**. In a terminal:
+> **Live link:** not online yet. Deploying to the course Posit Connect server is task H-06; the
+> link goes here once it is up. Until then, run the tool on your own computer in three steps.
+>
+> **1. Install** [Python 3.11+](https://www.python.org/downloads/) and [Node.js 20+](https://nodejs.org/) (once).
+>
+> **2. In a terminal**, download the repo and start the tool:
 >
 > ```bash
 > git clone https://github.com/hn359/six-sigma-hackathon.git
@@ -12,8 +17,23 @@
 > ./demo.sh
 > ```
 >
-> Then open **http://localhost:8000**. The first run installs and builds (a minute or two); the map
-> needs internet for its street tiles.
+> The first run installs packages and builds the map (a minute or two). Wait for
+> `Starting: open http://localhost:8000`.
+>
+> **3. Open [http://localhost:8000](http://localhost:8000) in your browser.** Keep the terminal open
+> while you use it; press **Ctrl+C** there to stop. Next time, just `cd six-sigma-hackathon` and
+> `./demo.sh` again.
+>
+> | Address | What opens |
+> |---|---|
+> | [localhost:8000](http://localhost:8000) | **the tool**: home page with the four tabs below |
+> | [localhost:8000/index.html](http://localhost:8000/index.html) | the dispatch map on its own |
+> | [localhost:8000/bikeflow/](http://localhost:8000/bikeflow/) | the BikeFlow charts on their own |
+> | [localhost:8000/docs](http://localhost:8000/docs) | the API, with a "Try it out" button on every route |
+>
+> **If it doesn't start:** "address already in use" means something else is on port 8000; run
+> `PORT=8001 ./demo.sh` and open `localhost:8001`. On Windows, run `./demo.sh` from Git Bash. The
+> map needs internet for its street tiles.
 >
 > **What you'll see:** four tabs.
 > - **About:** what the tool does, how a dispatcher uses it, and the statistics.
