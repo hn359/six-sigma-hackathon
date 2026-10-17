@@ -93,7 +93,7 @@ const setTag = (marker, cls, html) => {
   inner.innerHTML = html
 }
 
-export default function Map3D({ frames, i, van, selectedId, onSelect }) {
+export default function Map3D({ frames, i, van, selectedId, onSelect, nextTrips = [], playing = false, stepMs = 5000 }) {
   const box = useRef(null)
   const map = useRef(null)
   const ready = useRef(false)
@@ -240,6 +240,20 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
   }
 
   const is3dRef = useRef(true)
+
+  // cyclists: while reading i is on screen, the riders of the next interval ride between stations
+  const rodeFor = useRef('')
+  useEffect(() => {
+    const m = models.current
+    const f = frames[i]
+    if (!f) return
+    const key = `${f.as_of}|${frames.length}`
+    if (!playing) { m.clearRiders(); rodeFor.current = ''; return }
+    if (rodeFor.current === key) return
+    rodeFor.current = key
+    const byId = Object.fromEntries(f.stations.map((s) => [s.station_id, s]))
+    m.ride(nextTrips, byId, stepMs)
+  }, [frames, i, playing, stepMs, nextTrips])
   latest.current.onSelect = onSelect
   useEffect(() => { draw() })
 
@@ -266,7 +280,7 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
         <li><span className="dot" style={{ background: COLOR.sig }} /> chart signal</li>
         <li><span className="dot" style={{ background: COLOR.oos }} /> out of spec</li>
         <li><span className="dot" style={{ background: COLOR.fix }} /> van just fixed it</li>
-        <li>each station: one bike per docked bike; kiosk light = status (models drawn 14× life size)</li>
+        <li>each station: one bike per docked bike; kiosk light = status · cyclists = the rider trips of the next 15 min (models 14× life size)</li>
         <li>map colours follow the time of day (night, dawn, day, sunset, dusk)</li>
         <li>drag to pan · right-drag or ctrl-drag to tilt and rotate</li>
       </ul>

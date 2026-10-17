@@ -135,3 +135,22 @@ def test_upload_off_grid_reading_is_rejected_clearly():
     files = {"readings": ("r.csv", text.encode()), "stations": ("s.csv", (ROOT / "collegetown" / "stations.csv").read_bytes())}
     r = client.post("/replay", files=files)
     assert r.status_code == 400 and "grid" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_trips_match_the_readings_exactly(key):
+    # For every station and reading: change in bikes - van move = arrivals - departures in the trips.
+    body = client.get(f"/trips/event?dataset={key}").json()
+    frames = client.get(f"/frames/event?dataset={key}").json()["frames"]
+    assert body["trips"], "no trips for the event day"
+    by_time = {}
+    for t in body["trips"]:
+        by_time.setdefault(t["timestamp"], []).append(t)
+    for k in range(1, len(frames)):
+        prev = {s["station_id"]: s for s in frames[k - 1]["stations"]}
+        for s in frames[k]["stations"]:
+            p = prev[s["station_id"]]
+            moves = by_time.get(frames[k]["as_of"], [])
+            arrivals = sum(t["to"] == s["station_id"] for t in moves)
+            departures = sum(t["from"] == s["station_id"] for t in moves)
+            assert s["bikes"] - p["bikes"] - p["van_moved"] == arrivals - departures, (frames[k]["as_of"], s["station_id"])

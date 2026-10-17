@@ -66,6 +66,11 @@ export function fetchFrames(scenario, day = 0, dataset = 'collegetown') {
   return getJson(`/frames/${encodeURIComponent(scenario)}?day=${day}&dataset=${encodeURIComponent(dataset)}`)
 }
 
+/** GET /trips/{scenario}?day=d&dataset=id: {"trips": [{timestamp, from, to}]}, the rider trips (display only). */
+export function fetchTrips(scenario, day = 0, dataset = 'collegetown') {
+  return getJson(`/trips/${encodeURIComponent(scenario)}?day=${day}&dataset=${encodeURIComponent(dataset)}`)
+}
+
 /** GET /summary?dataset=id: night plan, rush slots, weekly p-charts and before/after counts. */
 export function fetchSummary(dataset = 'collegetown') {
   return getJson(`/summary?dataset=${encodeURIComponent(dataset)}`)
