@@ -1,58 +1,73 @@
-# Plan: Battery Ninjas bikeshare tool
+# Plan: Battery Ninjas bikeshare tool (v4: chart-driven dispatch)
 
-**User:** the rebalancing dispatcher. **Question:** which stations do the vans visit first before the
-next rush hour, and which need a repair crew instead? **Statistics:** a p-chart and availability.
+**User:** the dispatcher running one van and a reserve depot. **Questions:** where should each
+station start tomorrow, does the van need to go anywhere in the next 15 minutes, and did the policy work?
+**Statistics:** live I-MR with Western Electric rules on slot-adjusted net flow (core, drives the
+van); nightly start plan and expected path; weekly p-chart (proof).
 
 ## Formulas (from SPEC.md section 4)
-- A reading is **unusable** if `bikes_available` = 0 or `docks_available` = 0. Only weekday rush
-  windows count: 07:00-09:59 and 16:00-18:59 (12 readings each at 15 min, so 120 per station per week).
-- **p-chart** (one point per station): p_i = d_i / n_i; p-bar = sum(d) / sum(n);
-  UCL_i = p-bar + 3·sqrt(p-bar(1 − p-bar)/n_i); LCL_i = max(0, p-bar − 3·sqrt(p-bar(1 − p-bar)/n_i)).
-  Above UCL means "send a van". Warn if n_i·p-bar < 5 or n_i·(1 − p-bar) < 5.
-- **Availability** (per station): an episode is a run of back-to-back unusable readings; runs break at
-  each rush-window edge. Reading length t = median gap between readings.
-  downtime = unusable readings × t; uptime = usable readings × t;
-  MTTR = downtime / episodes; MTBF = uptime / episodes; A = uptime / (uptime + downtime).
+- Network: 5 stations × 20 docks; 50 bikes in docks (10 each on day 1), 50 in reserve.
+  Day = 06:00-21:45, 64 readings. **Out of spec:** bikes < LSL 4 or bikes > USL 16.
+- **Start plan** (nightly): C = cumulative slot-mean net flow over the day; s = round(midpoint of
+  [4 − min C, 16 − max C]); expected path E(k) = s + C(k). Empty range → reported.
+- **I-MR** (every 15 min) on x = (Δbikes − van_moved) − station's slot mean. Phase I (week 1):
+  x-bar, MR-bar, sigma = MR-bar/1.128, limits ± 3 sigma, MR UCL 3.267·MR-bar.
+  **Rules** (same side): 1 beyond 3σ; 2 of 3 beyond 2σ; 4 of 5 beyond 1σ; 8 in a row.
+- **Van** (on a signal, or a reading outside 4-16 as a safety net): move = E(k) − bikes, ≤ 10 per stop, one stop per 15 min, largest
+  |E − bikes| first; source/sink = a station on the other side of its path, else reserve.
+- **Rush slots:** slot mean rentals ≥ 1.5 × mean of all slots.
+- **p-chart** (weekly, per station, subgroup = day, n = 64): Phase I pbar over week 1, limits
+  pbar ± 3·sqrt(pbar(1 − pbar)/n), LCL ≥ 0; week 2 below LCL = "improved", above UCL = "worse".
 
 ## Tasks
-1. **H-01 SPEC** (`SPEC.md`, 5 min). Done when `grep -c "FILL IN[.,]" SPEC.md` prints 0 and every
-   teammate can say the method sentence. The repo line is filled; check in after a yes.
-2. **H-03 statistics** (`app/qc.py`, `app/requirements.txt`, `tests/`, 60 min). Built before the data and the app.
-   - `p_chart(d, n)` returns p-bar, p_i, UCL_i, LCL_i, flag_i and warnings.
-     Known answer: d = 2, 3, 2, 3, 10, n = 20 each, gives p-bar 0.20, UCL 0.46833, LCL 0, only station 5 flagged.
-     Degenerate: all d = 0 gives p-bar 0, limits 0, nothing flagged, plus a message (no NaN);
-     fewer than 2 stations, or any n_i = 0, raises a clear error.
-   - `availability(states, t)` returns A, MTTR, MTBF and episodes.
-     Known answer: `UUXXUUUXUUUU`, t = 15 gives downtime 45, uptime 135, episodes 2, MTTR 22.5, MTBF 67.5, A 0.75.
-     Degenerate: all U gives A 1.0, MTTR and MTBF None, plus "no outages"; all X gives A 0.0, MTBF 0.0;
-     an empty list raises an error. A run cut by a window edge counts as 2 episodes.
-   - `analyze(df)` turns snapshot rows into both results (rush filter, median gap, n·p-bar warning).
-3. **H-02 data** (`data/`, 40 min). The three CSVs: 10 stations, 5 weekdays, 15-min readings, made
-   with a seeded script so they can be rebuilt. `normal_week.csv` flags nothing; `hot_station.csv`
-   has one station chronically empty; `edge_case.csv` has missing readings and a station with zero
-   outages. `data/README.md` is the codebook. Test: `analyze()` on each file gives the expected flags.
-4. **H-04 tool** (`app/`, 60 min). Copy `demos/fastapi/` to `app/`. `POST /analyze` takes a CSV;
-   `GET /health` answers. `testme` starts it. Test: `curl` on `data/hot_station.csv` returns the same
-   numbers as `analyze()` in pytest.
-5. **H-08, first half** (`.gitignore`). Make github.com/hn359/six-sigma-hackathon public as soon as H-04 runs.
-6. **H-06 deploy** (`.github/workflows/`, `app/manifest.json`, 30 min). A GitHub Actions deploy to
-   Posit Connect. Test: the public URL answers 200 logged out, with the H-03 numbers.
-7. **H-05 page and demo** (`app/frontend/`, `demo/`, 60 min). The React page: upload, the p-chart with
-   red flagged stations, the ranked "send a van first" list, and the availability/MTTR/MTBF table.
-   Test: the demo walkthrough on each CSV, checked with a Playwright screenshot. Styling only after this passes.
-8. **H-07 README** (`README.md`, `app/README.md`, 30 min). A teammate follows it from a fresh clone.
-9. **H-08, rest.** Fresh-clone check, `git grep -i api_key` finds nothing real, submit on Devpost.
+1. **H-03 statistics** (`app/qc.py`, `app/requirements.txt`, `tests/`, 90 min). One function each,
+   with a known-answer and a degenerate test (numbers in SPEC.md section 4):
+   - `imr_limits(x)`: 2,4,3,5,6 → x-bar 4, sigma 1.3298, UCL 7.99, LCL 0.01, MR UCL 4.9005.
+     Degenerate: constant x → sigma 0 + message, no signals; one value → error.
+   - `run_rules(x, xbar, sigma)`: the four rule cases and the no-signal case in SPEC.md.
+     Degenerate: sigma 0 → error, not a division by zero.
+   - `van_move(expected, bikes, capacity)`: (8, 3) bring 5; (12, 17) take 5; (9, 22) error.
+   - `start_plan(C, lsl, usl)`: 0,−3,−6,−8,−5 → 14, path 14,11,8,6,9; 0,−7,−13 → no start.
+   - `rush_slots(means)`: 2,2,6,6,2,2 → slots 3, 4. Degenerate: all equal → none.
+   - `p_chart_phase(d_week1, d_week2, n)` (reuse `p_chart` from branch `sample_idea1`):
+     16,20,12,24,18,14,8 → pbar 0.25, UCL 0.41238, LCL 0.08762; d = 3 improved, d = 28 worse.
+2. **H-02 data** (`data/`, 75 min). `data/simulate.py`, seeded, 15 minutes at a time: rentals per
+   station per slot are Poisson with a time-of-day rate (residential S1, S2 drain in the morning;
+   office S3 and hub S4 fill; S5 mixed; reverse in the evening), tuned so every station's normal
+   swing is ≤ 12 bikes; riders go to other stations by fixed weights; rentals at an empty station
+   and returns to a full one are lost. Week 2 uses `start_plan` nightly and `run_rules` +
+   `van_move` every slot (history = week 1). Writes `week1_baseline.csv`, `week2_policy.csv`,
+   `event_day.csv` (S5 return surge 18:00-18:45; slow extra drain at S2 from 10:00) and a van log.
+   Codebook in `data/README.md`. Tests: bikes conserved every slot; week 2 has fewer out-of-spec
+   readings; event day: rule 1 signals at S5, rules 2-4 at S2; week 1 false-alarm count reported.
+3. **H-04 tool** (`app/`, 60 min). FastAPI loads the `data/` CSVs at startup (no database):
+   `GET /health`, `GET /state/{scenario}?day=d&slot=k` (all stations, signals, van order),
+   `GET /charts/{station}?scenario&day`, `GET /plan`, `GET /pchart/{station}`, `POST /analyze`
+   (upload a readings CSV). `testme` runs pytest then the server. Test: curl on one slot of
+   `event_day` gives the same signals and van move as pytest.
+4. **H-08, first half.** Make the repo public as soon as H-04 runs.
+5. **H-06 deploy** (`.github/workflows/`, `app/manifest.json`, 30 min). Public URL answers 200.
+6. **H-05 page and demo** (`app/static/`, `demo/`, 90 min). Port the prototype console
+   (claude.ai artifact "Dock Dispatch Console"): city map with the animated van, live feed, five
+   station charts, night plan, weekly p-charts; 5 s per 15 min. It only fetches from the API.
+7. **H-07 README** (30 min). **H-08 rest:** fresh-clone check, submit on Devpost.
 
-## Decisions (2026-10-16)
-- SPEC: Yash's version as-is (one network p-chart plus availability); team name Battery Ninjas.
-- Repo: github.com/hn359/six-sigma-hackathon.
-- Outage episodes break at each rush-window edge (we never see the hours in between).
-- A zero-outage station is shown as A = 1.00 and "no outages", with MTTR and MTBF None, never inf.
-- Test CSVs: 10 stations, 5 weekdays, 15-min readings.
-- No donor/receiver list for now; maybe H-09 later, and only with the team's yes.
+## Decisions (2026-10-16, v4 replaces v3)
+- Fleet 100 bikes: 50 in docks (10 per station at t0 on day 1), 50 in reserve. LSL 4, USL 16.
+- The van moves **only** on a control-chart signal (I-MR + Western Electric rules 1-4). The
+  predictable rush pattern is handled the night before by the start plan, not by the van.
+- Simulated demand keeps each station's normal daily swing ≤ 12 bikes, so a start plan exists.
+- Dispatch-risk score (v3) dropped. Weekly p-chart stays as the before/after proof.
+- Safety net: a reading outside 4-16 also sends the van (prototype: used 3 times in week 2).
+- Stack: FastAPI + plain HTML/JS in `app/static/` (no React, no Node). No database: CSV files.
+- Prototype results (simulated): out-of-spec readings 499 → 8, lost rentals 7 → 0, ~13 van stops a day.
+- Data: 2 simulated weeks, week 1 without rebalancing (Phase I), week 2 with the policy (Phase II).
+- Same demand every day; no weekend effect.
 
 ## Risks
-1. **Limits too tight:** readings 15 min apart are correlated, so the p-chart can flag a station that is
-   not truly worse. We say so in the README and on the page, and show each station's p next to its UCL.
-2. **Deploy fails late:** deploy as soon as H-04 runs (step 6), not at the end.
-3. **The page eats the time:** the statistics (H-03) are reviewed and passing before any page work.
+1. **Run rules add false alarms** (ARL about 92 vs 370 for rule 1 alone): report the week-1
+   count; if it sends the van too often, drop rule 4 and say so.
+2. **Scope:** six functions plus a simulation. If short on time, cut rush slots, then the event
+   day's slow drain; the start plan, the chart-driven van and the p-chart stay.
+3. **Rough sigma** (7 days per slot) and **correlated readings**: said in the README and on the page.
+4. **Simulation bugs look like statistics:** test bike conservation every slot.
