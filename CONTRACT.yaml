@@ -176,6 +176,26 @@ tasks:
       and rejects a scenario, timestamp, or station-count mismatch.
     result: "Overnight targets are locked to the completed Week 1 baseline; pre-completion dates stay in learning mode. Dashboard shows a 3D bike-dock picture with flow trends and van moves completed by 10 PM the day before, ready for 6 AM."
 
+  - id: H-11
+    title: Rush hours on the console's time bar
+    points: "supports 25 - an effective, working tool (the dispatcher sees when the rush starts)"
+    status: done
+    owner: "Jim + Claude"
+    started_at: "2026-10-17"
+    owns: ["app/frontend/src/dispatch/rush.js", "app/frontend/src/dispatch/rush.test.js", "app/frontend/src/map-preview.jsx", "app/frontend/src/map/map.css"]
+    notes: >
+      Presentation only. The rush slots come from the API's existing summary.rush_slots
+      (app/qc.py: rush_slots, slots whose usual |net flow| is at least 1.5x the day's mean,
+      learned from week 1); nothing statistical is computed in the browser. Slots less than
+      an hour apart are joined into one window so the bar does not flicker. map-preview.jsx
+      is also listed under H-10 (Aayam): only the replay bar is touched.
+    definition_of_done: >
+      npx vitest run passes, including rush.test.js (gaps joined, an hour-long gap splits,
+      no rush slots gives no windows, unsorted input); npm run build passes; on /side-by-side
+      the time bar shades collegetown's rush windows and shows a "Rush hour" badge while
+      the replay is inside one.
+    result: "Amber rush bands under the slider (collegetown 07:00-09:15, 16:00-18:30) and a Rush hour badge; slider keeps one width while dragging or playing; vitest 52 passed, build ok."
+
   - id: H-08
     title: Reproducible public repo, submitted on Devpost
     points: "5 - Tool Documentation: fully reproducible code, posted publicly to GitHub"
