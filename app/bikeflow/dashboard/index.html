@@ -77,6 +77,16 @@
   /* tab views from the home page (#map, #night, #spc); with no view the page shows everything.
      Off the Map tab the console keeps running off screen, so its clock still drives every tab. */
   body[data-view] main > section:not(.in-view) { display:none; }
+  .subnav { display:none; background:none; border:0; box-shadow:none; padding:0; margin:6px 0 -4px; }
+  body[data-view^="night"] .subnav { display:block; }
+  .subnav .seg button { padding:10px 18px; font-size:14px; }
+  .subnav .seg button b { color:inherit; margin-right:4px; }
+  .plan-table td.num, .plan-table th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .plan-table td.mv { font-weight:700; } .plan-table td.mv.in { color:#3f55c9; } .plan-table td.mv.out { color:#d23a50; }
+  .prio { display:inline-block; padding:2px 12px; border-radius:999px; font-size:12px; font-weight:700; }
+  .prio.HIGH { background:#fde4e6; color:#c0313f; } .prio.MEDIUM { background:#fdf0d8; color:#9a6400; } .prio.LOW { background:#eef0f7; color:#3d4762; }
+  .tomorrow-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1.5fr) minmax(300px, 1fr); align-items:start; }
+  @media (max-width:980px) { .tomorrow-grid { grid-template-columns:1fr; } }
   body[data-view] .not-in-tabs { display:none; }      /* parts of a section kept off the tabs */
   body[data-view] .appbar, body[data-view] #console-wrap > h1, body[data-view] #console-wrap > .sub,
   body[data-view] #subtitle { display:none; }
@@ -216,7 +226,14 @@
     <div class="days" id="days"></div>
   </section>
 
-  <section data-view="map">
+  <section class="subnav" data-view="night night-tomorrow" aria-label="Redistribution views">
+    <div class="seg" role="tablist">
+      <button type="button" role="tab" data-sub="night"><b>1</b> Where riders go now</button>
+      <button type="button" role="tab" data-sub="night-tomorrow"><b>2</b> Redistribution for tomorrow</button>
+    </div>
+  </section>
+
+  <section data-view="map night">
     <div class="eyebrow"><span class="secno">3</span> &middot; Rider flow</div><h2>Where are riders going?</h2>
     <p class="how">Each box counts the trips from one station (row) to another (column). <b>The darker the box, the more riders made that trip.</b>
       Totals: how many rides left each station, and how many arrived at each.</p>
@@ -242,6 +259,21 @@
     <div id="planbars"></div>
     <div id="planmsg"></div>
     <details><summary>Table: every station, its action and why</summary><div class="scroll"><table id="plan"></table></div></details>
+  </section>
+
+  <section data-view="night-tomorrow">
+    <div class="eyebrow"><span class="secno">4</span> &middot; Redistribution for tomorrow</div><h2>Tonight's moves, so every station is ready at 6 AM</h2>
+    <p class="how" id="tmhow">Where riders mostly <b>leave</b> in the morning, the station starts nearly full; where they mostly <b>arrive</b>, it starts
+      nearly empty so there is room to park. Calculated from the replay day's last reading and Week 1's morning pattern.</p>
+    <div class="tomorrow-grid">
+      <div><h3 style="margin-top:4px">Route map: what the van does tonight</h3>
+        <p class="how">Stations placed as on the city map (spread out slightly where they are close). Arrow = a move (thicker = more bikes). Label = bikes at 10 PM &rarr; 6 AM target.</p>
+        <div id="tmmap"></div></div>
+      <div><h3 style="margin-top:4px">Next-morning preparation plan</h3>
+        <div class="scroll"><table class="plan-table" id="tmtable"></table></div>
+        <p class="how">Positive moves mean the station receives bikes; negative moves mean bikes are taken away.</p>
+        <p class="how" id="tmnote"></p></div>
+    </div>
   </section>
 
   <section data-view="none">
@@ -981,6 +1013,90 @@ function planTable(id, p) {
       <td><span class="pill ${r.priority}">${r.priority}</span> ${esc(r.reason)}<div class="how">${esc(r.projection_basis)}</div></td></tr>`).join("");
 }
 function schedulePlan() { if (planBusy) { planAgain = true; return; } loadPlans(); }
+/* Redistribution for tomorrow: a route map (stations at their places, an arrow per move, thicker = more
+   bikes) and a planning table, both straight from the 10 PM plan (plan/overnight). Nothing is computed here. */
+function clearTomorrow(message) {
+  emptyChart("tmmap", message); $("tmtable").innerHTML = ""; $("tmnote").textContent = "";
+}
+function renderTomorrow(p) {
+  const rows = p.rows.slice().sort((a, b) => info.stations.indexOf(a.station_id) - info.stations.indexOf(b.station_id));
+  const places = info.places || {}, onMap = rows.every(r => places[r.station_id]);
+  const pos = {};
+  rows.forEach((r, k) => { pos[r.station_id] = onMap ? { x: places[r.station_id].lon, y: places[r.station_id].lat } : { x: k, y: 0 }; });
+  // a schematic map: start from the real positions (scaled to a unit box), then gently push apart any two
+  // stations closer than MIN so labels and arrows never pile up; north stays north, neighbours stay neighbours
+  if (onMap && rows.length > 1) {
+    const rx = rows.map(r => pos[r.station_id].x), ry = rows.map(r => pos[r.station_id].y);
+    const x0 = Math.min(...rx), y0 = Math.min(...ry), sx = (Math.max(...rx) - x0) || 1, sy = (Math.max(...ry) - y0) || 1;
+    const P = rows.map(r => ({ x: (pos[r.station_id].x - x0) / sx, y: (pos[r.station_id].y - y0) / sy }));
+    const MIN = 0.34;
+    for (let it = 0; it < 200; it++) {
+      let moved = false;
+      for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+        let dx = P[j].x - P[i].x, dy = P[j].y - P[i].y, d = Math.hypot(dx, dy);
+        if (d >= MIN) continue;
+        if (d < 1e-6) { dx = 1; dy = 0; d = 1; }
+        const push = (MIN - d) / 2 * 0.5;
+        P[i].x -= dx / d * push; P[i].y -= dy / d * push; P[j].x += dx / d * push; P[j].y += dy / d * push;
+        moved = true;
+      }
+      if (!moved) break;
+    }
+    rows.forEach((r, k) => { pos[r.station_id] = P[k]; });
+  }
+  const xs = rows.map(r => pos[r.station_id].x), ys = rows.map(r => pos[r.station_id].y);
+  const span = (a) => Math.max(...a) - Math.min(...a) || 0.01;
+  // the depot has no address in the data: put it in the clearest spot inside the network, the grid point
+  // farthest from every station (distances in screen-like units), so it never covers a station
+  const cx = 1 / span(xs), cy = 1 / span(ys);
+  let best = null;
+  for (let i = 1; i < 10; i++) for (let j = 1; j < 10; j++) {
+    const gx = Math.min(...xs) + span(xs) * i / 10, gy = Math.min(...ys) + span(ys) * j / 10;
+    const d = Math.min(...rows.map(r => Math.hypot((pos[r.station_id].x - gx) * cx, (pos[r.station_id].y - gy) * cy)));
+    if (!best || d > best.d) best = { x: gx, y: gy, d };
+  }
+  pos.DEPOT = { x: best.x, y: best.y };
+  const moves = p.transfers.filter(t => t.bikes > 0 && pos[t.from] && pos[t.to]);
+  const usesDepot = moves.some(t => t.from === "DEPOT" || t.to === "DEPOT");
+  const name = id => id === "DEPOT" ? "Depot" : (info.names && info.names[id] || id);
+  const data = [{ x: xs, y: ys, mode:"markers+text", showlegend:false,
+      marker:{ size: rows.map(r => 22 + 18 * r.after / Math.max(1, r.capacity)), color: rows.map(r => stationColor(r.station_id)),
+               line:{ color:"#ffffff", width:2.5 } },
+      text: rows.map(r => `<b>${esc(name(r.station_id))}</b><br>${r.bikes} → ${r.after}`), textposition:"bottom center",
+      textfont:{ size:12, color: ink() }, cliponaxis:false,
+      customdata: rows.map(r => `<b>${esc(name(r.station_id))}</b><br>${r.bikes} bikes at 10 PM → ${r.after} at 6 AM (${Math.round((r.target_share ?? r.after / r.capacity) * 100)}% of ${r.capacity} docks)<br>${esc(r.reason || "")}`),
+      hovertemplate:"%{customdata}<extra></extra>" }];
+  if (usesDepot) data.push({ x:[pos.DEPOT.x], y:[pos.DEPOT.y], mode:"markers+text", showlegend:false, marker:{ symbol:"square", size:24, color:"#2b3a52" },
+      text:["<b>Depot</b>"], textposition:"top center", textfont:{ size:12, color: ink() }, hovertemplate:"Depot (reserve bikes)<extra></extra>" });
+  const ann = [];
+  for (const t of moves) {
+    const a = pos[t.from], b = pos[t.to];
+    ann.push({ x:b.x, y:b.y, ax:a.x, ay:a.y, xref:"x", yref:"y", axref:"x", ayref:"y", showarrow:true, arrowhead:2, arrowsize:1,
+               arrowwidth: 1.6 + 0.9 * t.bikes, arrowcolor:"rgba(111, 136, 252, .85)", standoff:20, startstandoff:16, text:"" });
+    ann.push({ x:a.x + (b.x - a.x) * 0.6, y:a.y + (b.y - a.y) * 0.6, text:`<b>${t.bikes} bike${t.bikes === 1 ? "" : "s"}</b>`, showarrow:false,
+               bgcolor:"#ffffff", bordercolor:"#6f88fc", borderwidth:1, borderpad:3, font:{ size:12, color:"#3f55c9" } });
+  }
+  const pad = (a, f) => { const lo = Math.min(...a), hi = Math.max(...a), m = Math.max((hi - lo) * f, 0.002); return [lo - m, hi + m]; };
+  const allX = [...xs, ...(usesDepot ? [pos.DEPOT.x] : [])], allY = [...ys, ...(usesDepot ? [pos.DEPOT.y] : [])];
+  plot("tmmap", data, theme({ height:520, margin:{ t:10, r:10, b:10, l:10 }, annotations: ann,
+    xaxis:{ visible:false, range: pad(allX, 0.22) },
+    yaxis:{ visible:false, range: pad(allY, 0.3) },   // stretched to fill the box: relative positions kept, labels get room
+    plot_bgcolor:"#fbfaff" }));
+  const label = { HIGH:"High", MEDIUM:"Medium", LOW:"Normal" };
+  const rank = r => ["HIGH", "MEDIUM", "LOW"].indexOf(r.priority) * 1000 - Math.abs(r.after - r.bikes);
+  $("tmtable").innerHTML = `<tr><th>Station</th><th class="num">At 10 PM</th><th class="num">6 AM target</th><th class="num">Move</th><th>Priority</th></tr>` +
+    rows.slice().sort((a, b) => rank(a) - rank(b)).map(r => {
+      const mv = r.after - r.bikes;
+      return `<tr><td><span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:${stationColor(r.station_id)}"></span>${esc(name(r.station_id))}</td>
+        <td class="num">${r.bikes}</td><td class="num">${r.after} bikes</td>
+        <td class="num mv ${mv > 0 ? "in" : mv < 0 ? "out" : ""}">${mv > 0 ? "+" : mv < 0 ? "−" : ""}${Math.abs(mv)}</td>
+        <td><span class="prio ${r.priority}">${label[r.priority] || r.priority}</span></td></tr>`;
+    }).join("");
+  const f = p.fleet, total = moves.reduce((a, t) => a + t.bikes, 0);
+  $("tmnote").textContent = `For ${p.for.replace("T", " ")}, moved by 10 PM on ${p.at.slice(0, 10)}: ${total} bikes in ${moves.length} move${moves.length === 1 ? "" : "s"}; ` +
+    `depot ${f.reserve_before} → ${f.reserve_after} bikes; every station stays within its docks and the ${f.fleet}-bike fleet is unchanged.`;
+}
+
 async function loadPlans() {
   planBusy = true;
   const depot = $("depot").value;
@@ -995,6 +1111,7 @@ async function loadPlans() {
       const b = p.baseline;
       $("nightmoves").innerHTML = `<div class="night-brief-card"><span class="label">Week 1 baseline</span><strong>Learning the pattern: ${b.complete_days} of ${b.required_days} complete days</strong><small>Available period: ${esc(b.from || "not started")} to ${esc(b.through)}; morning window ${esc(b.window)}. A complete day needs every station's readings across the full window. No targets or moves are published until the baseline is complete.</small></div>`;
       clearNightMap("Learning the average 6\u201310 AM rider flow from Week 1. No map markers or redistribution targets are shown until Week 1 is complete.");
+      clearTomorrow(`Learning Week 1's morning pattern (${b.complete_days} of ${b.required_days} complete days): no targets or moves yet.`);
       emptyChart("nightbars", "The full Week 1 pattern is not ready yet."); $("night").innerHTML = "";
       msg("nightmsg", p.notes.join(" "));
     } else {
@@ -1004,6 +1121,7 @@ async function loadPlans() {
         await renderNightMap(p);
         nightPlanSignature = signature;
         planBars("nightbars", p, true); planTable("night", p); msg("nightmsg", p.notes.join(" "));
+        renderTomorrow(p);
       }
     }
   } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; $("nightpicture").innerHTML = ""; emptyChart("nightbars", ""); $("night").innerHTML = ""; }
@@ -1209,21 +1327,26 @@ if (FOLLOW) {
 }
 
 /* ---- tab views: #map, #night or #spc shows only that tab's sections, numbered 1, 2, 3 within it ---- */
-const VIEWS = ["map", "night", "spc"];
+const VIEWS = ["map", "night", "night-tomorrow", "spc"];
 function applyView() {
   const v = location.hash.slice(1), tabbed = VIEWS.includes(v);
   if (tabbed) document.body.dataset.view = v; else delete document.body.dataset.view;
   let n = 0;
   document.querySelectorAll("main > section").forEach(sec => {
-    const on = !tabbed || sec.dataset.view === v;
+    const on = !tabbed || (sec.dataset.view || "").split(" ").includes(v);
     sec.classList.toggle("in-view", on);
     const num = sec.querySelector(".secno");
     if (!num) return;
     num.dataset.all ??= num.textContent;              // the number on the full page
     num.textContent = tabbed && on ? ++n : num.dataset.all;
   });
+  document.querySelectorAll(".subnav [data-sub]").forEach(b => {
+    const on = b.dataset.sub === v;
+    b.classList.toggle("on", on); b.setAttribute("aria-selected", on);
+  });
   requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));   // charts drawn while hidden re-fit
 }
+document.querySelectorAll(".subnav [data-sub]").forEach(b => b.addEventListener("click", () => { location.hash = b.dataset.sub; }));
 window.addEventListener("hashchange", applyView);
 applyView();
 

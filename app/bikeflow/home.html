@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bikeshare Dispatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;800&display=swap" rel="stylesheet">
 <style>
   :root { --bg:#f7f8fd; --card:#ffffff; --ink:#1f2a44; --mute:#5b6680; --line:#e3e6f3; --accent:#6f88fc;
           --accent2:#a163f7; --cyan:#45e3ff; --cream:#fdfff2;
@@ -15,6 +17,13 @@
            border-image:linear-gradient(90deg, #a163f7, #6f88fc, #45e3ff) 1; }
   header .in { max-width:1240px; margin:0 auto; padding:16px 20px 0; }
   header h1 { margin:0; font-size:20px; letter-spacing:-.01em; }
+  .brand { display:flex; align-items:center; gap:16px; padding:6px 0 4px; }
+  .brand svg { flex:0 0 auto; width:58px; height:58px; filter:drop-shadow(0 4px 14px rgba(161, 99, 247, .45)); }
+  .brand h1 { font:800 40px/1.05 Poppins, system-ui, sans-serif; letter-spacing:-.02em;
+              background:linear-gradient(90deg, #ffffff 0%, #e6d7ff 35%, #b9c6ff 65%, #9ff1ff 100%);
+              -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .brand .tagline { display:block; font:600 15px/1.4 Poppins, system-ui, sans-serif; color:#9ff1ff; letter-spacing:.02em; margin-top:4px; }
+  @media (max-width:600px) { .brand h1 { font-size:28px; } .brand svg { width:44px; height:44px; } }
   header p { margin:2px 0 12px; color:#c3cddc; font-size:13px; }
   header .repo { color:#fff; font-weight:600; } header .repo:hover { color:var(--cyan); }
   [role="tablist"] { display:flex; gap:4px; }
@@ -61,7 +70,17 @@
 <body>
 <header>
   <div class="in">
-    <h1>Bikeshare Dispatch: where to send the van</h1>
+    <div class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <defs><linearGradient id="bg-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a163f7"/><stop offset=".55" stop-color="#6f88fc"/><stop offset="1" stop-color="#45e3ff"/></linearGradient></defs>
+        <rect width="64" height="64" rx="16" fill="url(#bg-g)"/>
+        <g fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="19" cy="40" r="9"/><circle cx="45" cy="40" r="9"/>
+          <path d="M19 40 L27 25 L41 25 L45 40 M27 25 L33 40 L41 25 M24 19 h7 M38 19 l3 6"/>
+        </g>
+      </svg>
+      <div><h1>Bikeshare Dispatch</h1><span class="tagline">Where to send the van, and how to set up tomorrow</span></div>
+    </div>
     <p>Battery Ninjas · Cornell Six Sigma Hackathon · Prompt 1, Urban Systems: "Bikeshare Fleets" ·
       <a class="repo" href="https://github.com/hn359/six-sigma-hackathon" target="_blank" rel="noopener">GitHub repository</a></p>
     <div role="tablist" aria-label="Home">
@@ -343,8 +362,9 @@ cd app/frontend &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ../..
 <div role="tabpanel" id="panel-tool" aria-labelledby="tab-map" hidden>
   <div class="tabtext" data-tab="map"><p>Play or drag the time bar on the map: it is the only control, and the
     other tabs follow it. How to act on it: <a href="#use" data-open="about">How a dispatcher uses it</a> in About.</p></div>
-  <div class="tabtext" data-tab="night"><p>What the van should move now, at the time shown on the map's time bar (set it in
-    <a href="#map" data-open="map">Map and dispatch</a>). How the van decides: <a href="#decide" data-open="about">What the tool decides</a> in About.</p></div>
+  <div class="tabtext" data-tab="night"><p>Two views: <b>1 Where riders go now</b> (the trips between stations and the van's moves at the
+    time on the map's time bar, set in <a href="#map" data-open="map">Map and dispatch</a>) and <b>2 Redistribution for tomorrow</b>
+    (tonight's moves for the 6 AM opening). How the van decides: <a href="#decide" data-open="about">What the tool decides</a> in About.</p></div>
   <div class="tabtext" data-tab="spc"><p>Each station's day and its control chart, at the time shown on the map's
     time bar. What the charts compute: <a href="#stats" data-open="about">The statistics</a> in About.</p></div>
 

@@ -78,9 +78,14 @@ def test_home_page_has_four_tabs_over_one_tool_page():
         assert f'id="tab-{name}"' in r.text
     assert '"bikeflow/?follow=console#"' in r.text      # tabs 2-4 share one tool page and one clock
     page = client.get("/bikeflow/").text
-    views = re.findall(r'<section data-view="(\w+)">', page)
-    assert views.count("map") == 2 and views.count("night") == 1 and views.count("spc") == 2
-    assert views.count("none") == 2                    # Tomorrow's plan and Validation: full page only
+    # a section can belong to several views (data-view="map night"); Redistribution has two sub-tabs:
+    # "night" (where riders go now: the sub-tab bar, rider flow, the van now) and "night-tomorrow"
+    # (the sub-tab bar, the route map and planning table for the 6 AM opening)
+    sections = [v.split() for v in re.findall(r'<section(?: class="[\w -]+")? data-view="([\w -]+)"', page)]
+    count = lambda v: sum(v in s for s in sections)
+    assert count("map") == 2 and count("night") == 3 and count("night-tomorrow") == 2 and count("spc") == 2
+    assert count("none") == 2                          # Tomorrow's plan and Validation: full page only
+    assert 'data-sub="night"' in page and 'data-sub="night-tomorrow"' in page and 'id="tmmap"' in page
     assert 'class="not-in-tabs"' in page                # the hour-by-hour heatmap: full page only
     assert client.get("/home/images/how-the-van-decides.png").status_code == 200
     assert client.get("/home/images/banner.png").status_code == 404     # only the docs' own images
