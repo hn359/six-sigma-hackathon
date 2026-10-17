@@ -9,21 +9,20 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css">
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <style>
-  :root { --bg:#f3f4f6; --card:#ffffff; --ink:#111827; --mute:#5b6270; --line:#e3e6eb; --accent:#1f5fbf;
-          --crit:#c53030; --warn:#b7791f; --good:#2f855a; --head:#0f1b2d; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#eef0f3; --mute:#a5acb8; --line:#2a2f3a;
-            --accent:#4f8fe6; --head:#0b1220; } }
+  :root { --bg:#f7f8fd; --card:#ffffff; --ink:#1f2a44; --mute:#5b6680; --line:#e3e6f3; --accent:#6f88fc;
+          --accent2:#a163f7; --cyan:#45e3ff; --cream:#fdfff2;
+          --crit:#e5484d; --warn:#e0a21a; --good:#0e8fad; --head:#2b3a52; }   /* Fairy palette, white main theme */
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:14.5px/1.5 Inter,system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
   header, main { max-width:1240px; margin:0 auto; padding:0 20px; }
-  .appbar { background:var(--head); color:#fff; padding:18px 0 16px; margin-bottom:18px; }
+  .appbar { background:var(--head); color:#fff; padding:18px 0 16px; margin-bottom:18px; border-bottom:3px solid transparent;
+            border-image:linear-gradient(90deg, #a163f7, #6f88fc, #45e3ff) 1; }
   .appbar .in { max-width:1240px; margin:0 auto; padding:0 20px; display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
   .appbar h1 { margin:0; font-size:20px; font-weight:700; letter-spacing:-.01em; }
-  .appbar .tag { font-size:13px; color:#b9c3d3; }
+  .appbar .tag { font-size:13px; color:#c8d0f0; }
   h1 { margin:0 0 4px; font-size:20px; } h2 { margin:0 0 4px; font-size:18px; font-weight:650; letter-spacing:-.01em; }
   h3 { margin:16px 0 4px; font-size:14px; font-weight:600; }
-  .eyebrow { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent); margin-bottom:2px; }
+  .eyebrow { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent2); margin-bottom:2px; }
   .sub { color:var(--mute); margin:0 0 12px; }
   /* read-only time bar on top of each section: follows the replay clock, never dragged */
   .tbar { display:flex; align-items:center; gap:10px; margin:0 0 14px; font-size:12px; color:var(--mute); }
@@ -37,7 +36,8 @@
               font-variant-numeric:tabular-nums; padding:2px 8px; border-radius:999px; background:#ffb020; color:#111827; }
   .tbar .rb.off { visibility:hidden; }
   .kpis { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); margin:12px 0 4px; }
-  .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:10px; padding:12px 14px; }
+  .kpi:nth-child(2) { border-top-color:var(--accent2); } .kpi:nth-child(3) { border-top-color:var(--cyan); }
   .kpi .v { font-size:24px; font-weight:700; line-height:1.15; letter-spacing:-.01em; }
   .kpi .v small { font-size:14px; font-weight:500; color:var(--mute); }
   .kpi .l { font-size:12px; color:var(--mute); margin-top:2px; }
@@ -45,7 +45,7 @@
   .routes { list-style:none; margin:0; padding:0; }
   .routes li { display:grid; grid-template-columns:22px 1fr auto; gap:8px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
   .routes .rk { color:var(--mute); font-weight:600; } .routes .n { font-weight:700; font-variant-numeric:tabular-nums; }
-  .routes .rbar { height:6px; border-radius:3px; background:var(--accent); margin-top:4px; }
+  .routes .rbar { height:6px; border-radius:3px; background:linear-gradient(90deg, #a163f7, #6f88fc); margin-top:4px; }
   .odgrid { display:grid; gap:18px; grid-template-columns:minmax(0,2.2fr) minmax(240px,1fr); align-items:start; }
   @media (max-width:900px) { .odgrid { grid-template-columns:1fr; } }
   .bar { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:end; background:var(--card);
@@ -69,7 +69,7 @@
   th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--mute); font-weight:600; }
   .pill { padding:1px 8px; border-radius:10px; font-size:12px; font-weight:600; border:1px solid currentColor; }
-  .HIGH { color:var(--crit); } .MEDIUM { color:#a86b00; } .LOW { color:#0a7d0a; }
+  .HIGH { color:var(--crit); } .MEDIUM { color:#a86b00; } .LOW { color:var(--good); }
   .scroll { overflow-x:auto; }
   #console-wrap { max-width:1400px; margin:0 auto; padding:18px 16px 0; }
   #console { width:100%; height:82vh; min-height:560px; max-height:1750px; resize:vertical; border:1px solid var(--line); border-radius:8px; background:#fff; }
@@ -87,10 +87,10 @@
   .three { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:2px 0 6px; }
   .seg button { background:var(--card); color:var(--ink); border:0; border-radius:0; min-width:0; padding:6px 14px; }
-  .seg button.on { background:var(--accent); color:#fff; }
+  .seg button.on { background:var(--accent2); color:#fff; }
   .moves { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); margin:8px 0 4px; }
-  .move { border:1px solid var(--line); border-left:6px solid var(--line); border-radius:8px; padding:10px 12px; background:var(--bg); }
-  .move.HIGH { border-left-color:#d03b3b; } .move.MEDIUM { border-left-color:#fab219; } .move.LOW { border-left-color:#0ca30c; }
+  .move { border:1px solid var(--line); border-left:6px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--cream); }
+  .move.HIGH { border-left-color:var(--crit); } .move.MEDIUM { border-left-color:var(--warn); } .move.LOW { border-left-color:var(--cyan); }
   .move .n { font-size:26px; font-weight:700; line-height:1; color:var(--ink); }
   .move .n small { font-size:14px; font-weight:600; color:var(--mute); }
   .move .route { font-size:15px; margin:6px 0 4px; color:var(--ink); }
@@ -112,13 +112,13 @@
   .sync-panel[data-state="loading"] { border-left-color:var(--accent); }
   .sync-panel[data-state="stale"], .sync-panel[data-state="mismatch"], .sync-panel[data-state="error"] { border-left-color:var(--crit); }
   .sync-title { display:flex; align-items:center; gap:11px; }
-  .sync-dot { width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:var(--good); box-shadow:0 0 0 4px rgba(47,133,90,.13); }
-  [data-state="loading"] .sync-dot { background:var(--accent); box-shadow:0 0 0 4px rgba(31,95,191,.12); }
+  .sync-dot { width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:var(--good); box-shadow:0 0 0 4px rgba(69,227,255,.22); }
+  [data-state="loading"] .sync-dot { background:var(--accent); box-shadow:0 0 0 4px rgba(111,136,252,.16); }
   [data-state="stale"] .sync-dot, [data-state="mismatch"] .sync-dot, [data-state="error"] .sync-dot { background:var(--crit); box-shadow:0 0 0 4px rgba(197,48,48,.12); }
   .sync-heading small { display:block; color:var(--mute); font-size:10px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
   .sync-heading strong { display:block; font-size:16px; line-height:1.25; }
-  .sync-badge { margin-left:auto; border-radius:999px; padding:4px 10px; color:var(--good); background:rgba(47,133,90,.1); font-size:11px; letter-spacing:.05em; font-weight:800; }
-  [data-state="loading"] .sync-badge { color:var(--accent); background:rgba(31,95,191,.1); }
+  .sync-badge { margin-left:auto; border-radius:999px; padding:4px 10px; color:var(--good); background:rgba(69,227,255,.16); font-size:11px; letter-spacing:.05em; font-weight:800; }
+  [data-state="loading"] .sync-badge { color:var(--accent); background:rgba(111,136,252,.12); }
   [data-state="stale"] .sync-badge, [data-state="mismatch"] .sync-badge, [data-state="error"] .sync-badge { color:var(--crit); background:rgba(197,48,48,.1); }
   .sync-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-top:12px; }
   .sync-field { min-width:0; border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:var(--card); }
@@ -150,20 +150,20 @@
   .night-route { stroke:#1378c8; stroke-width:5; opacity:.9; filter:drop-shadow(0 1px 2px #122b4666); }
   .maplibregl-popup-content { font:13px/1.55 Inter,system-ui,sans-serif; border-radius:8px; }
   .maplibregl-ctrl-attrib { font-size:10px; }
-  .move.caught { border-left-color:#0ca30c; } .move.missed { border-left-color:#d03b3b; }
+  .move.caught { border-left-color:var(--cyan); } .move.missed { border-left-color:var(--crit); }
   .board { display:grid; gap:10px; }
   .row { display:grid; grid-template-columns:minmax(150px,220px) 1fr minmax(170px,240px); gap:14px; align-items:center; }
   .row .nm { font-weight:600; } .row .nm small { display:block; font-weight:400; color:var(--mute); font-size:12px; }
   .tank { position:relative; height:26px; border:1.5px solid var(--mute); border-radius:6px; background:var(--bg); overflow:hidden; }
-  .tank .ok { position:absolute; top:0; bottom:0; background:rgba(12,163,12,.16); border-left:1px dashed #0a7d0a; border-right:1px dashed #0a7d0a; }
+  .tank .ok { position:absolute; top:0; bottom:0; background:rgba(69,227,255,.18); border-left:1px dashed var(--good); border-right:1px dashed var(--good); }
   .tank .fill { position:absolute; left:0; top:5px; bottom:5px; border-radius:0 4px 4px 0; }
   .tank .norm { position:absolute; top:-2px; bottom:-2px; width:3px; margin-left:-1.5px; background:var(--ink); }
   .tank .cnt { position:absolute; right:8px; top:3px; font-size:13px; font-weight:600; color:var(--ink); }
   .chip { display:inline-flex; gap:6px; align-items:center; font-size:13px; font-weight:600; padding:4px 10px; border-radius:14px; border:1.5px solid currentColor; }
-  .chip.good { color:#0a7d0a; } .chip.warn { color:#a86b00; } .chip.crit { color:#d03b3b; }
+  .chip.good { color:var(--good); } .chip.warn { color:#a86b00; } .chip.crit { color:#d03b3b; }
   .row .say { font-size:12px; color:var(--mute); margin-top:3px; }
   .days { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); }
-  .day { border:1px solid var(--line); border-radius:8px; padding:6px 8px 0; background:var(--bg); }
+  .day { border:1px solid var(--line); border-radius:10px; padding:6px 8px 0; background:var(--cream); }
   .day h4 { margin:2px 4px 0; font-size:14px; } .day h4 span { font-weight:500; font-size:12px; margin-left:6px; }
   @media (max-width:640px) { .row { grid-template-columns:1fr; gap:4px; } }
   .testkey { display:grid; gap:6px 18px; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); font-size:13px; }
@@ -203,7 +203,7 @@
 <main>
   <section data-view="map">
     <div class="eyebrow"><span class="secno">1</span> &middot; Station status</div><h2>Which stations need attention right now?</h2>
-    <p class="how">Each bar is one station: how full it is right now. The <b style="color:#0a7d0a">green zone</b> is the healthy range
+    <p class="how">Each bar is one station: how full it is right now. The <b style="color:#0e8fad">blue-green zone</b> is the healthy range
       (not too empty, not too full). The <b>black tick</b> is where the station should be at this time on a normal day.</p>
     <div class="board" id="board"></div>
   </section>
@@ -211,7 +211,7 @@
   <section data-view="spc">
     <div class="eyebrow"><span class="secno">2</span> &middot; Today at each station</div><h2>How each station's day is going</h2>
     <p class="how"><b>Solid line</b> = bikes at the station so far today. <b>Dashed line</b> = a normal day.
-      <b style="color:#0a7d0a">Green band</b> = healthy range. <b style="color:#d03b3b">Red dot</b> = something unusual happened (hover to see what).
+      <b style="color:#0e8fad">Blue-green band</b> = healthy range. <b style="color:#d03b3b">Red dot</b> = something unusual happened (hover to see what).
       &#9650; / &#9660; = the van dropped off / picked up bikes.</p>
     <div class="days" id="days"></div>
   </section>
@@ -227,8 +227,8 @@
     </div>
     <div class="not-in-tabs">
     <h3>Bikes gained or lost, hour by hour</h3>
-    <p class="how"><b style="color:#1c5cab">Blue</b> = more bikes arrived than left in that hour (the station filled up).
-      <b style="color:#b8322f">Red</b> = more left than arrived (it emptied). The number is the net change.</p>
+    <p class="how"><b style="color:#3e55d9">Blue</b> = more bikes arrived than left in that hour (the station filled up).
+      <b style="color:#d23a50">Coral</b> = more left than arrived (it emptied). The number is the net change.</p>
     <div id="heat"></div>
     <p class="how" id="flownote"></p>
     </div>
@@ -300,13 +300,14 @@ let limitsMode = "rolling";   // chart limits: the last 7 clean days before each
 let city = null, info = null, cache = {}, timer = null, autoStart = false, playing = false, planBusy = false, planAgain = false, loadId = 0;
 
 /* ---- colour: validated categorical slots (one per station, fixed order), status, diverging ---- */
-const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
-const CAT = { light:["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"],
+const dark = () => false;   // white main theme
+// Fairy station colours (validated: lightness, chroma, colour-blind and normal-vision separation)
+const CAT = { light:["#a163f7","#12b8da","#ff7582","#6f88fc","#2fa36b","#e0a21a","#7a3fe0","#e5484d"],
               dark: ["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"] };
 const stationColor = id => CAT[dark() ? "dark" : "light"][Math.max(0, info.stations.indexOf(id)) % 8];
 const STATUS = { HIGH:"#d03b3b", MEDIUM:"#fab219", LOW:"#0ca30c" };
-const DIVERGE = [[0, "#b8322f"], [0.25, "#e8908c"], [0.5, dark() ? "#383835" : "#f0efec"], [0.75, "#86b6ef"], [1, "#1c5cab"]];
-const ink = () => dark() ? "#f0efec" : "#0b0b0b", muted = () => dark() ? "#c3c2b7" : "#52514e";
+const DIVERGE = [[0, "#d23a50"], [0.25, "#ff9aa6"], [0.5, "#f4f5fb"], [0.75, "#9db0fd"], [1, "#3e55d9"]];   // coral = losing, periwinkle = gaining
+const ink = () => dark() ? "#f0efec" : "#1f2a44", muted = () => dark() ? "#c3c2b7" : "#52514e";
 const grid = () => dark() ? "#33332f" : "#e9e8e3";
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -526,7 +527,7 @@ function renderSpc() {
   const s = lim.sigma, cl = lim.cl, line = dark() ? "#a5acb8" : "#4b5563";
   // the three zones on each side, the 1 and 2 sigma lines, the control limits and the centre line
   const band = (lo, hi, fill) => ({ type:"rect", xref:"paper", x0:0, x1:1, y0:cl + lo * s, y1:cl + hi * s, fillcolor:fill, line:{ width:0 }, layer:"below" });
-  const zC = "rgba(47,133,90,.10)", zB = "rgba(183,121,31,.12)", zA = "rgba(197,48,48,.11)";
+  const zC = "rgba(69,227,255,.13)", zB = "rgba(161,99,247,.10)", zA = "rgba(229,72,77,.10)";   // cyan, purple, coral
   const hline = (k, color, dash, width) => ({ type:"line", xref:"paper", x0:0, x1:1, y0:cl + k * s, y1:cl + k * s, line:{ color, dash, width } });
   const shapes = [band(-1, 1, zC), band(1, 2, zB), band(-2, -1, zB), band(2, 3, zA), band(-3, -2, zA),
     hline(1, muted(), "dot", 1), hline(-1, muted(), "dot", 1), hline(2, muted(), "dot", 1), hline(-2, muted(), "dot", 1),
@@ -693,7 +694,7 @@ function renderDays() {
     plot(`dc-${sid}`, data, theme({ height:200, showlegend:false, margin:{ t:6, r:8, b:28, l:30 },
       xaxis: xaxis({ nticks:5, range:[`${$("end").value}T${info.settings.open_time}`, `${$("end").value}T${slotTime(+$("slot").max)}`] }),
       yaxis:{ range:[0, cap + 0.5], tickvals:[Math.round(cap / 2), cap], gridcolor: grid() },
-      shapes:[{ type:"rect", xref:"paper", x0:0, x1:1, y0:lo, y1:hi, fillcolor:"rgba(12,163,12,.12)", line:{ width:0 }, layer:"below" }] }));
+      shapes:[{ type:"rect", xref:"paper", x0:0, x1:1, y0:lo, y1:hi, fillcolor:"rgba(69,227,255,.16)", line:{ width:0 }, layer:"below" }] }));
   }
 }
 
@@ -727,7 +728,7 @@ async function loadTrips() {
 }
 const SEQ = () => dark()
   ? [[0, "#1b2230"], [0.2, "#1c3a66"], [0.45, "#1f5fbf"], [0.75, "#5b9be8"], [1, "#cfe2fb"]]
-  : [[0, "#f5f8fc"], [0.2, "#cde2fb"], [0.45, "#86b6ef"], [0.75, "#2a6ac4"], [1, "#0d2f5e"]];
+  : [[0, "#fbf9ff"], [0.2, "#e6dafd"], [0.45, "#c3a2fa"], [0.75, "#a163f7"], [1, "#4b1fa0"]];   // purple: more trips
 // long station names on two lines: "Cascadilla Hall<br>(dorms)", "Green St<br>transit center"
 function wrapName(t) {
   if (t.includes(" (")) return t.replace(" (", "<br>(");
@@ -857,11 +858,11 @@ function planBars(id, p, overnight) {
   const shapes = rows.flatMap((r, i) => [
     ...(overnight
       ? [S.arrive_share, S.depart_share].map(sh => ({ type:"line", x0: sh * r.capacity, x1: sh * r.capacity, y0:i - 0.45, y1:i + 0.45, line:{ color: muted(), dash:"dot", width:1.5 } }))
-      : [{ type:"rect", x0:r.band[0], x1:r.band[1], y0:i - 0.45, y1:i + 0.45, fillcolor:"rgba(12,163,12,.10)", line:{ width:0 }, layer:"below" }]),
+      : [{ type:"rect", x0:r.band[0], x1:r.band[1], y0:i - 0.45, y1:i + 0.45, fillcolor:"rgba(69,227,255,.14)", line:{ width:0 }, layer:"below" }]),
     { type:"line", x0:r.capacity, x1:r.capacity, y0:i - 0.45, y1:i + 0.45, line:{ color: ink(), width:1.5 } }]);
   const notes = [{ xref:"paper", x:1, xanchor:"right", yref:"paper", y:1.02, yanchor:"bottom", showarrow:false, font:{ size:11, color: muted() },
     text: overnight ? `dotted marks: ${Math.round(S.arrive_share * 100)}% (room to park) and ${Math.round(S.depart_share * 100)}% (bikes to take) of each station's docks; solid tick = docks`
-                    : `green = in spec (${Math.round(S.band_low_share * 100)}-${Math.round(S.band_high_share * 100)}% of docks); solid tick = docks` }];
+                    : `blue-green = in spec (${Math.round(S.band_low_share * 100)}-${Math.round(S.band_high_share * 100)}% of docks); solid tick = docks` }];
   plot(id, [
     { type:"bar", orientation:"h", name: overnight ? "6 AM readiness target" : "after these moves", y: ticks, x: rows.map(r => r.after),
       marker:{ color: rows.map(r => stationColor(r.station_id)) }, text: rows.map(r => `<b>${r.after}</b>`), textposition:"outside", cliponaxis:false,

@@ -22,7 +22,7 @@ function FollowSelected({ station }) {
 const DARK = {
   url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  colors: { empty: '#ff4d4d', full: '#4da3ff', ok: '#3ddc84' },
+  colors: { empty: '#e5484d', full: '#6f88fc', ok: '#12b8da' },
   // The console draws each station's gauge and halo itself (src/dispatch/VanLayer.jsx), centred
   // on the point; the dot stays as an invisible click target so selecting still works.
   clickRadius: 30,

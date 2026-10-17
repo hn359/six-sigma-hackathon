@@ -13,7 +13,7 @@ const SRC = 'https://tiles.openfreemap.org/planet'
 const FONT = ['Noto Sans Regular']
 const PITCH = 58
 const BEARING = -24
-const COLOR = { ok: '#3ddc84', back: '#3ddc84', sig: '#ff4d4d', oos: '#ffb020', fix: '#4da3ff' }
+const COLOR = { ok: '#12b8da', back: '#12b8da', sig: '#e5484d', oos: '#e0a21a', fix: '#6f88fc' }   // Fairy palette; red/amber keep their warning meaning
 
 const STYLE = {
   version: 8,
@@ -125,9 +125,9 @@ export default function Map3D({ frames, i, van, selectedId, onSelect, nextTrips 
       m.addLayer({ id: 'stn-halo', type: 'fill', source: 'stn', filter: ['==', ['get', 'kind'], 'halo'],
         paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.18 } })
       m.addLayer({ id: 'route', type: 'line', source: 'route',
-        paint: { 'line-color': '#ffd23f', 'line-width': 4, 'line-dasharray': [2, 1.5], 'line-opacity': 0.95 } })
+        paint: { 'line-color': '#a163f7', 'line-width': 4, 'line-dasharray': [2, 1.5], 'line-opacity': 0.95 } })
       m.addLayer({ id: 'stn-sel', type: 'line', source: 'stn', filter: ['==', ['get', 'kind'], 'sel'],
-        paint: { 'line-color': '#f2f5f7', 'line-width': 2, 'line-dasharray': [2, 2] } })
+        paint: { 'line-color': '#7a3fe0', 'line-width': 2, 'line-dasharray': [2, 2] } })
       m.addLayer(models.current.layer)     // the 3D stations and van (three.js)
       for (const id of ['stn-halo']) {
         m.on('click', id, (e) => onSelect?.(e.features?.[0]?.properties?.station_id))
