@@ -4,8 +4,12 @@
 
 > ## ▶ Open the tool
 >
-> **Live link:** not online yet. Deploying to the course Posit Connect server is task H-06; the
-> link goes here once it is up. Until then, run the tool on your own computer in three steps.
+> **Live link:** [connect.systems-apps.com/content/cac88098-5d40-49c8-881c-b254800bdb1d](https://connect.systems-apps.com/content/cac88098-5d40-49c8-881c-b254800bdb1d/)
+> (the home page; the dispatch map on its own is at
+> [`/index.html`](https://connect.systems-apps.com/content/cac88098-5d40-49c8-881c-b254800bdb1d/index.html)).
+> Hosted on the course Posit Connect server.
+>
+> Or run the tool on your own computer in three steps.
 >
 > **1. Install** [Python 3.11+](https://www.python.org/downloads/) and [Node.js 20+](https://nodejs.org/) (once).
 >
