@@ -1,0 +1,818 @@
+<title>Dock Dispatch Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a live dispatcher's console. Controls, then network map beside the live feed, then all five stations' charts, then the night plan and the weekly review. */
+:root {
+  --bg: #eef2f4; --surface: #ffffff; --ink: #13212c; --muted: #566573; --line: #d3dce3;
+  --accent: #0b6a8c; --accent-soft: #dcecf2; --band: #e4f0e9; --signal: #c4372c; --good: #2b7a3d; --warn: #b26b00;
+  --road: #c9d4dc; --dock-empty: #e6ebef;
+  --street: #f8fafb; --block: #dfe6eb; --park: #d4e8d4; --water: #bcd8e8;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e151b; --surface: #16212a; --ink: #e5edf2; --muted: #93a3b1; --line: #2a3a46;
+  --accent: #54b6dc; --accent-soft: #173442; --band: #16302a; --signal: #f0685c; --good: #62c27a; --warn: #e5a443;
+  --road: #2c3d49; --dock-empty: #22303b; --street: #1d2a34; --block: #121b22; --park: #16291d; --water: #15303f; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e151b; --surface: #16212a; --ink: #e5edf2; --muted: #93a3b1; --line: #2a3a46;
+  --accent: #54b6dc; --accent-soft: #173442; --band: #16302a; --signal: #f0685c; --good: #62c27a; --warn: #e5a443;
+  --road: #2c3d49; --dock-empty: #22303b; --street: #1d2a34; --block: #121b22; --park: #16291d; --water: #15303f; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 22px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 34px; line-height: 1.05; }
+h2 { font-size: 22px; }
+h3 { font-size: 17px; }
+p { margin: 0; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+header.top { display: grid; gap: 6px; }
+header.top p { max-width: 75ch; }
+.note { font-size: 13px; color: var(--muted); }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.step { border-top: 3px solid var(--accent); padding-top: 8px; display: grid; gap: 2px; min-width: 0; }
+.step b { font: 600 15px var(--display); letter-spacing: .02em; }
+.step span { font-size: 13px; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); padding: 7px 12px; font: 500 14px var(--body); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+select, .btn { font: 500 14px var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.btn { cursor: pointer; min-width: 40px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); min-width: 92px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.clock { font: 600 34px/1 var(--display); font-variant-numeric: tabular-nums; min-width: 4.2ch; }
+.timeline { display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0; }
+.timeline input { flex: 1; min-width: 0; accent-color: var(--accent); }
+.live { font: 500 12px var(--mono); color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.live.on { color: var(--signal); }
+.live.on::before { background: var(--signal); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+
+.top-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+#map svg { display: block; width: 100%; height: auto; max-height: 82vh; }
+svg { display: block; width: 100%; height: auto; }
+svg text { font: 11px var(--mono); fill: var(--muted); }
+svg .street-bg { fill: var(--street); }
+svg .block { fill: var(--block); }
+svg .park { fill: var(--park); }
+svg .tree { fill: var(--good); opacity: .35; }
+svg .water { fill: none; stroke: var(--water); stroke-width: 28; stroke-linecap: round; }
+svg text.district { font: 600 12px var(--display); letter-spacing: .14em; fill: var(--muted); opacity: .75; }
+svg text.streetname { font: 9.5px var(--mono); fill: var(--muted); opacity: .8; }
+svg .route { fill: none; stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 5; stroke-linejoin: round; }
+svg text.name, svg text.state, svg text.plan { paint-order: stroke; stroke: var(--street); stroke-width: 3px; stroke-linejoin: round; }
+svg .node-bg { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+svg .ring-bg { fill: none; stroke: var(--dock-empty); stroke-width: 7; }
+svg .ring { fill: none; stroke-width: 7; stroke-linecap: butt; }
+svg .ring.ok { stroke: var(--good); } svg .ring.sig { stroke: var(--signal); } svg .ring.oos { stroke: var(--warn); } svg .ring.fix { stroke: var(--accent); }
+svg .pulse { fill: none; stroke: var(--signal); stroke-width: 2; }
+svg text.big { font: 600 22px var(--display); fill: var(--ink); }
+svg text.name { font: 600 13px var(--display); fill: var(--ink); letter-spacing: .02em; }
+svg text.state { font: 500 10.5px var(--mono); }
+svg text.state.ok { fill: var(--good); } svg text.state.sig { fill: var(--signal); } svg text.state.oos { fill: var(--warn); } svg text.state.fix { fill: var(--accent); }
+svg .depot { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+svg .van-body { fill: var(--accent); }
+svg .van-cab { fill: var(--ink); }
+svg text.van-t { font: 600 10px var(--mono); fill: var(--surface); }
+svg .bubble { fill: var(--ink); }
+svg text.bubble-t { font: 600 11px var(--mono); fill: var(--surface); }
+svg .grid { stroke: var(--line); stroke-width: 1; fill: none; }
+svg .band { fill: var(--band); stroke: none; }
+svg .spec { stroke: var(--good); stroke-dasharray: 4 3; stroke-width: 1.1; fill: none; }
+svg .path { stroke: var(--accent); stroke-dasharray: 5 4; stroke-width: 1.5; fill: none; }
+svg .actual { stroke: var(--ink); stroke-width: 1.8; fill: none; }
+svg .pt { fill: var(--ink); stroke: none; }
+svg .pt.oos { fill: var(--warn); } svg .pt.sig { fill: var(--signal); } svg .pt.good { fill: var(--good); } svg .pt.p1 { fill: var(--muted); }
+svg .vanmark { fill: var(--accent); stroke: none; }
+svg .cl { stroke: var(--ink); stroke-width: 1.1; fill: none; }
+svg .lim { stroke: var(--signal); stroke-width: 1.1; stroke-dasharray: 5 4; fill: none; }
+svg .zone { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; fill: none; }
+svg .xline { stroke: var(--muted); stroke-width: 1; fill: none; opacity: .55; }
+svg .now { stroke: var(--accent); stroke-width: 1; fill: none; opacity: .5; }
+svg .rush { fill: var(--accent-soft); stroke: none; }
+svg text.sigtxt { fill: var(--signal); font-weight: 600; }
+
+.feed { list-style: none; margin: 0; padding: 0; height: 320px; overflow-y: auto; display: grid; align-content: start; }
+.feed li { padding: 8px 2px; border-bottom: 1px solid var(--line); display: grid; gap: 4px; font-size: 13px; }
+.feed li:first-child { animation: drop .35s ease-out; }
+@keyframes drop { from { background: var(--accent-soft); } to { background: transparent; } }
+.feed .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.feed .t { font: 500 12px var(--mono); color: var(--muted); width: 44px; flex: none; }
+.chip { font: 500 12px var(--mono); padding: 1px 6px; border-radius: 4px; background: var(--dock-empty); color: var(--ink); font-variant-numeric: tabular-nums; }
+.chip.oos { background: var(--warn); color: var(--surface); }
+.chip.sig { background: var(--signal); color: var(--surface); }
+.ev { padding-left: 50px; line-height: 1.4; }
+.ev.sig { color: var(--signal); }
+.ev.van { color: var(--accent); font-weight: 500; }
+.ev.ok { color: var(--good); }
+.ev.oos { color: var(--warn); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin-right: 5px; border-radius: 50%; }
+
+.stations { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.st { display: grid; gap: 6px; }
+.st-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.st-head b { font: 700 18px var(--display); }
+.st-head span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 500 12px/1.3 var(--body); padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); width: fit-content; max-width: 100%; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--good); flex: none; }
+.pill.sig { background: var(--signal); color: var(--surface); } .pill.sig::before { background: var(--surface); }
+.pill.oos { background: var(--warn); color: var(--surface); } .pill.oos::before { background: var(--surface); }
+.pill.fix::before { background: var(--accent); }
+.mini-label { font: 500 11px var(--mono); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 500; color: var(--muted); font-size: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.kpi { border-left: 3px solid var(--line); padding-left: 10px; display: grid; gap: 2px; min-width: 0; }
+.kpi b { font: 600 24px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.kpi b .arrow { color: var(--muted); font-weight: 500; }
+.kpi b .after { color: var(--good); }
+.kpi span { font-size: 12px; color: var(--muted); }
+.tabs { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { font: 600 14px var(--display); border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 5px; padding: 3px 10px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.how { font-size: 13px; color: var(--muted); margin-top: 6px; max-width: 75ch; }
+
+@media (max-width: 1080px) {
+  .stations { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .top-row, .lower { grid-template-columns: minmax(0, 1fr); }
+  .steps, .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .feed { height: 300px; }
+}
+@media (max-width: 620px) { .stations { grid-template-columns: minmax(0, 1fr); } h1 { font-size: 28px; } }
+@media (prefers-reduced-motion: reduce) { .live.on::before, .feed li:first-child { animation: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">Battery Ninjas · Bikeshare Fleets</span>
+    <h1>Dock Dispatch Console</h1>
+    <p>Five stations with 20 docks each and 100 bikes, 50 of them in the reserve depot at the start. Every station is checked every 15 minutes, which the replay runs as 5 seconds (change it with "15 min ="). A control-chart signal, or a station going outside 4–16 bikes, sends the van.</p>
+    <p class="note">Simulated network and invented data, made to show the method in our SPEC. This page is not the tested tool.</p>
+  </header>
+
+  <section class="steps" aria-label="How a day runs">
+    <div class="step"><b>1 · Night plan</b><span>History sets each station's 06:00 start so its normal day stays between 4 and 16 bikes.</span></div>
+    <div class="step"><b>2 · Check every 15 min</b><span>I-chart of net flow minus that time slot's usual flow, with Western Electric rules 1-4.</span></div>
+    <div class="step"><b>3 · Signal or out of spec → van</b><span>The van moves bikes from a station with spare or from the reserve, back to the expected path.</span></div>
+    <div class="step"><b>4 · Back in control</b><span>Next readings are in spec with no signal. The weekly p-chart tests whether the policy worked.</span></div>
+  </section>
+
+  <section class="panel controls" aria-label="Replay controls">
+    <div class="seg" role="group" aria-label="Scenario">
+      <button id="sc-w1" data-sc="w1">Week 1 · no van</button>
+      <button id="sc-w2" data-sc="w2">Week 2 · policy</button>
+      <button id="sc-ev" data-sc="ev">Event day</button>
+    </div>
+    <label class="small muted" id="daywrap">Day
+      <select id="day"><option value="0">Mon</option><option value="1">Tue</option><option value="2">Wed</option><option value="3">Thu</option><option value="4">Fri</option><option value="5">Sat</option><option value="6">Sun</option></select>
+    </label>
+    <label class="small muted">15 min =
+      <select id="speed"><option value="5000" selected>5 s</option><option value="2000">2 s</option><option value="1000">1 s</option><option value="500">0.5 s</option></select>
+    </label>
+    <div class="timeline">
+      <button class="btn primary" id="play">Pause</button>
+      <button class="btn" id="restart" aria-label="Restart the day">↺</button>
+      <span class="clock" id="clock">06:00</span>
+      <input type="range" id="slot" min="0" max="63" value="0" aria-label="Time of day">
+      <span class="live" id="live">LIVE</span>
+    </div>
+  </section>
+
+  <section class="top-row">
+    <div class="panel">
+      <div class="panel-head"><h3>City map</h3><span class="small muted" id="reserveTxt"></span></div>
+      <div id="map"></div>
+      <div class="legend">
+        <span><i style="background:var(--good)"></i>in control</span>
+        <span><i style="background:var(--signal)"></i>chart signal</span>
+        <span><i style="background:var(--warn)"></i>out of spec</span>
+        <span><i style="background:var(--accent)"></i>van just fixed it</span>
+        <span>Ring = bikes out of 20 docks</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Live feed</h3><span class="small muted">a reading from every station each 15 minutes, newest first</span></div>
+      <ul class="feed" id="feed" aria-live="off"></ul>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h3>All five stations</h3>
+      <span class="small muted">Top: bikes, with the 4–16 spec band, the dashed expected path and ▲▼ van moves. Bottom: I-chart of net flow minus the usual for that slot, ±1σ, 2σ, 3σ. Red = a rule fired (R1–R4).</span></div>
+    <div class="stations" id="stations"></div>
+  </section>
+
+  <section class="lower">
+    <div class="panel">
+      <h3>Night plan, learned from week 1</h3>
+      <p class="how">C(k) is the cumulative usual net flow through the day. A start s is allowed when 4 ≤ s + C(k) ≤ 16 at every slot. The plan uses the middle of that range. σ = MR̄ / 1.128 from week 1.</p>
+      <div class="table-wrap" style="margin-top:8px"><table>
+        <thead><tr><th>Station</th><th>Normal swing</th><th>Allowed start</th><th>06:00 start</th><th>σ</th></tr></thead>
+        <tbody id="plan"></tbody>
+      </table></div>
+      <p class="small" style="margin-top:10px"><b>Rush slots</b> (mean rentals ≥ 1.5 × the daily mean of <span id="rentavg"></span> per slot): <span id="rush" class="mono"></span></p>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">End of week</span>
+      <h2 style="margin-top:4px">Did the policy work?</h2>
+      <div class="kpis" id="kpis" style="margin-top:10px"></div>
+      <div class="panel-head" style="margin-top:14px"><h3 id="tp">p-chart</h3><div class="tabs" id="ptabs"></div></div>
+      <div id="chartP"></div>
+      <p class="how">One point per day: the share of that day's 64 readings out of spec. Week 1 (grey) sets p̄ and the 3σ limits. Week 2 is judged against them. Green = below the lower limit, so the policy really cut out-of-spec time.</p>
+      <p class="how" id="pnums"></p>
+    </div>
+  </section>
+</div>
+
+<script>
+/* Bikeshare dispatch simulation: pure logic, no DOM. */
+const SIM = (() => {
+  const CAP = 20, LSL = 4, USL = 16, SLOTS = 64, VAN_MAX = 10, FLEET = 100;
+  const STATIONS = [
+    { id: "S1", name: "Maple Row", kind: "Residential" },
+    { id: "S2", name: "Elm Court", kind: "Residential" },
+    { id: "S3", name: "Civic Plaza", kind: "Offices" },
+    { id: "S4", name: "Union Station", kind: "Transit hub" },
+    { id: "S5", name: "Stadium Park", kind: "Campus / park" },
+  ];
+  const N = STATIONS.length;
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function poisson(r, lam) {
+    const L = Math.exp(-lam); let k = 0, p = 1;
+    do { k++; p *= r(); } while (p > L);
+    return k - 1;
+  }
+  const clock = k => { const m = 360 + 15 * k; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+  function period(k) {           // k = slot index of the flow ending at reading k
+    if (k < 4) return 0;           // 06:00-06:59 early
+    if (k < 16) return 1;          // 07:00-09:59 AM rush
+    if (k < 40) return 2;          // 10:00-15:59 midday
+    if (k < 52) return 3;          // 16:00-18:59 PM rush
+    return 4;                      // 19:00-21:59 evening
+  }
+  //            early  AM    mid   PM    eve
+  const DEP = [[0.12, 0.70, 0.15, 0.40, 0.15],
+               [0.12, 0.65, 0.15, 0.40, 0.15],
+               [0.08, 0.30, 0.18, 0.80, 0.15],
+               [0.12, 0.55, 0.18, 0.70, 0.15],
+               [0.10, 0.45, 0.20, 0.50, 0.20]];
+  const ATTRACT = [[1, 1, 1, 1, 1],
+                   [0.6, 0.6, 2.0, 1.8, 1],
+                   [1, 1, 1, 1, 1.2],
+                   [2.2, 2.2, 0.6, 1, 1],
+                   [1.3, 1.3, 0.8, 1, 1]];
+
+  // ---- statistics (mirrors SPEC.md section 4) ----
+  function imrLimits(x) {
+    if (x.length < 2) throw new Error("need at least 2 values");
+    const xbar = x.reduce((a, b) => a + b, 0) / x.length;
+    const mr = []; for (let i = 1; i < x.length; i++) mr.push(Math.abs(x[i] - x[i - 1]));
+    const mrbar = mr.reduce((a, b) => a + b, 0) / mr.length;
+    return { xbar, mrbar, sigma: mrbar / 1.128, ucl: xbar + 2.66 * mrbar, lcl: xbar - 2.66 * mrbar, mrUcl: 3.267 * mrbar };
+  }
+  function imrLimitsDays(days) {       // MR only within a day
+    const all = [], mr = [];
+    for (const x of days) { all.push(...x); for (let i = 1; i < x.length; i++) mr.push(Math.abs(x[i] - x[i - 1])); }
+    const xbar = all.reduce((a, b) => a + b, 0) / all.length;
+    const mrbar = mr.reduce((a, b) => a + b, 0) / mr.length;
+    return { xbar, mrbar, sigma: mrbar / 1.128, ucl: xbar + 2.66 * mrbar, lcl: xbar - 2.66 * mrbar, mrUcl: 3.267 * mrbar };
+  }
+  // Western Electric rules on the latest point of x. Returns {rule, side} or null.
+  function runRules(x, xbar, sigma) {
+    if (!(sigma > 0)) throw new Error("sigma must be positive");
+    const n = x.length; if (!n) return null;
+    const z = x.map(v => (v - xbar) / sigma);
+    const last = z[n - 1], side = last > 0 ? 1 : -1;
+    if (Math.abs(last) > 3) return { rule: 1, side };
+    const tail = m => z.slice(Math.max(0, n - m));
+    for (const s of [1, -1]) {
+      const t3 = tail(3); if (t3.length === 3 && t3.filter(v => v * s > 2).length >= 2 && last * s > 0) return { rule: 2, side: s };
+      const t5 = tail(5); if (t5.length === 5 && t5.filter(v => v * s > 1).length >= 4 && last * s > 0) return { rule: 3, side: s };
+      const t8 = tail(8); if (t8.length === 8 && t8.every(v => v * s > 0)) return { rule: 4, side: s };
+    }
+    return null;
+  }
+  function startPlan(C, lsl = LSL, usl = USL) {
+    const lo = lsl - Math.min(...C), hi = usl - Math.max(...C);
+    if (lo > hi) return { start: Math.round((lo + hi) / 2), feasible: false, lo, hi };
+    return { start: Math.round((lo + hi) / 2), feasible: true, lo, hi };
+  }
+  function pChart(dPhase1, n) {
+    if (dPhase1.length < 2) throw new Error("need at least 2 days");
+    const pbar = dPhase1.reduce((a, b) => a + b, 0) / (n * dPhase1.length);
+    const s = Math.sqrt(pbar * (1 - pbar) / n);
+    return { pbar, ucl: pbar + 3 * s, lcl: Math.max(0, pbar - 3 * s) };
+  }
+
+  // ---- one simulated day ----
+  // opts: {seed, start[], policy:{mu, E, lim}|null, event:bool}
+  function runDay(opts) {
+    const r = rng(opts.seed);
+    const bikes = opts.start.slice();
+    let reserve = FLEET - bikes.reduce((a, b) => a + b, 0);
+    const rows = [];              // rows[k][i] = {bikes, van, nf, x, sig}
+    const hist = STATIONS.map(() => []);
+    const log = [];
+    let lost = 0, blocked = 0;
+    const rentals = [0];
+    rows.push(STATIONS.map((_, i) => ({ bikes: bikes[i], van: 0, nf: null, x: null, sig: null })));
+    for (let k = 1; k < SLOTS; k++) {
+      const p = period(k), before = bikes.slice();
+      // rider trips during the 15 minutes before reading k
+      const trips = [];
+      for (let i = 0; i < N; i++) {
+        let d = poisson(r, DEP[i][p]);
+        if (opts.event && i === 1 && k >= 17 && k <= 28) d += 1;              // S2 slow extra drain 10:15-13:00
+        for (let t = 0; t < d; t++) trips.push(i);
+      }
+      if (opts.event && k >= 49 && k <= 52) for (let t = 0; t < 4; t++) trips.push(r() < 0.5 ? 2 : 3); // crowd rides to S5
+      for (let t = trips.length - 1; t > 0; t--) { const j = Math.floor(r() * (t + 1)); [trips[t], trips[j]] = [trips[j], trips[t]]; }
+      let rented = 0;
+      for (const i of trips) {
+        if (bikes[i] === 0) { lost++; continue; }
+        rented++;
+        let dest;
+        if (opts.event && k >= 49 && k <= 52 && (i === 2 || i === 3) && r() < 0.7) dest = 4;
+        else {
+          const w = ATTRACT[p].map((a, j) => (j === i ? 0 : a));
+          let u = r() * w.reduce((a, b) => a + b, 0); dest = 0;
+          while (u > w[dest]) { u -= w[dest]; dest++; }
+        }
+        if (bikes[dest] >= CAP) {             // full: rider rides on to the emptiest other station
+          blocked++;
+          let best = -1;
+          for (let j = 0; j < N; j++) if (j !== dest && bikes[j] < CAP && (best < 0 || bikes[j] < bikes[best])) best = j;
+          if (best < 0) { continue; }
+          dest = best;
+        }
+        bikes[i]--; bikes[dest]++;
+      }
+      rentals.push(rented);
+      const row = STATIONS.map((_, i) => {
+        const nf = bikes[i] - before[i];
+        return { bikes: bikes[i], van: 0, nf, x: null, sig: null };
+      });
+      // control chart on slot-adjusted net flow
+      if (opts.lim) {
+        for (let i = 0; i < N; i++) {
+          const x = row[i].nf - opts.lim.mu[i][k];
+          row[i].x = x;
+          hist[i].push(x);
+          row[i].sig = runRules(hist[i], opts.lim.imr[i].xbar, opts.lim.imr[i].sigma);
+        }
+      }
+      // van: only on a signal, only with the policy on
+      if (opts.policy) {
+        const E = opts.policy.E;
+        let pick = -1, gap = 0;
+        for (let i = 0; i < N; i++) {
+          const oos = bikes[i] < LSL || bikes[i] > USL;
+          if (!row[i].sig && !oos) continue;
+          const g = Math.abs(E[i][k] - bikes[i]);
+          if (g > gap) { gap = g; pick = i; }
+        }
+        if (pick >= 0) {
+          let move = Math.round(E[pick][k] - bikes[pick]);
+          move = Math.max(-VAN_MAX, Math.min(VAN_MAX, move));
+          move = Math.max(-bikes[pick], Math.min(CAP - bikes[pick], move));
+          if (move !== 0) {
+            const parts = [];
+            let need = Math.abs(move), partner = -1, pAmt = 0, rAmt = 0;
+            // pair with a station on the other side of its path
+            let j = -1, best = 0;
+            for (let q = 0; q < N; q++) if (q !== pick) {
+              const surplus = move > 0 ? bikes[q] - E[q][k] : E[q][k] - bikes[q];
+              if (surplus >= 1 && surplus > best) { best = surplus; j = q; }
+            }
+            if (j >= 0) {
+              const amt = Math.min(need, Math.floor(best), move > 0 ? bikes[j] : CAP - bikes[j]);
+              if (amt > 0) {
+                const s = move > 0 ? -amt : amt;
+                bikes[j] += s; row[j].van += s; need -= amt; partner = j; pAmt = amt;
+                parts.push(`${amt} ${move > 0 ? "from" : "to"} ${STATIONS[j].id}`);
+              }
+            }
+            if (need > 0) {
+              const amt = move > 0 ? Math.min(need, reserve) : need;
+              reserve += move > 0 ? -amt : amt; need -= amt; rAmt = amt;
+              if (amt > 0) parts.push(`${amt} ${move > 0 ? "from" : "to"} reserve`);
+            }
+            const done = Math.abs(move) - need, signed = move > 0 ? done : -done;
+            bikes[pick] += signed; row[pick].van += signed;
+            hist[pick] = [];
+            const sig = row[pick].sig;
+            log.push({ k, station: pick, rule: sig ? sig.rule : 0, side: sig ? sig.side : (bikes[pick] - signed < LSL ? -1 : 1),
+                       move: signed, parts: parts.join(", "), partner, pAmt, rAmt, before: bikes[pick] - signed, after: bikes[pick] });
+          }
+        }
+      }
+      row.forEach((c, i) => { c.after = bikes[i]; });
+      rows.push(row);
+    }
+    const total = bikes.reduce((a, b) => a + b, 0) + reserve;
+    const outOfSpec = STATIONS.map((_, i) => rows.filter(rw => rw[i].bikes < LSL || rw[i].bikes > USL).length);
+    return { rows, log, lost, blocked, reserve, total, outOfSpec, rentals };
+  }
+
+  // ---- two weeks plus an event day ----
+  function build(seed = 5300) {
+    const week1 = [];
+    for (let d = 0; d < 7; d++) week1.push(runDay({ seed: seed + d, start: [10, 10, 10, 10, 10], policy: null, lim: null }));
+    // history from week 1
+    const mu = STATIONS.map((_, i) => {
+      const m = [0];
+      for (let k = 1; k < SLOTS; k++) m.push(week1.reduce((a, day) => a + day.rows[k][i].nf, 0) / week1.length);
+      return m;
+    });
+    const imr = STATIONS.map((_, i) => imrLimitsDays(week1.map(day => {
+      const x = []; for (let k = 1; k < SLOTS; k++) x.push(day.rows[k][i].nf - mu[i][k]); return x;
+    })));
+    const lim = { mu, imr };
+    // fill week-1 chart columns for display (signals, no van)
+    for (const day of week1) {
+      const hist = STATIONS.map(() => []);
+      for (let k = 1; k < SLOTS; k++) for (let i = 0; i < N; i++) {
+        const c = day.rows[k][i]; c.x = c.nf - mu[i][k]; hist[i].push(c.x);
+        c.sig = runRules(hist[i], imr[i].xbar, imr[i].sigma);
+      }
+    }
+    const C = mu.map(m => { const c = [0]; for (let k = 1; k < SLOTS; k++) c.push(c[k - 1] + m[k]); return c; });
+    const plans = C.map(c => startPlan(c));
+    const start = plans.map(p => Math.max(0, Math.min(CAP, p.start)));
+    const E = C.map((c, i) => c.map(v => start[i] + v));
+    const policy = { E };
+    const week2 = [];
+    for (let d = 0; d < 7; d++) week2.push(runDay({ seed: seed + 100 + d, start, policy, lim }));
+    const eventDay = runDay({ seed: seed + 200, start, policy, lim, event: true });
+    // rush slots from history
+    const rent = [0]; for (let k = 1; k < SLOTS; k++) rent.push(week1.reduce((a, d) => a + d.rentals[k], 0) / week1.length);
+    const rentAvg = rent.slice(1).reduce((a, b) => a + b, 0) / (SLOTS - 1);
+    const rush = []; for (let k = 1; k < SLOTS; k++) if (rent[k] >= 1.5 * rentAvg) rush.push(k);
+    const pcharts = STATIONS.map((_, i) => {
+      const d1 = week1.map(d => d.outOfSpec[i]), d2 = week2.map(d => d.outOfSpec[i]);
+      return { ...pChart(d1, SLOTS), d1, d2 };
+    });
+    return { week1, week2, eventDay, mu, imr, C, plans, start, E, pcharts, rent, rentAvg, rush };
+  }
+
+  return { VAN_MAX, CAP, LSL, USL, SLOTS, STATIONS, clock, imrLimits, runRules, startPlan, pChart, build, period };
+})();
+
+</script>
+<script>
+(() => {
+const M = SIM.build();
+const S = SIM.STATIONS, LSL = SIM.LSL, USL = SIM.USL, CAP = SIM.CAP;
+const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const state = { sc: "ev", day: 0, k: 0, speed: 5000, playing: true, timer: null, anim: null, pst: 4, shown: null };
+const $ = id => document.getElementById(id);
+const f = (x, d = 2) => Number(x).toFixed(d);
+const dayData = () => state.sc === "w1" ? M.week1[state.day] : state.sc === "w2" ? M.week2[state.day] : M.eventDay;
+const policyOn = () => state.sc !== "w1";
+const ruleName = { 0: "out of spec", 1: "1 beyond 3σ", 2: "2 of 3 beyond 2σ", 3: "4 of 5 beyond 1σ", 4: "8 in a row" };
+const oos = b => b < LSL || b > USL;
+
+// ---- map geometry ----
+const POS = [[120, 120], [120, 280], [360, 120], [520, 200], [360, 280]];
+const DEPOT = [280, 200];
+// Streets every 80 px; the van drives along them (across, then down).
+function cityBase() {
+  let g = `<rect class="street-bg" x="0" y="0" width="640" height="400"/>`;
+  const park = new Set(["280,280", "360,280", "280,360", "360,360"]);
+  for (let x0 = -40; x0 < 640; x0 += 80) for (let y0 = -40; y0 < 400; y0 += 80) {
+    const cls = park.has(`${x0},${y0}`) ? "park" : "block";
+    g += `<rect class="${cls}" x="${x0 + 9}" y="${y0 + 9}" width="62" height="62" rx="4"/>`;
+  }
+  for (const [x, y] of [[300, 300], [322, 318], [298, 332], [390, 305], [410, 330], [300, 384], [330, 378], [395, 380]]) g += `<circle class="tree" cx="${x}" cy="${y}" r="6"/>`;
+  g += `<path class="water" d="M452,420 C500,352 560,350 600,318 S660,262 700,250"/>`;
+  g += `<text class="district" x="70" y="30">MAPLE ROW</text><text class="district" x="40" y="390">ELM COURT</text>`;
+  g += `<text class="district" x="330" y="30">DOWNTOWN</text><text class="district" x="530" y="112">UNION SQ</text>`;
+  g += `<text class="district" x="420" y="262">STADIUM PARK</text><text class="district" x="560" y="390">HARBOR</text>`;
+  g += `<text class="streetname" x="440" y="196">MAIN ST</text><text class="streetname" x="166" y="116">MAPLE AVE</text>`;
+  g += `<text class="streetname" x="166" y="276">ELM ST</text><text class="streetname" transform="translate(276,330) rotate(-90)">5TH AVE</text>`;
+  return g;
+}
+const CITY = cityBase();
+const manhattan = (a, b) => (a[0] === b[0] || a[1] === b[1]) ? [b] : [[b[0], a[1]], b];
+const where = p => p === -1 ? DEPOT : POS[p];
+
+// Recoveries: after a van visit, the first later reading that is in spec with no signal.
+function recoveries(d) {
+  const out = [];
+  for (const l of d.log) {
+    for (let k = l.k + 1; k < 64; k++) {
+      if (d.log.some(m => m.station === l.station && m.k > l.k && m.k < k)) break;
+      const c = d.rows[k][l.station];
+      if (!oos(c.bikes) && !c.sig) { out.push({ k, station: l.station, from: l.k, bikes: c.bikes }); break; }
+    }
+  }
+  return out;
+}
+
+// Station status at reading k (before any van move at k unless after = true).
+function status(d, i, k, after) {
+  const c = d.rows[k][i];
+  const b = after ? c.after : c.bikes;
+  const visited = d.log.find(l => l.k === k && l.station === i);
+  if (after && visited) return { cls: "fix", text: `VAN ${visited.move > 0 ? "+" : ""}${visited.move}`, b };
+  if (k > 0 && c.sig) return { cls: "sig", text: `RULE ${c.sig.rule} · ${c.sig.side < 0 ? "DRAINING" : "FILLING"}`, b };
+  if (oos(c.bikes)) return { cls: "oos", text: c.bikes < LSL ? "BELOW 4" : "ABOVE 16", b };
+  const recent = d.log.find(l => l.station === i && l.k < k && k - l.k <= 2);
+  if (recent) return { cls: "ok", text: "BACK IN CONTROL", b };
+  return { cls: "ok", text: k === 0 ? "DAY START" : "IN CONTROL", b };
+}
+
+function vanHome(d, k) {
+  const done = d.log.filter(l => l.k < k || (l.k === k && state.shown === k));
+  if (!done.length) return DEPOT;
+  const l = done[done.length - 1];
+  const legs = route(l);
+  return where(legs[legs.length - 1].to);
+}
+function route(l) {
+  const stops = [];
+  if (l.move > 0) { if (l.pAmt) stops.push(l.partner); if (l.rAmt) stops.push(-1); stops.push(l.station); }
+  else { stops.push(l.station); if (l.pAmt) stops.push(l.partner); if (l.rAmt) stops.push(-1); }
+  return stops.map((s, n) => ({ to: s, idx: n }));
+}
+
+function ringArc(cx, cy, r, frac) {
+  if (frac <= 0) return "";
+  if (frac >= 1) frac = 0.9999;
+  const a0 = -Math.PI / 2, a1 = a0 + frac * 2 * Math.PI;
+  const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+  return `M${x0},${y0} A${r},${r} 0 ${frac > 0.5 ? 1 : 0} 1 ${x1},${y1}`;
+}
+
+function drawMap(van, bubble, activeRoad, afterIdx) {
+  const d = dayData(), k = state.k;
+  let g = "";
+  g += CITY;
+  if (activeRoad) g += `<path class="route" d="${activeRoad.map((p, n) => `${n ? "L" : "M"}${p[0]},${p[1]}`).join(" ")}"/>`;
+  const reserve = (100 - S.reduce((a, _, i) => a + (afterIdx.has(i) ? d.rows[k][i].after : d.rows[k][i].bikes), 0));
+  g += `<rect class="depot" x="${DEPOT[0] - 50}" y="${DEPOT[1] - 24}" width="100" height="48" rx="6"/>
+        <text class="name" x="${DEPOT[0]}" y="${DEPOT[1] - 4}" text-anchor="middle">RESERVE DEPOT</text>
+        <text x="${DEPOT[0]}" y="${DEPOT[1] + 12}" text-anchor="middle">${reserve} bikes</text>`;
+  S.forEach((s, i) => {
+    const [x, y] = POS[i], st = status(d, i, k, afterIdx.has(i));
+    if (st.cls === "sig") g += `<circle class="pulse" cx="${x}" cy="${y}" r="44"><animate attributeName="r" values="40;52;40" dur="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0.2;1" dur="1s" repeatCount="indefinite"/></circle>`;
+    g += `<circle class="node-bg" cx="${x}" cy="${y}" r="36"/>
+          <circle class="ring-bg" cx="${x}" cy="${y}" r="30"/>
+          <path class="ring ${st.cls}" d="${ringArc(x, y, 30, st.b / CAP)}"/>
+          <text class="big" x="${x}" y="${y + 8}" text-anchor="middle">${st.b}</text>
+          <text class="name" x="${x}" y="${y + 52}" text-anchor="middle">${s.id} ${s.name.toUpperCase()}</text>
+          <text class="state ${st.cls}" x="${x}" y="${y + 65}" text-anchor="middle">${st.text}</text>`;
+    if (policyOn()) g += `<text class="plan" x="${x}" y="${y - 42}" text-anchor="middle">plan ${f(Math.max(0, Math.min(CAP, M.E[i][k])), 0)}</text>`;
+  });
+  if (policyOn()) {
+    g += `<g transform="translate(${van[0]},${van[1]})">
+      <rect class="van-body" x="-20" y="-11" width="30" height="20" rx="3"/><rect class="van-cab" x="10" y="-6" width="10" height="15" rx="2"/>
+      <text class="van-t" x="-5" y="3" text-anchor="middle">VAN</text></g>`;
+    if (bubble) g += `<g transform="translate(${van[0]},${van[1] - 26})"><rect class="bubble" x="${-(bubble.length * 3.4 + 10)}" y="-11" width="${bubble.length * 6.8 + 20}" height="20" rx="10"/><text class="bubble-t" x="0" y="3" text-anchor="middle">${bubble}</text></g>`;
+  }
+  $("map").innerHTML = `<svg viewBox="0 0 640 400" role="img" aria-label="Network map with the van">${g}</svg>`;
+  $("reserveTxt").textContent = policyOn() ? `Reserve depot: ${reserve} bikes` : "Week 1: the van stays in the depot";
+}
+
+function animateVan(l, done) {
+  const legs = route(l);
+  // Full street route: from where the van is, through every stop, turning at corners.
+  const pts = [vanHome(dayData(), l.k)], stopAt = [];
+  for (const s of legs) { pts.push(...manhattan(pts[pts.length - 1], where(s.to))); stopAt.push(pts.length - 1); }
+  const segLen = [], cum = [0];
+  for (let n = 1; n < pts.length; n++) { const d = Math.hypot(pts[n][0] - pts[n - 1][0], pts[n][1] - pts[n - 1][1]); segLen.push(d); cum.push(cum[n - 1] + d); }
+  const total = cum[cum.length - 1] || 1;
+  const dur = reduce ? 0 : state.speed * 0.85, start = performance.now();
+  const carried = n => legs.slice(0, n + 1).reduce((a, s) => a + (s.to === -1 ? l.rAmt : s.to === l.partner ? l.pAmt : 0), 0);
+  const label = n => {
+    if (n < 0) return `${l.rule ? "R" + l.rule : "out of spec"} at ${S[l.station].id}`;
+    if (l.move > 0) return n === legs.length - 1 ? `dropped ${l.move} at ${S[l.station].id}` : `carrying ${carried(n)}`;
+    if (n === 0) return `picked up ${-l.move}`;
+    return n === legs.length - 1 ? `unloaded ${-l.move}` : `carrying ${-l.move - l.pAmt}`;
+  };
+  function frame(now) {
+    const t = dur ? Math.min(1, (now - start) / dur) : 1, dist = t * total;
+    let seg = 0; while (seg < segLen.length - 1 && cum[seg + 1] < dist) seg++;
+    const u = segLen[seg] ? (dist - cum[seg]) / segLen[seg] : 1;
+    const a = pts[seg], b = pts[Math.min(seg + 1, pts.length - 1)];
+    const pos = t >= 1 ? pts[pts.length - 1] : [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+    let reached = -1; stopAt.forEach((p, n) => { if (cum[p] <= dist + 0.01) reached = n; });
+    const visited = new Set(); legs.forEach((s, n) => { if (n <= reached && s.to >= 0) visited.add(s.to); });
+    drawMap(pos, label(t >= 1 ? legs.length - 1 : reached), pts, visited);
+    if (t < 1) state.anim = requestAnimationFrame(frame);
+    else { state.anim = null; state.shown = l.k; renderStations(); done && done(); }
+  }
+  state.anim = requestAnimationFrame(frame);
+}
+
+// ---- charts ----
+function rushRects(x, top, bot, w) { return M.rush.map(k => `<rect class="rush" x="${x(k) - w / 2}" y="${top}" width="${w}" height="${bot - top}"/>`).join(""); }
+function axis(x, y0) { let t = ""; for (let k = 0; k < 64; k += 16) t += `<text x="${x(k)}" y="${y0 + 13}" text-anchor="middle">${SIM.clock(k)}</text>`; return t; }
+
+function miniBikes(i, d, k) {
+  const W = 260, H = 118, L = 22, R = 6, T = 6, B = 18;
+  const x = j => L + j * (W - L - R) / 63, y = v => T + (1 - v / CAP) * (H - T - B);
+  let g = rushRects(x, T, H - B, (W - L - R) / 63);
+  g += `<rect class="band" x="${L}" y="${y(USL)}" width="${W - L - R}" height="${y(LSL) - y(USL)}"/>`;
+  for (const v of [0, 4, 16, 20]) g += `<text x="${L - 4}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  g += `<line class="spec" x1="${L}" x2="${W - R}" y1="${y(LSL)}" y2="${y(LSL)}"/><line class="spec" x1="${L}" x2="${W - R}" y1="${y(USL)}" y2="${y(USL)}"/>`;
+  if (policyOn()) g += `<path class="path" d="${M.E[i].map((v, j) => `${j ? "L" : "M"}${x(j)},${y(Math.max(0, Math.min(CAP, v)))}`).join(" ")}"/>`;
+  const showAfter = j => j < k || state.shown === k;
+  let p = "";
+  for (let j = 0; j <= k; j++) {
+    const c = d.rows[j][i];
+    p += `${j ? "L" : "M"}${x(j)},${y(c.bikes)}`;
+    if (c.van && showAfter(j)) p += ` L${x(j)},${y(c.after)}`;
+  }
+  g += `<path class="actual" d="${p}"/>`;
+  for (let j = 0; j <= k; j++) {
+    const c = d.rows[j][i];
+    if (oos(c.bikes)) g += `<circle class="pt oos" cx="${x(j)}" cy="${y(c.bikes)}" r="2.6"/>`;
+    if (c.van && showAfter(j)) { const yy = y(c.after), up = c.van > 0;
+      g += `<path class="vanmark" d="M${x(j) - 4},${up ? yy + 8 : yy - 8} L${x(j) + 4},${up ? yy + 8 : yy - 8} L${x(j)},${up ? yy + 2 : yy - 2} Z"/>`; }
+  }
+  g += `<line class="now" x1="${x(k)}" x2="${x(k)}" y1="${T}" y2="${H - B}"/>` + axis(x, H - B);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bikes at ${S[i].id}">${g}</svg>`;
+}
+
+function miniChart(i, d, k) {
+  const W = 260, H = 112, L = 22, R = 24, T = 6, B = 18, lim = M.imr[i];
+  const pts = []; for (let j = 1; j <= k; j++) pts.push([j, d.rows[j][i]]);
+  const span = Math.max(3.6 * lim.sigma, ...pts.map(([, c]) => Math.abs(c.x - lim.xbar) + 0.3));
+  const x = j => L + j * (W - L - R) / 63, y = v => T + (1 - (v - lim.xbar + span) / (2 * span)) * (H - T - B);
+  let g = rushRects(x, T, H - B, (W - L - R) / 63);
+  for (const z of [1, 2]) for (const s of [1, -1]) g += `<line class="zone" x1="${L}" x2="${W - R}" y1="${y(lim.xbar + s * z * lim.sigma)}" y2="${y(lim.xbar + s * z * lim.sigma)}"/>`;
+  for (const s of [1, -1]) g += `<line class="lim" x1="${L}" x2="${W - R}" y1="${y(lim.xbar + s * 3 * lim.sigma)}" y2="${y(lim.xbar + s * 3 * lim.sigma)}"/>`;
+  g += `<line class="cl" x1="${L}" x2="${W - R}" y1="${y(lim.xbar)}" y2="${y(lim.xbar)}"/>`;
+  g += `<text x="${W - R + 3}" y="${y(lim.xbar + 3 * lim.sigma) + 4}">+3σ</text><text x="${W - R + 3}" y="${y(lim.xbar - 3 * lim.sigma) + 4}">−3σ</text>`;
+  g += `<text x="${L - 4}" y="${y(lim.xbar) + 4}" text-anchor="end">0</text>`;
+  if (pts.length) g += `<path class="xline" d="${pts.map(([j, c], n) => `${n ? "L" : "M"}${x(j)},${y(c.x)}`).join(" ")}"/>`;
+  for (const [j, c] of pts) {
+    g += `<circle class="pt${c.sig ? " sig" : ""}" cx="${x(j)}" cy="${y(c.x)}" r="${c.sig ? 3.6 : 2}"><title>${SIM.clock(j)}: net flow ${c.nf}, usual ${f(M.mu[i][j])}, x = ${f(c.x)}${c.sig ? ", rule " + c.sig.rule : ""}</title></circle>`;
+    if (c.sig) g += `<text class="sigtxt" x="${x(j)}" y="${y(c.x) + (c.x > lim.xbar ? -6 : 13)}" text-anchor="middle">R${c.sig.rule}</text>`;
+  }
+  g += `<line class="now" x1="${x(k)}" x2="${x(k)}" y1="${T}" y2="${H - B}"/>` + axis(x, H - B);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="I-chart at ${S[i].id}">${g}</svg>`;
+}
+
+function renderStations() {
+  const d = dayData(), k = state.k;
+  $("stations").innerHTML = S.map((s, i) => {
+    const st = status(d, i, k, state.shown === k && d.rows[k][i].van !== 0);
+    const lab = { ok: "", sig: " sig", oos: " oos", fix: " fix" }[st.cls];
+    const txt = st.text.charAt(0) + st.text.slice(1).toLowerCase();
+    return `<div class="st">
+      <div class="st-head"><b>${s.id}</b><span>${s.name} · ${s.kind}</span></div>
+      <span class="pill${lab}">${txt} · ${st.b} bikes</span>
+      <span class="mini-label">Bikes</span>${miniBikes(i, d, k)}
+      <span class="mini-label">Control chart (net flow − usual)</span>${miniChart(i, d, k)}
+    </div>`;
+  }).join("");
+}
+
+// ---- live feed ----
+function feedItem(d, k, rec) {
+  const r = d.rows[k];
+  const chips = S.map((s, i) => `<span class="chip${r[i].sig && k ? " sig" : oos(r[i].bikes) ? " oos" : ""}">${s.id} ${r[i].bikes}</span>`).join("");
+  let ev = "";
+  S.forEach((s, i) => {
+    if (k && r[i].sig) ev += `<div class="ev sig">${s.id}: rule ${r[i].sig.rule} (${ruleName[r[i].sig.rule]}), ${r[i].sig.side < 0 ? "draining" : "filling"} faster than usual</div>`;
+    else if (oos(r[i].bikes)) ev += `<div class="ev oos">${s.id}: ${r[i].bikes} bikes, out of spec</div>`;
+  });
+  const l = d.log.find(m => m.k === k);
+  if (l) ev += `<div class="ev van">Van → ${S[l.station].id}: ${l.move > 0 ? "brought" : "took"} ${Math.abs(l.move)} (${l.parts}), ${l.before} → ${l.after} bikes</div>`;
+  else if (!policyOn() && r.some(c => c.sig || oos(c.bikes)) && k) ev += `<div class="ev muted">Week 1 baseline: no van is sent</div>`;
+  rec.filter(x => x.k === k).forEach(x => ev += `<div class="ev ok">${S[x.station].id} back in control: ${x.bikes} bikes, no signal (van at ${SIM.clock(x.from)})</div>`);
+  return `<li><div class="row"><span class="t">${SIM.clock(k)}</span>${chips}</div>${ev}</li>`;
+}
+function renderFeed() {
+  const d = dayData(), rec = recoveries(d);
+  let h = ""; for (let k = state.k; k >= 0; k--) h += feedItem(d, k, rec);
+  $("feed").innerHTML = h;
+  $("feed").scrollTop = 0;
+}
+
+// ---- night plan and weekly review ----
+function plan() {
+  $("plan").innerHTML = S.map((s, i) => {
+    const p = M.plans[i], c = M.C[i];
+    return `<tr><td><b>${s.id}</b> ${s.name}</td><td>${f(Math.max(...c) - Math.min(...c), 1)}</td><td>${f(p.lo, 1)} – ${f(p.hi, 1)}</td><td><b>${M.start[i]}</b></td><td>${f(M.imr[i].sigma)}</td></tr>`;
+  }).join("");
+  const groups = []; let a = null, prev = null;
+  for (const k of M.rush) { if (prev !== null && k === prev + 1) { prev = k; continue; } if (a !== null) groups.push([a, prev]); a = k; prev = k; }
+  if (a !== null) groups.push([a, prev]);
+  $("rush").textContent = groups.map(([s, e]) => s === e ? SIM.clock(s) : `${SIM.clock(s)}–${SIM.clock(e)}`).join(", ");
+  $("rentavg").textContent = f(M.rentAvg);
+  const o = days => days.reduce((a, d) => a + d.outOfSpec.reduce((x, y) => x + y, 0), 0);
+  const lost = days => days.reduce((a, d) => a + d.lost, 0);
+  const stops = M.week2.reduce((a, d) => a + d.log.length, 0) / 7;
+  let sig1 = 0; M.week1.forEach(d => d.rows.forEach((r, k) => k && r.forEach(c => { if (c.sig) sig1++; })));
+  $("kpis").innerHTML = `
+    <div class="kpi"><b>${o(M.week1)} <span class="arrow">→</span> <span class="after">${o(M.week2)}</span></b><span>out-of-spec readings, week 1 → week 2</span></div>
+    <div class="kpi"><b>${lost(M.week1)} <span class="arrow">→</span> <span class="after">${lost(M.week2)}</span></b><span>rentals lost at an empty station</span></div>
+    <div class="kpi"><b>${f(stops, 1)}</b><span>van stops per day in week 2</span></div>
+    <div class="kpi"><b>${f(100 * sig1 / (7 * 63 * 5), 1)}%</b><span>of week-1 checks signalled (${sig1} of ${7 * 63 * 5})</span></div>`;
+  $("ptabs").innerHTML = S.map((s, i) => `<button data-p="${i}" aria-pressed="${i === state.pst}">${s.id}</button>`).join("");
+  document.querySelectorAll("[data-p]").forEach(b => b.addEventListener("click", () => { state.pst = +b.dataset.p; plan(); }));
+  const i = state.pst, P = M.pcharts[i], n = SIM.SLOTS;
+  const p1 = P.d1.map(v => v / n), p2 = P.d2.map(v => v / n);
+  const W = 560, H = 230, L = 38, R = 40, T = 12, B = 34;
+  const ymax = Math.max(P.ucl, ...p1, ...p2) * 1.12 + 0.02;
+  const x = j => L + (j + 0.5) * (W - L - R) / 14, y = v => T + (1 - v / ymax) * (H - T - B);
+  let g = "";
+  for (let v = 0; v <= ymax; v += 0.1) g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${f(v, 1)}</text>`;
+  g += `<line class="cl" x1="${L}" x2="${W - R}" y1="${y(P.pbar)}" y2="${y(P.pbar)}"/><text x="${W - R + 4}" y="${y(P.pbar) + 4}">p̄</text>`;
+  g += `<line class="lim" x1="${L}" x2="${W - R}" y1="${y(P.ucl)}" y2="${y(P.ucl)}"/><text x="${W - R + 4}" y="${y(P.ucl) + 4}">UCL</text>`;
+  g += `<line class="lim" x1="${L}" x2="${W - R}" y1="${y(P.lcl)}" y2="${y(P.lcl)}"/><text x="${W - R + 4}" y="${y(P.lcl) + 4}">LCL</text>`;
+  g += `<line class="grid" x1="${x(6.5)}" x2="${x(6.5)}" y1="${T}" y2="${H - B}"/>`;
+  g += `<text x="${x(3)}" y="${H - 4}" text-anchor="middle">week 1 · Phase I</text><text x="${x(10)}" y="${H - 4}" text-anchor="middle">week 2 · Phase II</text>`;
+  const dn = ["M", "T", "W", "T", "F", "S", "S"];
+  const all = [...p1.map(p => [p, "p1"]), ...p2.map(p => [p, p < P.lcl ? "good" : p > P.ucl ? "sig" : ""])];
+  g += `<path class="xline" d="${all.slice(0, 7).map(([p], j) => `${j ? "L" : "M"}${x(j)},${y(p)}`).join(" ")}"/>`;
+  g += `<path class="xline" d="${all.slice(7).map(([p], j) => `${j ? "L" : "M"}${x(j + 7)},${y(p)}`).join(" ")}"/>`;
+  all.forEach(([p, cls], j) => {
+    g += `<circle class="pt ${cls}" cx="${x(j)}" cy="${y(p)}" r="4.5"><title>${j < 7 ? "Week 1" : "Week 2"} ${dn[j % 7]}: ${Math.round(p * n)}/${n} = ${f(p, 3)}</title></circle>`;
+    g += `<text x="${x(j)}" y="${H - B + 14}" text-anchor="middle">${dn[j % 7]}</text>`;
+  });
+  $("chartP").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="p-chart for ${S[i].id}">${g}</svg>`;
+  $("tp").textContent = `p-chart · ${S[i].id} ${S[i].name}`;
+  $("pnums").innerHTML = `<span class="mono">p̄ = ${P.d1.reduce((a, b) => a + b, 0)} / ${7 * n} = ${f(P.pbar, 3)}, σ = √(p̄(1−p̄)/64) = ${f(Math.sqrt(P.pbar * (1 - P.pbar) / n), 4)}, UCL = ${f(P.ucl, 3)}, LCL = ${f(P.lcl, 3)}.</span> ${p2.filter(p => p < P.lcl).length} of 7 week-2 days are below the LCL.`;
+}
+
+// ---- driving the clock ----
+function cancelAnim() { if (state.anim) { cancelAnimationFrame(state.anim); state.anim = null; } }
+function show() {
+  cancelAnim();
+  const d = dayData(), k = state.k;
+  ["w1", "w2", "ev"].forEach(s => $("sc-" + s).setAttribute("aria-pressed", String(state.sc === s)));
+  $("daywrap").hidden = state.sc === "ev";
+  $("day").value = String(state.day);
+  $("slot").value = String(k);
+  $("clock").textContent = SIM.clock(k);
+  $("live").classList.toggle("on", state.playing);
+  $("play").textContent = state.playing ? "Pause" : "Play";
+  renderFeed();
+  const l = policyOn() ? d.log.find(m => m.k === k) : null;
+  if (l && state.playing && state.shown !== k) {
+    state.shown = null;
+    renderStations();
+    drawMap(vanHome(d, k), null, null, new Set());
+    animateVan(l);
+  } else {
+    if (l) state.shown = k;
+    renderStations();
+    const vis = new Set(); if (l) { vis.add(l.station); if (l.pAmt) vis.add(l.partner); }
+    drawMap(vanHome(d, k), l ? `${l.move > 0 ? "dropped" : "picked up"} ${Math.abs(l.move)}` : null, null, vis);
+  }
+}
+function tick() {
+  if (state.k >= 63) { state.playing = false; clearInterval(state.timer); state.timer = null; show(); return; }
+  state.k++; state.shown = null; show();
+}
+function setPlaying(on) {
+  state.playing = on;
+  clearInterval(state.timer); state.timer = null;
+  if (on) { if (state.k >= 63) { state.k = 0; state.shown = null; } state.timer = setInterval(tick, state.speed); }
+  show();
+}
+$("play").addEventListener("click", () => setPlaying(!state.playing));
+$("restart").addEventListener("click", () => { state.k = 0; state.shown = null; setPlaying(true); });
+$("slot").addEventListener("input", e => { state.k = +e.target.value; state.shown = null; setPlaying(false); });
+$("speed").addEventListener("change", e => { state.speed = +e.target.value; if (state.playing) setPlaying(true); });
+$("day").addEventListener("change", e => { state.day = +e.target.value; state.k = 0; state.shown = null; setPlaying(true); });
+document.querySelectorAll("[data-sc]").forEach(b => b.addEventListener("click", () => { state.sc = b.dataset.sc; state.k = 0; state.shown = null; setPlaying(true); }));
+plan();
+setPlaying(true);
+})();
+</script>

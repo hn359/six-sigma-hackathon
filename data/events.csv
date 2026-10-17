@@ -1,7 +1,0 @@
-date,station_id,start,end,event,what_should_be_flagged
-2026-10-05,,,,normal day,nothing (false-alarm check)
-2026-10-06,S04,18:00,18:45,surge: extra trips arriving at Downtown (an event lets out),1 point beyond 3 sigma at S04
-2026-10-07,S03,10:00,22:00,slow drain: extra rentals at Fall Creek,"sustained drift at S03 (2 of 3 beyond 2 sigma, 8 in a row)"
-2026-10-08,S02,06:00,22:00,broken docks: Main Campus has 12 working docks instead of 23,sustained shift at S02
-2026-10-09,S05,12:00,14:00,station offline: Wegmans reports 0 bikes and 0 docks,"bad readings skipped or flagged, not charted as real"
-2026-10-09,S01 S03 S04,,,"blank readings: 3 rows with no counts (S01 09:15, S03 16:30, S04 20:00)","bad readings skipped or flagged, not charted as real"

@@ -12,6 +12,5 @@ rsconnect/
 .opencode/model-ladder-state.json
 
 .claude/settings.local.json
-
-# extra simulation runs (python data/simulate.py --out data/runs/...)
-data/runs/
+.venv/
+.DS_Store

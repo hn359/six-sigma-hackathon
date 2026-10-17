@@ -1,134 +1,137 @@
-"""Simulate bikeshare station readings for testing. Run from the repo root:
+"""Build the invented test datasets. Run from the repo root: python data/simulate.py
 
-    python data/simulate.py                                  # the official files in data/
-    python data/simulate.py --seed 7 --out data/runs/seed7   # another random run, same method
-    python data/simulate.py --seed 7 --baseline-days 40 --out data/runs/long
+Everything here is SIMULATED, not real data. Three cities (data/<dataset>/), each with a baseline
+week (no van), a policy week and an event day. They differ on purpose, to show the tool works for
+any network: number of stations, docks per station, minutes between readings, operating hours
+and the shape of demand.
 
-Everything this writes is INVENTED, not real data. It simulates individual
-trips between five made-up stations at real Ithaca places, so bikes really
-flow: a station empties when riders leave faster than others arrive, and the
-fleet never changes size (docked + riding = FLEET at every step).
-
-Seeded: running it again rewrites every file byte for byte.
-
-It computes no control-chart numbers. Limits, run rules and flags are the
-SPC team's job; events.csv is the answer key to check them against.
+Demand model (data/README.md):
+- rentals at a station in one reading interval ~ Poisson(rate[station][period of the day]);
+- each rider rides to another station, picked with weights attract[station][period];
+- an empty station loses the rental; a full one sends the rider on to the emptiest station.
+Spec limits are 20% and 80% of a station's docks (app/qc.py: spec_limits). The baseline week has
+no van. The policy week and the event day run the policy with app/qc.py: the nightly start plan,
+and after every reading the run rules on slot-adjusted net flow, with the van sent on a signal
+or when a station is out of spec.
 """
 
-import argparse
 import csv
+import json
 import math
 import random
-from datetime import date, timedelta
+import sys
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent
-SEED = 5300
-FLEET = 45
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from app.qc import (  # noqa: E402
+    dispatch_trigger, imr_limits_days, run_rules, spec_limits, start_plan, van_move,
+)
 
-# station_id, name, lat, lon, docks, bikes at the very first 06:00 (sum = FLEET)
-STATIONS = [
-    ("S01", "North Campus (RPCC)", 42.4556, -76.4778, 15, 9),
-    ("S02", "Main Campus (Ho Plaza)", 42.4470, -76.4833, 23, 9),
-    ("S03", "Fall Creek", 42.4495, -76.4953, 11, 6),
-    ("S04", "Downtown (Ithaca Commons)", 42.4392, -76.4964, 19, 12),
-    ("S05", "Wegmans (Meadow St)", 42.4334, -76.5108, 15, 9),
-]
-IDS = [s[0] for s in STATIONS]
-N = len(STATIONS)
+OUT = ROOT / "data"
 
-# Readings every 15 minutes, 06:00-22:00: 65 readings, 64 slots of riding.
-SLOT_MIN = 15
-READ_MIN = [6 * 60 + SLOT_MIN * k for k in range(65)]
-
-# Rentals per 15 minutes = base + am*bump(08:00) + mid*bump(12:30) + pm*bump(17:30),
-# times a daily factor (0.9-1.1, like the weather).
-RATES = {
-    #      base   am    mid   pm
-    "S01": (0.30, 1.60, 0.20, 0.60),  # residential: big morning exodus
-    "S02": (0.40, 0.40, 0.50, 2.00),  # campus: big evening exodus
-    "S03": (0.20, 1.00, 0.20, 0.40),  # residential
-    "S04": (0.50, 0.60, 0.60, 1.20),  # downtown: some of everything
-    "S05": (0.30, 0.20, 0.60, 0.80),  # grocery: midday and evening
+# Each station: id, name, lat, lon (approximate), docks, role, rates per period, attract per period.
+# Periods are set by the reading's time of day: period n covers times before bounds[n] (hours).
+DATASETS = {
+    "collegetown": {
+        "name": "Collegetown, Ithaca: student commute",
+        "seed": 5300, "interval": 15, "start": "06:00", "end": "21:45", "first_day": date(2026, 10, 5),
+        "bounds": (7, 10, 16, 19, 24),       # early, AM rush, midday, PM rush, evening
+        "stations": [
+            ("S01", "Cascadilla Hall (dorms)", 42.4454, -76.4897, 20, "residential",
+             (0.12, 0.70, 0.15, 0.40, 0.15), (1, 0.6, 1, 2.2, 1.3)),
+            ("S02", "Schwartz Center (campus gate)", 42.4454, -76.4809, 20, "campus",
+             (0.08, 0.30, 0.18, 0.80, 0.15), (1, 2.0, 1, 0.6, 0.8)),
+            ("S03", "Dryden Rd (apartments)", 42.4396, -76.4801, 20, "residential",
+             (0.12, 0.65, 0.15, 0.40, 0.15), (1, 0.6, 1, 2.2, 1.3)),
+            ("S04", "College Ave (bus stop)", 42.4418, -76.4853, 20, "transit hub",
+             (0.12, 0.55, 0.18, 0.70, 0.15), (1, 1.8, 1, 1, 1)),
+            ("S05", "Eddy St (shops)", 42.4384, -76.4897, 20, "shopping",
+             (0.10, 0.45, 0.20, 0.50, 0.20), (1, 1, 1.2, 1, 1)),
+        ],
+        "event": {"drain": ("S03", "10:15", "13:00", 1),
+                  "crowd": ("S02", "18:15", "19:00", 4, ("S04", "S05"))},
+    },
+    "downtown": {
+        "name": "Downtown Ithaca: office commute, mixed station sizes, readings every 10 minutes",
+        "seed": 7100, "interval": 10, "start": "06:00", "end": "21:50", "first_day": date(2026, 10, 5),
+        "bounds": (7, 10, 16, 19, 24),
+        "stations": [
+            ("D01", "Fall Creek homes", 42.4410, -76.4985, 19, "residential",
+             (0.08, 0.36, 0.10, 0.22, 0.10), (1.1, 0.5, 1, 1.2, 1.0)),
+            ("D02", "Court St apartments", 42.4404, -76.4960, 15, "residential",
+             (0.06, 0.26, 0.08, 0.18, 0.08), (1.0, 0.5, 1, 1.0, 1.0)),
+            ("D03", "Commons offices", 42.4392, -76.4968, 27, "offices",
+             (0.05, 0.22, 0.20, 0.70, 0.10), (1, 2.4, 1, 0.5, 0.8)),
+            ("D04", "Green St transit center", 42.4384, -76.4980, 31, "transit hub",
+             (0.10, 0.55, 0.22, 0.62, 0.18), (1, 1.6, 1.1, 1.4, 1)),
+            ("D05", "City Hall", 42.4396, -76.4950, 23, "offices",
+             (0.04, 0.18, 0.16, 0.55, 0.08), (1, 2.0, 1, 0.5, 0.8)),
+            ("D06", "State St shops", 42.4386, -76.4955, 12, "shopping",
+             (0.06, 0.24, 0.26, 0.32, 0.20), (1, 0.8, 1.7, 1, 1.2)),
+        ],
+        "event": {"drain": ("D06", "11:00", "13:00", 1),
+                  "crowd": ("D04", "17:00", "17:40", 4, ("D03", "D05"))},
+    },
+    "waterfront": {
+        "name": "Ithaca waterfront: leisure riding, midday and evening peaks",
+        "seed": 9200, "interval": 15, "start": "08:00", "end": "22:45", "first_day": date(2026, 10, 5),
+        "bounds": (10, 15, 18, 21, 24),      # morning, midday, afternoon, evening, late
+        "stations": [
+            ("W01", "Farmers Market", 42.4510, -76.5112, 25, "market",
+             (0.15, 0.55, 0.35, 0.20, 0.10), (1.3, 2.2, 1, 0.6, 0.5)),
+            ("W02", "Cass Park", 42.4527, -76.5132, 30, "park",
+             (0.15, 0.45, 0.60, 0.35, 0.15), (1, 1.8, 2.0, 0.8, 0.6)),
+            ("W03", "Inlet hotels", 42.4492, -76.5098, 20, "lodging",
+             (0.45, 0.30, 0.25, 0.20, 0.10), (0.6, 0.8, 1, 1.4, 2.4)),
+            ("W04", "Steamboat Landing (dining)", 42.4503, -76.5085, 15, "dining",
+             (0.06, 0.18, 0.15, 0.40, 0.25), (0.6, 0.9, 1, 2.0, 0.8)),
+        ],
+        "event": {"drain": ("W03", "09:00", "10:30", 1),
+                  "crowd": ("W02", "16:00", "17:00", 5, ("W01", "W03"))},
+    },
 }
 
-# Where riders go: relative weights to S01..S05, by time of day (0 = no trips to itself).
-DEST = {
-    "morning": {  # before 11:00: homes -> campus and downtown
-        "S01": (0, 6, 0.5, 2, 0.5),
-        "S02": (2, 0, 1, 2, 0.5),
-        "S03": (0.5, 5, 0, 3, 0.5),
-        "S04": (1, 3, 1, 0, 1),
-        "S05": (1, 2, 1, 3, 0),
-    },
-    "midday": {  # 11:00-15:00: errands, downtown and Wegmans busier
-        "S01": (0, 2, 1, 3, 2.5),
-        "S02": (1, 0, 1, 3, 2.5),
-        "S03": (1, 2, 0, 3, 2.5),
-        "S04": (1, 2, 1, 0, 2.5),
-        "S05": (1, 2, 1, 3, 0),
-    },
-    "evening": {  # 15:00 on: back home, plus downtown and shopping
-        "S01": (0, 2, 1, 3.5, 2),
-        "S02": (4.6, 0, 1.7, 3.5, 1.6),
-        "S03": (1, 2, 0, 3.5, 2),
-        "S04": (2, 2, 1.5, 0, 2.5),
-        "S05": (2, 1, 1, 3, 0),
-    },
-}
-# These weights are tuned so every station's expected daily net flow is within
-# +/-1 bike (expected_net_flow() below): with carry-over, a station that gained
-# bikes every day would end up permanently full. Random days still make the
-# levels wander a little from week to week, as real stations do.
-RIDE_SLOTS = ((1, 0.6), (2, 0.4))  # a ride takes 15 min (60%) or 30 min (40%)
 
-BASELINE_DAYS = 20  # Phase I: 20 weekdays from Mon 7 Sep 2026 (to Fri 2 Oct)
-FIRST_DAY = date(2026, 9, 7)
-
-# The planted problems (Phase II): one test day each, Monday to Friday of the
-# week after the baseline. First field = test day 0-4. Times are reading times.
-EVENTS = [
-    (0, "", "", "", "normal day",
-     "nothing (false-alarm check)"),
-    (1, "S04", "18:00", "18:45", "surge: extra trips arriving at Downtown (an event lets out)",
-     "1 point beyond 3 sigma at S04"),
-    (2, "S03", "10:00", "22:00", "slow drain: extra rentals at Fall Creek",
-     "sustained drift at S03 (2 of 3 beyond 2 sigma, 8 in a row)"),
-    (3, "S02", "06:00", "22:00", "broken docks: Main Campus has 12 working docks instead of 23",
-     "sustained shift at S02"),
-    (4, "S05", "12:00", "14:00", "station offline: Wegmans reports 0 bikes and 0 docks",
-     "bad readings skipped or flagged, not charted as real"),
-    (4, "S01 S03 S04", "", "", "blank readings: 3 rows with no counts (S01 09:15, S03 16:30, S04 20:00)",
-     "bad readings skipped or flagged, not charted as real"),
-]
-SURGE = {"station": "S04", "per_slot": 4.0, "rent_slots_end": ("17:45", "18:00", "18:15", "18:30")}
-DRAIN = {"station": "S03", "per_slot": 0.3, "from": "10:00"}
-BROKEN = {"station": "S02", "docks": 12}
-OFFLINE = {"station": "S05", "from": "12:00", "to": "14:00"}
-BLANKS = (("S01", "09:15"), ("S03", "16:30"), ("S04", "20:00"))
+def minutes(hhmm):
+    h, m = map(int, hhmm.split(":"))
+    return 60 * h + m
 
 
-def hhmm(minute):
-    return f"{minute // 60:02d}:{minute % 60:02d}"
+class City:
+    """One dataset's network, clock and demand, ready to simulate."""
 
+    def __init__(self, key):
+        cfg = DATASETS[key]
+        self.key, self.cfg = key, cfg
+        self.st = cfg["stations"]
+        self.ids = [s[0] for s in self.st]
+        self.cap = [s[4] for s in self.st]
+        self.lim = [spec_limits(c) for c in self.cap]
+        self.n = len(self.st)
+        self.fleet = sum(self.cap)                  # as many bikes as docks, half of them docked
+        self.base_start = [c // 2 for c in self.cap]
+        self.interval = cfg["interval"]
+        self.t0 = minutes(cfg["start"])
+        self.slots = (minutes(cfg["end"]) - self.t0) // self.interval + 1
 
-def bump(h, centre, width):
-    return math.exp(-0.5 * ((h - centre) / width) ** 2)
+    def tod(self, k):
+        return self.t0 + self.interval * k
 
+    def period(self, k):
+        hour = self.tod(k) / 60
+        return next(n for n, b in enumerate(self.cfg["bounds"]) if hour < b)
 
-def rate(sid, h):
-    base, am, mid, pm = RATES[sid]
-    return base + am * bump(h, 8.0, 0.8) + mid * bump(h, 12.5, 1.5) + pm * bump(h, 17.5, 1.0)
+    def in_window(self, k, frm, to):
+        return minutes(frm) <= self.tod(k) <= minutes(to)
 
-
-def period(h):
-    return "morning" if h < 11 else "midday" if h < 15 else "evening"
+    def stamp(self, day0, k):
+        return (day0 + timedelta(minutes=self.tod(k))).isoformat(timespec="minutes")
 
 
 def poisson(rng, lam):
     """Knuth's method; fine for the small rates used here."""
-    if lam <= 0:
-        return 0
     limit, k, p = math.exp(-lam), 0, 1.0
     while True:
         p *= rng.random()
@@ -137,231 +140,201 @@ def poisson(rng, lam):
         k += 1
 
 
-def weighted(rng, weights):
-    r = rng.random() * sum(weights)
-    for i, w in enumerate(weights):
-        r -= w
-        if r < 0:
-            return i
-    return len(weights) - 1
-
-
-def _dist(i, j):
-    (_, _, la1, lo1, _, _), (_, _, la2, lo2, _, _) = STATIONS[i], STATIONS[j]
-    return math.hypot(la1 - la2, (lo1 - lo2) * math.cos(math.radians(la1)))
-
-
-NEAREST = [sorted((j for j in range(N) if j != i), key=lambda j: _dist(i, j)) for i in range(N)]
-
-
-class Network:
-    """Bikes docked at each station plus bikes out riding. Never gains or loses a bike."""
-
-    def __init__(self):
-        self.bikes = [s[5] for s in STATIONS]
-        self.cap = [s[4] for s in STATIONS]
-        self.riding = []  # [slots_left, destination]
-        self.offline = [False] * N
-        self.lost_rentals = 0
-        self.diverted_returns = 0
-        assert self.total() == FLEET
-
-    def total(self):
-        return sum(self.bikes) + len(self.riding)
-
-    def room(self, i):
-        return not self.offline[i] and self.bikes[i] < self.cap[i]
-
-    def dock(self, dest):
-        """Dock one bike at dest, or at the nearest station with room. False if nowhere."""
-        if self.room(dest):
-            self.bikes[dest] += 1
-            return True
-        for j in NEAREST[dest]:
-            if self.room(j):
-                self.bikes[j] += 1
-                self.diverted_returns += 1
-                return True
-        return False
-
-    def rent(self, i, dest, slots):
-        self.bikes[i] -= 1
-        self.riding.append([slots, dest])
-
-    def arrivals(self):
-        still = []
-        for ride in self.riding:
-            ride[0] -= 1
-            if ride[0] > 0 or not self.dock(ride[1]):
-                still.append(ride)
-        self.riding = still
-
-    def overnight(self):
-        """No rides 22:00-06:00: bikes still out dock at (or near) their destination."""
-        for _, dest in self.riding:
-            if not self.dock(dest):
-                raise RuntimeError("nowhere to dock overnight")  # cannot happen: FLEET < docks
-        self.riding = []
-
-
-def simulate_day(net, rng, day, plan=None, trace=None):
-    """One weekday, 06:00-22:00. Returns rows (station_id, timestamp, bikes, docks)."""
-    plan = plan or {}
-    factor = rng.uniform(0.9, 1.1)
-    broken = plan.get("broken")
-    if broken:  # the crew moves bikes off the broken docks before 06:00
-        i = IDS.index(broken["station"])
-        net.cap[i] = broken["docks"]
-        while net.bikes[i] > net.cap[i]:
-            net.bikes[i] -= 1
-            if not net.dock(i):
-                raise RuntimeError("nowhere to put bikes from broken docks")
-    rows = []
-
-    def read(minute):
-        stamp = f"{day.isoformat()}T{hhmm(minute)}"
-        for i, sid in enumerate(IDS):
-            if net.offline[i]:
-                rows.append([sid, stamp, 0, 0])
-            elif (sid, hhmm(minute)) in plan.get("blanks", ()):
-                rows.append([sid, stamp, "", ""])
-            else:
-                rows.append([sid, stamp, net.bikes[i], net.cap[i] - net.bikes[i]])
-        if trace is not None:
-            trace.append((stamp, net.total()))
-
-    off = plan.get("offline")
-    for k, minute in enumerate(READ_MIN):
-        if off:
-            i = IDS.index(off["station"])
-            net.offline[i] = off["from"] <= hhmm(minute) <= off["to"]
-        if k > 0:  # riding in the slot that ends at this reading
-            net.arrivals()
-            h = (minute - SLOT_MIN / 2) / 60
-            for i, sid in enumerate(IDS):
-                if net.offline[i]:
+def run_day(city, rng, day0, start, policy=None, event=False, trips_out=None):
+    """Simulate one day. Returns (rows, van_log, totals). rows: one dict per station per reading.
+    trips_out, if given, receives one dict per completed trip (reading time, from, to); recording
+    them draws no random numbers, so every other output is unchanged."""
+    N, ids, cap = city.n, city.ids, city.cap
+    ev = city.cfg["event"] if event else None
+    bikes = list(start)
+    reserve = city.fleet - sum(bikes)
+    hist = [[] for _ in range(N)]
+    rows, log = [], []
+    lost = blocked = 0
+    for k in range(city.slots):
+        if k > 0:
+            p = city.period(k)
+            before = bikes[:]
+            trips = []
+            for i in range(N):
+                d = poisson(rng, city.st[i][6][p])
+                if ev and ids[i] == ev["drain"][0] and city.in_window(k, ev["drain"][1], ev["drain"][2]):
+                    d += ev["drain"][3]
+                trips += [(i, None)] * d
+            if ev and city.in_window(k, ev["crowd"][1], ev["crowd"][2]):
+                dest = ids.index(ev["crowd"][0])
+                trips += [(ids.index(rng.choice(ev["crowd"][4])), dest) for _ in range(ev["crowd"][3])]
+            rng.shuffle(trips)
+            for i, dest in trips:
+                if bikes[i] == 0:
+                    lost += 1
                     continue
-                want = poisson(rng, rate(sid, h) * factor)
-                drain = plan.get("drain")
-                if drain and sid == drain["station"] and hhmm(minute) > drain["from"]:
-                    want += poisson(rng, drain["per_slot"])
-                for _ in range(want):
-                    if net.bikes[i] == 0:
-                        net.lost_rentals += 1
+                if dest is None:
+                    w = [0 if j == i else city.st[j][7][p] for j in range(N)]
+                    dest = rng.choices(range(N), weights=w)[0]
+                if bikes[dest] >= cap[dest]:
+                    blocked += 1
+                    room = [j for j in range(N) if j != dest and bikes[j] < cap[j]]
+                    if not room:
                         continue
-                    dest = weighted(rng, DEST[period(h)][sid])
-                    net.rent(i, dest, RIDE_SLOTS[weighted(rng, [p for _, p in RIDE_SLOTS])][0])
-            surge = plan.get("surge")
-            if surge and hhmm(minute) in surge["rent_slots_end"]:
-                s = IDS.index(surge["station"])
-                for _ in range(poisson(rng, surge["per_slot"])):
-                    origins = [j for j in range(N) if j != s and not net.offline[j] and net.bikes[j] > 0]
-                    if origins:
-                        j = weighted(rng, [net.bikes[o] for o in origins])
-                        net.rent(origins[j], s, 1)  # arrives at the next reading
-        read(minute)
-    net.offline = [False] * N
-    if broken:
-        net.cap[IDS.index(broken["station"])] = STATIONS[IDS.index(broken["station"])][4]
-    net.overnight()
-    return rows
+                    dest = min(room, key=lambda j: bikes[j] / cap[j])
+                bikes[i] -= 1
+                bikes[dest] += 1
+                if trips_out is not None:
+                    trips_out.append({"timestamp": city.stamp(day0, k), "from_station": ids[i],
+                                      "to_station": ids[dest]})
+            if policy:
+                for i in range(N):
+                    hist[i].append((bikes[i] - before[i]) - policy["mu"][i][k])
+        reading = bikes[:]
+        van = [0] * N
+        if policy and k > 0:
+            E = policy["path"]
+            need = []
+            for i in range(N):
+                sig = run_rules(hist[i], policy["imr"][i]["xbar"], policy["imr"][i]["sigma"])
+                why = dispatch_trigger(sig, bikes[i], *city.lim[i])
+                if not why:
+                    continue
+                move = van_move(E[i][k], bikes[i], cap[i])
+                drift = sig["side"] if sig else (-1 if bikes[i] < cap[i] / 2 else 1)
+                if move == 0 or (move > 0) == (drift > 0):
+                    continue    # already on the far side of its path from the drift: nothing to move
+                need.append((abs(E[i][k] - bikes[i]), i, why, sig, move))
+            if need:
+                need.sort(key=lambda t: (-t[0], t[1]))
+                _, i, why, sig, move = need[0]
+                todo = abs(move)
+                partner, best = None, 0
+                for j in range(N):
+                    if j == i:
+                        continue
+                    spare = bikes[j] - E[j][k] if move > 0 else E[j][k] - bikes[j]
+                    if spare >= 1 and spare > best:
+                        partner, best = j, spare
+                p_amt = r_amt = 0
+                if partner is not None:
+                    room = bikes[partner] if move > 0 else cap[partner] - bikes[partner]
+                    p_amt = min(todo, int(best), room)
+                    if p_amt:
+                        s = -p_amt if move > 0 else p_amt
+                        bikes[partner] += s
+                        van[partner] += s
+                        todo -= p_amt
+                if todo:
+                    r_amt = min(todo, reserve) if move > 0 else todo
+                    reserve += -r_amt if move > 0 else r_amt
+                    todo -= r_amt
+                done = abs(move) - todo
+                signed = done if move > 0 else -done
+                bikes[i] += signed
+                van[i] += signed
+                hist[i] = []
+                if p_amt and partner is not None:
+                    hist[partner] = []
+                log.append({
+                    "timestamp": city.stamp(day0, k), "station_id": ids[i], "trigger": why,
+                    "direction": "empty" if (sig and sig["side"] < 0) or (not sig and bikes[i] - signed < cap[i] / 2) else "full",
+                    "bikes_before": bikes[i] - signed, "bikes_moved": signed, "bikes_after": bikes[i],
+                    "from_station": ids[partner] if p_amt and signed > 0 else "",
+                    "to_station": ids[partner] if p_amt and signed < 0 else "",
+                    "station_bikes": p_amt, "reserve_bikes": r_amt,
+                })
+        for i in range(N):
+            rows.append({"station_id": ids[i], "timestamp": city.stamp(day0, k), "bikes": reading[i],
+                         "capacity": cap[i], "van_moved": van[i]})
+        assert sum(bikes) + reserve == city.fleet, "bikes were created or lost"
+    return rows, log, {"lost": lost, "blocked": blocked}
 
 
-def expected_net_flow():
-    """Expected bikes gained (+) or lost (-) per station over an average day,
-    from RATES and DEST alone (daily factor 1, no empty or full stations)."""
-    net = {sid: 0.0 for sid in IDS}
-    for minute in READ_MIN[1:]:
-        h = (minute - SLOT_MIN / 2) / 60
-        for sid in IDS:
-            lam = rate(sid, h)
-            w = DEST[period(h)][sid]
-            net[sid] -= lam
-            for j, wj in enumerate(w):
-                net[IDS[j]] += lam * wj / sum(w)
-    return net
+def history(city, rows_by_day):
+    """Slot means of rider net flow, I-MR limits of x, and the start plan, from no-van days."""
+    flows = []  # flows[day][i][k]
+    for rows in rows_by_day:
+        by = {}
+        for r in rows:
+            by.setdefault(r["station_id"], []).append(r)
+        f = [[0.0] + [(by[sid][k]["bikes"] - by[sid][k - 1]["bikes"] - by[sid][k - 1]["van_moved"])
+                      for k in range(1, city.slots)] for sid in city.ids]
+        flows.append(f)
+    days, S, N = len(flows), city.slots, city.n
+    mu = [[sum(flows[d][i][k] for d in range(days)) / days for k in range(S)] for i in range(N)]
+    imr = [imr_limits_days([[flows[d][i][k] - mu[i][k] for k in range(1, S)] for d in range(days)])
+           for i in range(N)]
+    C = [[sum(mu[i][1:k + 1]) for k in range(S)] for i in range(N)]
+    plans = [start_plan(C[i], *city.lim[i]) for i in range(N)]
+    return mu, imr, C, plans
 
 
-def weekdays(start, count):
-    out, d = [], start
-    while len(out) < count:
-        if d.weekday() < 5:
-            out.append(d)
-        d += timedelta(days=1)
-    return out
+def build(key):
+    city = City(key)
+    rng = random.Random(city.cfg["seed"])
+    day = lambda d: datetime.combine(city.cfg["first_day"], datetime.min.time()) + timedelta(days=d)
+    trips = []
+    week1 = [run_day(city, rng, day(d), city.base_start, trips_out=trips) for d in range(7)]
+    mu, imr, C, plans = history(city, [w[0] for w in week1])
+    bad = [city.ids[i] for i, p in enumerate(plans) if not p["feasible"]]
+    if bad:
+        raise RuntimeError(f"{key}: normal swing too wide for one start plan at {bad}: retune the rates")
+    starts = [p["start"] for p in plans]
+    policy = {"mu": mu, "imr": imr, "path": [p["path"] for p in plans]}
+    week2 = [run_day(city, rng, day(7 + d), starts, policy, trips_out=trips) for d in range(7)]
+    event = run_day(city, rng, day(14), starts, policy, event=True, trips_out=trips)
+    return {"city": city, "week1": week1, "week2": week2, "event": event, "mu": mu, "imr": imr,
+            "C": C, "plans": plans, "trips": trips}
 
 
-def test_days(baseline_days=BASELINE_DAYS):
-    """Mon-Fri of the week after the last baseline day."""
-    last = weekdays(FIRST_DAY, baseline_days)[-1]
-    monday = last + timedelta(days=7 - last.weekday())
-    return [monday + timedelta(days=k) for k in range(5)]
-
-
-def run(seed=SEED, baseline_days=BASELINE_DAYS):
-    """Simulate Phase I then Phase II with one network that carries over day to day.
-    Same seed, same result; a different seed gives different random days from
-    the same model."""
-    if baseline_days < 1:
-        raise ValueError("baseline_days must be at least 1")
-    rng = random.Random(seed)
-    net = Network()
-    trace = []
-    baseline = []
-    for day in weekdays(FIRST_DAY, baseline_days):
-        baseline += simulate_day(net, rng, day, trace=trace)
-    base_lost, base_div = net.lost_rentals, net.diverted_returns
-    days = test_days(baseline_days)
-    plans = [{}, {"surge": SURGE}, {"drain": DRAIN}, {"broken": BROKEN},
-             {"offline": OFFLINE, "blanks": BLANKS}]
-    test = []
-    for day, plan in zip(days, plans):
-        test += simulate_day(net, rng, day, plan, trace=trace)
-    return {
-        "seed": seed,
-        "test_days": days,
-        "events": [[days[k].isoformat(), *rest] for k, *rest in EVENTS],
-        "baseline": baseline,
-        "test": test,
-        "trace": trace,
-        "summary": {
-            "baseline_lost_rentals": base_lost,
-            "baseline_diverted_returns": base_div,
-            "test_lost_rentals": net.lost_rentals - base_lost,
-            "test_diverted_returns": net.diverted_returns - base_div,
-        },
-    }
-
-
-def write_csv(path, header, rows):
-    with open(path, "w", newline="") as f:
-        w = csv.writer(f, lineterminator="\n")
-        w.writerow(header)
+def write(folder, name, rows, fields):
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / name, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
+        w.writeheader()
         w.writerows(rows)
 
 
-def main(out=OUT, seed=SEED, baseline_days=BASELINE_DAYS):
-    out = Path(out)
-    out.mkdir(parents=True, exist_ok=True)
-    res = run(seed, baseline_days)
-    write_csv(out / "stations.csv", ["station_id", "name", "lat", "lon", "capacity"],
-              [[s[0], s[1], s[2], s[3], s[4]] for s in STATIONS])
-    head = ["station_id", "timestamp", "bikes_available", "docks_available"]
-    write_csv(out / "readings_baseline.csv", head, res["baseline"])
-    write_csv(out / "readings_test.csv", head, res["test"])
-    write_csv(out / "events.csv", ["date", "station_id", "start", "end", "event", "what_should_be_flagged"],
-              res["events"])
-    return res
+def out_of_spec(sim, days):
+    city = sim["city"]
+    lim = dict(zip(city.ids, city.lim))
+    return sum(1 for d in days for r in d[0]
+               if r["bikes"] < lim[r["station_id"]][0] or r["bikes"] > lim[r["station_id"]][1])
+
+
+def main(keys=None):
+    for key in keys or DATASETS:
+        sim = build(key)
+        city, folder = sim["city"], OUT / key
+        fields = ["station_id", "timestamp", "bikes", "capacity", "van_moved"]
+        write(folder, "week1_baseline.csv", [r for d in sim["week1"] for r in d[0]], fields)
+        write(folder, "week2_policy.csv", [r for d in sim["week2"] for r in d[0]], fields)
+        write(folder, "event_day.csv", sim["event"][0], fields)
+        log_fields = ["timestamp", "station_id", "trigger", "direction", "bikes_before", "bikes_moved",
+                      "bikes_after", "from_station", "to_station", "station_bikes", "reserve_bikes"]
+        write(folder, "van_log.csv", [r for d in sim["week2"] for r in d[1]] + sim["event"][1], log_fields)
+        # every completed rider trip, stamped with the reading that ends its interval
+        write(folder, "trips.csv", sim["trips"], ["timestamp", "from_station", "to_station"])
+        write(folder, "stations.csv",
+              [{"station_id": s[0], "name": s[1], "lat": s[2], "lon": s[3], "capacity": s[4], "role": s[5]}
+               for s in city.st], ["station_id", "name", "lat", "lon", "capacity", "role"])
+        about = {"id": key, "name": city.cfg["name"], "interval_minutes": city.interval,
+                 "first_reading": city.cfg["start"], "last_reading": city.cfg["end"],
+                 "readings_per_day": city.slots, "stations": city.n, "docks": city.cap, "fleet": city.fleet,
+                 "seed": city.cfg["seed"], "simulated": True,
+                 "event": {"slow_drain": {"station": city.cfg["event"]["drain"][0], "from": city.cfg["event"]["drain"][1],
+                                          "to": city.cfg["event"]["drain"][2], "extra_rentals_per_reading": city.cfg["event"]["drain"][3]},
+                           "crowd": {"station": city.cfg["event"]["crowd"][0], "from": city.cfg["event"]["crowd"][1],
+                                     "to": city.cfg["event"]["crowd"][2], "riders_per_reading": city.cfg["event"]["crowd"][3],
+                                     "coming_from": list(city.cfg["event"]["crowd"][4])}}}
+        (folder / "about.json").write_text(json.dumps(about, indent=2) + "\n")
+        print(f"== {key}: {city.n} stations, docks {city.cap}, every {city.interval} min, {city.slots} readings/day")
+        print(f"   spec limits {city.lim}")
+        print(f"   swing / allowed: {[(round(max(c) - min(c), 1), u - l) for c, (l, u) in zip(sim['C'], city.lim)]}")
+        print(f"   starts {[p['start'] for p in sim['plans']]}  sigma {[round(l['sigma'], 2) for l in sim['imr']]}")
+        print(f"   out-of-spec readings: baseline {out_of_spec(sim, sim['week1'])}, policy {out_of_spec(sim, sim['week2'])}")
+        print(f"   lost rentals: baseline {sum(d[2]['lost'] for d in sim['week1'])}, policy {sum(d[2]['lost'] for d in sim['week2'])}")
+        print(f"   van stops per day (policy): {[len(d[1]) for d in sim['week2']]}")
+        print("   event day: " + "; ".join(f"{v['timestamp'][11:]} {v['station_id']} {v['trigger']} {v['bikes_moved']:+d}"
+                                          for v in sim["event"][1]))
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Simulate invented bikeshare readings (see data/README.md).")
-    ap.add_argument("--seed", type=int, default=SEED, help=f"random seed (default {SEED}, the official files)")
-    ap.add_argument("--out", default=str(OUT), help="folder to write the CSVs to (default: data/)")
-    ap.add_argument("--baseline-days", type=int, default=BASELINE_DAYS,
-                    help=f"weekdays of normal Phase I data (default {BASELINE_DAYS})")
-    args = ap.parse_args()
-    r = main(args.out, args.seed, args.baseline_days)
-    print(f"seed {r['seed']}: {len(r['baseline'])} baseline rows, {len(r['test'])} test rows "
-          f"(test week {r['test_days'][0]} to {r['test_days'][-1]}) -> {args.out}")
-    print(r["summary"])
+    main(sys.argv[1:] or None)

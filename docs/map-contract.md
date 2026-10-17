@@ -13,7 +13,7 @@ sample data** (five made-up stations at real Ithaca places), not real readings.
 | Route | Takes | Returns | Used by |
 |---|---|---|---|
 | `POST /replay` | multipart form: `readings` (CSV of 15-min readings) and `stations` (CSV: `station_id, name, lat, lon, capacity`) | `{"frames": [Frame, ...]}`, one frame per 15-min reading time, oldest first | the replay slider (demo): one step = one reading |
-| `GET /today` | nothing | `{"frames": [Frame, ...]}`: today's readings so far, oldest first | Live mode: asked once a minute; the map shows the newest frame and changes only when a new 15-min reading arrives; the charts show the whole day so far |
+| `GET /latest` | nothing | one `Frame`, for the newest reading the server holds | Live mode: asked once a minute; the map changes only when `as_of` moves to the next 15-min reading |
 
 If you name the routes differently, only `app/frontend/src/api.js` changes.
 
@@ -43,10 +43,6 @@ If you name the routes differently, only `app/frontend/src/api.js` changes.
 | `bikes_to_move` | whole number or `null` | `+` add this many bikes, `-` remove this many; `null` when in control |
 | `chronic_flag` | true/false, optional | the H-03 p-chart flag (chronically unusable station). **Not shown on the map for now**; the map ignores it |
 | `availability` | number 0 to 1, or `null` | from H-03 |
-| `chart` | `{value, center, ucl, lcl}`, optional | this reading's point on the station's control chart: the charted value, centre line and 3-sigma limits. Limits may change reading to reading (for example by time of day). Without it, that station's chart says "no chart data" |
-
-Both replies may also carry `"chart_of": "<text>"` next to `frames`, saying what the charts plot
-(for example `"occupancy minus usual for this time of day"`). The page prints it above the charts.
 
 ## Rules the map checks
 
@@ -60,15 +56,40 @@ A frame that breaks a rule is still drawn, but a red banner names the station an
 4. The sign matches the direction: `"empty"` needs a positive move (add), and `"full"` a negative one (remove).
 5. The move is possible: `-bikes <= bikes_to_move <= capacity - bikes`.
 6. `lat` and `lon` are numbers in range. A station without them is listed under the map, not drawn.
-7. If `chart` is sent: all four are numbers, `lcl <= center <= ucl`, and the value is outside the
-   limits **exactly when** `severity` is 3 ("1 point beyond 3 sigma").
+
+## Version 2 (added by the back end, Oct 16)
+
+The back end (`app/app.py`, `app/engine.py`, statistics in `app/qc.py`) now sends v2 frames. Every v1
+rule above still holds, and v1 frames (like `sampleFrames.js`) still pass. A station that has a
+`trigger` field is also checked against these rules:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `trigger` | `"rule 1"`-`"rule 4"`, `"out of spec"` or `null` | why the van should go: a Western Electric rule on the station's chart, or a reading outside 4-16 bikes (the safety net) |
+| `expected_bikes` | number, 0 to `capacity` | where the night plan expects the station now; `target_occupancy` = this / capacity |
+| `x` | number or `null` | the control-chart point: rider net flow minus the usual for this 15-minute slot |
+| `van_moved` | whole number | bikes the van dropped (+) or took (−) right after this reading |
+| `bikes_after_van` | whole number | `bikes + van_moved` |
+
+Severity for v2: rule 1 = 3, rule 2 = 2, rules 3 and 4 = 1, out of spec with no rule = 2.
+
+- **Rule 2 (v2):** `severity` is 0 exactly when `trigger` is `null`.
+- **Rule 3 (v2):** a triggered station may have `bikes_to_move` = 0: it is already past its expected
+  path in the direction of the drift, so there is nothing to move.
+
+Frame fields: `slot` (0-63, 06:00-21:45), `reserve` (bikes in the depot after this reading's van
+stop), and `van`, the stop the van made after this reading, or `null`:
+`{"station_id", "bikes_moved", "partner", "partner_bikes", "reserve_bikes"}`. Bikes come from (or go
+to) `partner` and the depot.
+
+Routes: `GET /frames/{week1|week2|event}?day=0..6` (64 frames and the chart's x-bar and sigma per
+station), `GET /latest`, `POST /replay`, `GET /summary` (night plan, rush slots, weekly p-charts).
+All 960 frames the simulation produces pass `validateFrame()`.
 
 ## Still to decide (back end)
-- Which centre line the chart uses: the station's normal occupancy for this time of day, or one
-  mean per station. The map doesn't depend on that choice, but the bike numbers do.
-- How `bikes_to_move` is rounded. Any whole number that passes rules 3-5 works.
-- What the chart plots (`chart.value`): occupancy itself, or occupancy minus normal for the time of
-  day. The sample plots occupancy minus usual, centre 0, limits +/- 3 sigma (invented sigma).
+- Decided: the chart is on rider net flow minus the station's usual for that 15-minute slot, and the
+  move aims at the night plan's expected path for this time of day.
+- Decided: `bikes_to_move` rounds half up, at most 10 bikes a stop (`app/qc.py: van_move`).
 
 ## How the back end can test against this
 Make your endpoint return a frame for `data/` input, save it as JSON, and run the map's own checker:

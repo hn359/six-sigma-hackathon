@@ -56,18 +56,3 @@
 .status.stale { color: var(--bad); font-weight: 600; }
 .contract-error { border-left: 4px solid var(--bad); background: var(--panel); padding: 8px 12px; margin: 8px 0; font-size: 0.9rem; }
 .contract-error ul { margin: 4px 0 0; padding-left: 20px; }
-
-.charts { margin-top: 24px; }
-.charts h2 { font-size: 1rem; margin: 0 0 4px; }
-.chart-of { font-size: 0.85rem; color: var(--muted); margin: 0 0 8px; }
-.chart-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.chart { margin: 0; padding: 8px; border-radius: 8px; background: var(--panel); border: 1px solid transparent; }
-.chart.sel { border-color: var(--fg); }
-.chart figcaption button { font: inherit; font-weight: 600; background: none; border: none; color: var(--fg); padding: 0; cursor: pointer; }
-.chart svg { margin-top: 4px; font-size: 12px; }
-.chart-none { font-size: 0.85rem; color: var(--muted); }
-.c-limit { fill: none; stroke: var(--bad); stroke-width: 1; stroke-dasharray: 5 3; }
-.c-center { fill: none; stroke: var(--fg); stroke-width: 1; }
-.c-series { fill: none; stroke: var(--muted); stroke-width: 1.2; }
-.c-now { stroke: var(--line); stroke-width: 1; }
-.c-lab { fill: var(--muted); }
