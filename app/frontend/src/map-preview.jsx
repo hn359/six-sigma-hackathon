@@ -6,12 +6,13 @@
 // (The API still has POST /replay for uploads and GET /latest; see /docs.)
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ActionList, StationMap } from './map/StationMap.jsx'
+import { ActionList } from './map/StationMap.jsx'
+import Map3D from './dispatch/Map3D.jsx'
 import { validateFrame } from './map/contract.js'
 import { createSimulationState, publishSimulationState } from './map/sync.js'
 import { bikesToMoveLabel, directionLabel, pct } from './map/stationMap.js'
 import { API_URL, fetchDatasets, fetchFrames, fetchSummary } from './api.js'
-import { VanLayer, useVan } from './dispatch/VanLayer.jsx'
+import { useVan } from './dispatch/VanLayer.jsx'
 import { BikesChart, IChart, PChart } from './dispatch/charts.jsx'
 import { clock, feedEntries, stationStatus } from './dispatch/feed.js'
 import './styles.css'
@@ -156,9 +157,8 @@ function Preview() {
 
       {frame && (
         <div className="map-grid">
-          <StationMap stations={stations} selectedId={selectedId} onSelect={setSelectedId} dark>
-            <VanLayer frames={frames} i={Math.min(i, frames.length - 1)} van={van} />
-          </StationMap>
+          <Map3D frames={frames} i={Math.min(i, frames.length - 1)} van={van}
+            selectedId={selectedId} onSelect={setSelectedId} />
           <aside className="side">
             <h2>Stations</h2>
             <ActionList stations={stations} selectedId={selectedId} onSelect={setSelectedId} />
