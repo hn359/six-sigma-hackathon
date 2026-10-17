@@ -10,7 +10,8 @@ export function depotOf(stations = []) {
   const lat = pts.reduce((a, s) => a + s.lat, 0) / pts.length
   const lon = pts.reduce((a, s) => a + s.lon, 0) / pts.length
   const west = Math.min(...pts.map((s) => s.lon))
-  return { id: 'depot', name: 'Reserve depot', lat, lon: west - 0.0009 }
+  const east = Math.max(...pts.map((s) => s.lon))
+  return { id: 'depot', name: 'Reserve depot', lat, lon: west - Math.max(0.0009, 0.3 * (east - west)) }
 }
 
 export const clock = (asOf) => (asOf ? asOf.slice(11, 16) : '')

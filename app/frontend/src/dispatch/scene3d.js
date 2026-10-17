@@ -1,12 +1,12 @@
 // three.js models drawn inside the MapLibre map (a "custom layer"): real-looking docking stations
 // (base plate, dock posts, one bike per docked bike, a kiosk lit in the status colour) and a
-// delivery van that drives its route and faces where it is going. Models are drawn 6x life
+// delivery van that drives its route and faces where it is going. Models are drawn 14x life
 // size (SCALE) so they stay readable at map zoom. Nothing here is computed from the statistics:
 // the bike counts, statuses and van position all come from the frames.
 import * as THREE from 'three'
 import maplibregl from 'maplibre-gl'
 
-const SCALE = 6                       // models are drawn 6x life size so they read at map zoom
+const SCALE = 14                      // models are drawn 14x life size so they read at map zoom
 const DOCK_GAP = 0.85                 // metres between docks (life size)
 const STATUS = { ok: 0x3ddc84, back: 0x3ddc84, sig: 0xff4d4d, oos: 0xffb020, fix: 0x4da3ff }
 
@@ -147,7 +147,7 @@ function enu(lon, lat, lon0, lat0) {
 
 export function makeModelLayer() {
   const state = { origin: null, key: '', stations: [], van: null }
-  let scene, camera, renderer, map, vanModel
+  let scene, camera, renderer, map, vanModel, sun, ambient
   const groups = {}
 
   const layer = {
@@ -158,8 +158,9 @@ export function makeModelLayer() {
       map = m
       camera = new THREE.Camera()
       scene = new THREE.Scene()
-      scene.add(new THREE.AmbientLight(0xffffff, 1.1))
-      const sun = new THREE.DirectionalLight(0xffffff, 2.2)
+      ambient = new THREE.AmbientLight(0xffffff, 1.1)
+      scene.add(ambient)
+      sun = new THREE.DirectionalLight(0xffffff, 2.2)
       sun.position.set(40, 80, 30)
       scene.add(sun)
       const fill = new THREE.DirectionalLight(0x9fc3ff, 0.8)
@@ -235,5 +236,14 @@ export function makeModelLayer() {
     map?.triggerRepaint()
   }
 
-  return { layer, update }
+  // time-of-day lighting: sun colour (hex string), sun and ambient intensity
+  function setLight(color, sunIntensity, ambientIntensity) {
+    if (!sun) return
+    sun.color.set(color)
+    sun.intensity = sunIntensity
+    ambient.intensity = ambientIntensity
+    map?.triggerRepaint()
+  }
+
+  return { layer, update, setLight }
 }

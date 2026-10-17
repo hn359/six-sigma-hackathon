@@ -141,3 +141,7 @@ body { background: var(--bg); color: var(--fg); }
 @media (max-width: 800px) { .m3-map { height: 480px; } }
 .m3-van { pointer-events: none; }
 .m3-van.hidden { display: none; }
+
+.m3-phase { font: 700 12px ui-monospace, Menlo, monospace; color: #f2f5f7; background: rgba(12, 16, 21, .92);
+  border: 1px solid #2a323b; border-radius: 7px; padding: 7px 10px; text-transform: uppercase; letter-spacing: .05em; }
+.m3-map { transition: background-color .8s ease; }

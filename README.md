@@ -467,7 +467,7 @@ the map's `validateFrame()`.
     whose screen and beacon light up in the status colour (the beacon pulses on a chart signal);
   - a ground **halo** shows severity; a **name card** shows the bikes "7/20" and the status;
   - the **van** is a 3D delivery van that drives its route and turns to face where it is going;
-  - models are drawn **6× life size** so they stay readable at map zoom; the map needs internet
+  - models are drawn **14× life size** so they stay readable at map zoom; the map needs internet
     for its tiles.
 - **Ranked list:** Jim's "act now" list, plus station detail (trigger, expected bikes, chart x).
 - **Below the map:**

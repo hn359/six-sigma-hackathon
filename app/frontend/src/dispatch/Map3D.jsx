@@ -7,6 +7,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { depotOf, stationStatus } from './feed.js'
 import { makeModelLayer } from './scene3d.js'
+import { hourOf, paletteAt } from './daylight.js'
 
 const SRC = 'https://tiles.openfreemap.org/planet'
 const FONT = ['Noto Sans Regular']
@@ -16,6 +17,7 @@ const COLOR = { ok: '#3ddc84', back: '#3ddc84', sig: '#ff4d4d', oos: '#ffb020', 
 
 const STYLE = {
   version: 8,
+  transition: { duration: 0, delay: 0 },   // colour changes (time of day) apply at once
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   sources: { omt: { type: 'vector', url: SRC } },
   layers: [
@@ -66,10 +68,10 @@ function stationFeatures(frames, i, selectedId) {
     const st = stationStatus(frames, i, s.station_id)
     const p = { station_id: s.station_id, color: COLOR[st.cls] ?? COLOR.ok }
     feats.push({ type: 'Feature', properties: { ...p, kind: 'halo' },
-      geometry: { type: 'Polygon', coordinates: disc(s.lon, s.lat, 40 + 12 * (s.severity || 0)) } })
+      geometry: { type: 'Polygon', coordinates: disc(s.lon, s.lat, 95 + 22 * (s.severity || 0)) } })
     if (s.station_id === selectedId) {
       feats.push({ type: 'Feature', properties: { ...p, kind: 'sel' },
-        geometry: { type: 'Polygon', coordinates: disc(s.lon, s.lat, 46) } })
+        geometry: { type: 'Polygon', coordinates: disc(s.lon, s.lat, 105) } })
     }
   }
   return { type: 'FeatureCollection', features: feats }
@@ -100,6 +102,8 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
   const models = useRef(null)
   if (!models.current) models.current = makeModelLayer()
   const lastVan = useRef(null)
+  const lastHour = useRef(null)
+  const [phase, setPhase] = useState('')
   const latest = useRef({ frames, i, van, selectedId })
   const [is3d, setIs3d] = useState(true)
   latest.current = { frames, i, van, selectedId }
@@ -146,6 +150,25 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
     const { frames: fr, i: k, van: v, selectedId: sel } = latest.current
     if (!m || !ready.current || !fr.length) return
     const f = fr[Math.min(k, fr.length - 1)]
+    // colours follow the time of day of the reading on screen
+    const hour = hourOf(f.as_of)
+    if (hour !== lastHour.current) {
+      lastHour.current = hour
+      const pal = paletteAt(hour)
+      m.setPaintProperty('bg', 'background-color', pal.bg)
+      m.setPaintProperty('landcover', 'fill-color', pal.land)
+      m.setPaintProperty('park', 'fill-color', pal.park)
+      m.setPaintProperty('water', 'fill-color', pal.water)
+      m.setPaintProperty('road-minor', 'line-color', pal.minor)
+      m.setPaintProperty('road-path', 'line-color', pal.minor)
+      m.setPaintProperty('road-major', 'line-color', pal.major)
+      m.setPaintProperty('buildings', 'fill-extrusion-color', pal.building)
+      m.setPaintProperty('road-names', 'text-color', pal.label)
+      m.setPaintProperty('road-names', 'text-halo-color', pal.bg)
+      models.current.setLight(pal.sun, pal.sunI, pal.amb)
+      box.current.style.background = pal.bg
+      setPhase(`${f.as_of.slice(11, 16)} · ${pal.phase}`)
+    }
     m.getSource('stn').setData(stationFeatures(fr, Math.min(k, fr.length - 1), sel))
     m.getSource('route').setData(v.route
       ? { type: 'Feature', geometry: { type: 'LineString', coordinates: v.route.map(([la, lo]) => [lo, la]) } }
@@ -163,7 +186,7 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
       if (!mk) {
         const el = tag(`m3-tag ${st.cls}`, html)
         el.addEventListener('click', () => latest.current.onSelect?.(s.station_id))
-        mk = markers.current[s.station_id] = new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, 62] })
+        mk = markers.current[s.station_id] = new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, 26] })
           .setLngLat([s.lon, s.lat]).addTo(m)
       } else {
         mk.setLngLat([s.lon, s.lat])
@@ -190,7 +213,7 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
     lastVan.current = { lon: vpos[0], lat: vpos[1], heading }
     const vhtml = moving && v.note ? v.note : ''
     if (!markers.current._van) {
-      markers.current._van = new maplibregl.Marker({ element: tag(vhtml ? 'm3-van' : 'm3-van hidden', vhtml), anchor: 'bottom', offset: [0, -70] })
+      markers.current._van = new maplibregl.Marker({ element: tag(vhtml ? 'm3-van' : 'm3-van hidden', vhtml), anchor: 'bottom', offset: [0, -40] })
         .setLngLat(vpos).addTo(m)
     } else {
       markers.current._van.setLngLat(vpos)
@@ -235,6 +258,7 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
       <div ref={box} className="m3-map" />
       <div className="m3-tools">
         <button type="button" onClick={toggle3d}>{is3d ? '2D view' : '3D view'}</button>
+        {phase && <span className="m3-phase">{phase}</span>}
         <button type="button" onClick={() => map.current?.easeTo({ bearing: (map.current.getBearing() + 90) % 360, duration: 900 })}>Rotate</button>
       </div>
       <ul className="m3-legend" aria-label="Map legend">
@@ -242,7 +266,8 @@ export default function Map3D({ frames, i, van, selectedId, onSelect }) {
         <li><span className="dot" style={{ background: COLOR.sig }} /> chart signal</li>
         <li><span className="dot" style={{ background: COLOR.oos }} /> out of spec</li>
         <li><span className="dot" style={{ background: COLOR.fix }} /> van just fixed it</li>
-        <li>each station: one bike per docked bike; kiosk light = status (models drawn 6× life size)</li>
+        <li>each station: one bike per docked bike; kiosk light = status (models drawn 14× life size)</li>
+        <li>map colours follow the time of day (night, dawn, day, sunset, dusk)</li>
         <li>drag to pan · right-drag or ctrl-drag to tilt and rotate</li>
       </ul>
     </div>
