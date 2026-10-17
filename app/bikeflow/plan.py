@@ -20,12 +20,15 @@ plan_now (daytime, any 15-minute reading):
   Depot bikes are 0 unless given: off-station bikes may be out with riders.
 
 plan_overnight (at 22:00, for the 06:00 opening):
-  Each station's average rider net flow over the morning window (06:00-10:00) on earlier days says
-  whether riders mostly depart from it (net < 0) or arrive at it (net > 0). The station with the
-  biggest net loss starts at Settings.depart_share (80%) of its docks, the biggest net gain at
-  Settings.arrive_share (20%), the others in proportion in between, and 50% with no history.
+  Week 1's morning flow sets Week 2 with the 80/20 rule. Later simulated weeks use a constrained
+  allocation learned from the previous complete week's rider-flow paths and outside-spec readings.
+  Uploaded datasets without a recorded adaptive plan use the historical 80/20 recommendation.
   Every station is moved to its start at 22:00; HIGH = 6 or more bikes to move, MEDIUM = 3-5.
   Depot bikes = fleet - bikes docked at 22:00 unless given (assumes off-station bikes are back).
+
+weekly_review: weekly out-of-spec rates are compared with the immediately preceding week's p-chart
+  limits using each full week's sample size. Two consecutive weekly points inside those limits mark
+  the system as stable; daily station I-MR signals remain available for dispatch.
 """
 
 from __future__ import annotations
@@ -33,6 +36,8 @@ from __future__ import annotations
 import math
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Sequence
+
+from app.qc import p_chart_phase
 
 from .analyze import comparable_days, flow_profile, project, spc_view
 from .data import Dataset
@@ -264,29 +269,131 @@ def overnight_shares(morning_net: Dict[str, Optional[float]], depart_share: floa
     return out
 
 
+def weekly_deviation(ds: Dataset, through: date) -> dict:
+    """Summarize complete weeks by share of station readings outside the dock limits.
+
+    A week is included only when all seven days and every station's scheduled readings are present.
+    Each new weekly point is checked against the previous complete week's p-chart center and
+    3-sigma limits, scaled to the full week's sample size. Stability is called only after two
+    consecutive weekly points fall within those limits.
+    """
+    s = ds.settings
+    days = ds.days()
+    if not days:
+        return {"weeks": [], "best_week": None, "stable_week": None, "through": through.isoformat()}
+
+    anchor = (date.fromisoformat(s.phase1_through) - timedelta(days=6)
+              if s.phase1_through else days[0])
+    first_week = anchor - timedelta(days=anchor.weekday())
+    last_week = through - timedelta(days=through.weekday())
+    stations = ds.stations()
+    per_day = len(stations) * s.n_slots
+    weeks = []
+    week_start = first_week
+
+    while week_start + timedelta(days=6) <= through and week_start <= last_week:
+        week_end = week_start + timedelta(days=6)
+        daily_defects = []
+        complete = True
+        for offset in range(7):
+            d = week_start + timedelta(days=offset)
+            day_rows = []
+            for sid in stations:
+                series = ds.series(sid, d)
+                if not all(slot in series for slot in range(s.n_slots)):
+                    complete = False
+                    break
+                day_rows.extend(series.values())
+            if not complete:
+                break
+            bad = 0
+            for r in day_rows:
+                low, high = s.band(r.capacity)
+                bad += int(r.bikes < low or r.bikes > high)
+            daily_defects.append(bad)
+
+        if complete and len(daily_defects) == 7:
+            number = (week_start - first_week).days // 7 + 1
+            defects = sum(daily_defects)
+            row = {"week": number, "label": f"Week {number}",
+                   "from": week_start.isoformat(), "through": week_end.isoformat(),
+                   "defects": defects, "readings": per_day * 7,
+                   "rate": defects / (per_day * 7), "status": "baseline"}
+            baseline = weeks[-1] if weeks else None
+            if baseline and number > baseline["week"]:
+                chart = p_chart_phase(baseline["_daily_defects"], daily_defects, per_day)
+                weekly_sigma = math.sqrt(chart["pbar"] * (1 - chart["pbar"]) / (per_day * 7))
+                weekly_lcl = max(0.0, chart["pbar"] - 3 * weekly_sigma)
+                weekly_ucl = min(1.0, chart["pbar"] + 3 * weekly_sigma)
+                if row["rate"] > weekly_ucl:
+                    row["status"] = "worse"
+                elif row["rate"] < weekly_lcl:
+                    row["status"] = "improved"
+                else:
+                    row["status"] = "stable"
+                row.update({"center": chart["pbar"], "daily_lcl": chart["lcl"],
+                            "daily_ucl": chart["ucl"], "sigma": chart["sigma"],
+                            "daily_status": [point["status"] for point in chart["phase2"]],
+                            "signals": sum(point["status"] in ("worse", "improved")
+                                           for point in chart["phase2"])})
+                # The displayed point and its status both use the full week's sample size.
+                row["lcl"] = max(0.0, chart["pbar"] - 3 * weekly_sigma)
+                row["ucl"] = min(1.0, chart["pbar"] + 3 * weekly_sigma)
+            else:
+                row.update({"center": row["rate"], "lcl": None, "ucl": None,
+                            "daily_lcl": None, "daily_ucl": None, "sigma": None,
+                            "daily_status": [], "signals": 0})
+            row["_daily_defects"] = daily_defects
+            weeks.append(row)
+        week_start += timedelta(days=7)
+
+    best = min(weeks, key=lambda row: (row["rate"], row["week"])) if weeks else None
+    steady = 0
+    stable_week = None
+    for row in weeks:
+        steady = steady + 1 if row["status"] == "stable" else 0
+        if steady == 2:
+            stable_week = row["week"]
+            break
+    for row in weeks:
+        row.pop("_daily_defects", None)
+    return {"weeks": weeks, "best_week": best["week"] if best else None,
+            "stable_week": stable_week, "through": through.isoformat(),
+            "measure": "share of readings outside the 20-80% dock range",
+            "stability_rule": "two consecutive complete weekly points inside the preceding week's 3-sigma p-chart limits"}
+
+
 def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) -> dict:
     s = ds.settings
     nxt = day + timedelta(days=1)
-    # The team's city datasets mark the end of the van-free Phase I week. Once it
-    # has been observed, keep using that week as the 80/20 baseline each night;
-    # week-two policy results must not quietly change the rule they are testing.
-    phase1_end = date.fromisoformat(s.phase1_through) if s.phase1_through else day
-    history_through = min(day, phase1_end)
+    # Keep one learned plan for each calendar week: Week 1 flow sets Week 2, Week 2
+    # flow sets Week 3, and so on. Do not let a partial prior week change the targets.
+    if s.phase1_through:
+        phase1_start = date.fromisoformat(s.phase1_through) - timedelta(days=6)
+        target_week_start = nxt - timedelta(days=nxt.weekday())
+        baseline_end = target_week_start - timedelta(days=1)
+        baseline_start = baseline_end - timedelta(days=6)
+        week_anchor = phase1_start - timedelta(days=phase1_start.weekday())
+        baseline_week = max(1, (baseline_start - week_anchor).days // 7 + 1)
+        history_through = baseline_end
+        required_days = 7
+    else:
+        # An uploaded CSV has no declared project week. Keep its existing behavior: use
+        # the available earlier history and report that it is not a week-labeled baseline.
+        history_through = day
+        baseline_start = min(ds.days(), default=day)
+        baseline_end = day
+        baseline_week = None
+        required_days = s.min_history_days
     first, last = s.slot_of(datetime.strptime(s.morning_window[0], "%H:%M")),         s.slot_of(datetime.strptime(s.morning_window[1], "%H:%M"))
     window = range(first + 1, last + 1)     # flows into 06:15 ... 10:00
     latest, morning_net, hist_days, missing = {}, {}, {}, []
-    baseline_start = min((d for d in ds.days() if not s.phase1_through or
-                          d <= date.fromisoformat(s.phase1_through)), default=None)
-    phase1_dates = ([d for d in ds.days() if baseline_start and d >= baseline_start and
-                     (not s.phase1_through or d <= phase1_end)] if s.phase1_through else [])
-    required_days = ((phase1_end - baseline_start).days + 1
-                     if s.phase1_through and baseline_start else 0)
-    complete_phase1_days = []
-    if phase1_dates:
-        for d in phase1_dates:
-            if all(all(slot in ds.series(sid, d) for slot in range(first, last + 1))
-                   for sid in ds.stations()):
-                complete_phase1_days.append(d)
+    complete_baseline_days = []
+    baseline_dates = [baseline_start + timedelta(days=i) for i in range(7)] if baseline_week else []
+    for d in baseline_dates:
+        if d <= day and all(all(slot in ds.series(sid, d) for slot in range(first, last + 1))
+                            for sid in ds.stations()):
+            complete_baseline_days.append(d)
     for sid in ds.stations():
         r = _latest(ds, sid, day, s.n_slots - 1)
         if r is None:
@@ -294,6 +401,8 @@ def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) ->
             continue
         latest[sid] = r
         hist = comparable_days(ds, sid, nxt, through=history_through)
+        if baseline_week:
+            hist = [d for d in hist if baseline_start <= d <= baseline_end and d <= day]
         # A day informs the morning pattern only when every reading needed to calculate
         # each 15-minute net flow in the window is present. This avoids mixing partial days.
         hist = [d for d in hist if all(slot - 1 in ds.series(sid, d) and slot in ds.series(sid, d)
@@ -305,11 +414,18 @@ def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) ->
     if not latest:
         raise ValueError(f"no readings on {day} to plan from")
     shares = overnight_shares(morning_net, s.depart_share, s.arrive_share)
+    target_week = baseline_week + 1 if baseline_week else None
+    saved_plan = getattr(ds, "adaptive_plans", {}).get(f"week{target_week}", {}) if target_week else {}
+    saved_targets = saved_plan.get("targets", {})
+    preferred_targets = saved_plan.get("preferred_targets", {})
     win = f"{s.morning_window[0]}-{s.morning_window[1]}"
     stations = []
     for sid, r in latest.items():
         b, cap, m = r.bikes, r.capacity, morning_net[sid]
-        start = min(max(math.floor(shares[sid] * cap + 0.5), 0), cap)
+        start = min(max(int(saved_targets[sid]) if sid in saved_targets else
+                        math.floor(shares[sid] * cap + 0.5), 0), cap)
+        share = (start / cap if saved_plan.get("method") == "previous-week projected availability"
+                 else shares[sid])
         if m is None:
             role = "no history"
             basis = (f"not enough history (fewer than {s.min_history_days} days for {win}): starts at 50%")
@@ -320,18 +436,29 @@ def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) ->
                      f"{'return' if m < 0 else 'take'}" if m else f"{win}: as many bikes arrive as leave")
         move = start - b
         pr = 0 if abs(move) >= 6 else 1 if abs(move) >= 3 else 2
+        if saved_plan.get("method") == "previous-week projected availability":
+            preferred = preferred_targets.get(sid)
+            basis = (f"Week {baseline_week} rider-flow paths and availability; chosen to reduce projected "
+                     f"outside-spec readings{f' (80/20 suggestion: {preferred} bikes)' if preferred is not None else ''}")
         stations.append({"station_id": sid, "reading": r.ts.isoformat(timespec="minutes"),
                          "bikes": b, "capacity": cap, "occupancy": b / cap, "target": start,
-                         "target_share": shares[sid], "role": role, "morning_net": m,
+                         "target_share": share, "role": role, "morning_net": m,
                          "history_days": hist_days[sid], "history_day_type": s.kind(nxt),
                          "projected": None, "projection_basis": basis,
                          "gap": b - start, "desired": start, "spare": 0, "priority": pr,
-                         "reason": (f"{role}: start at {shares[sid]:.0%} = {start} of {cap} docks"
+                         "reason": ((f"previous-week learning: start at {share:.0%} = {start} of {cap} docks"
+                                     if saved_plan.get("method") == "previous-week projected availability" else
+                                     f"{role}: start at {share:.0%} = {start} of {cap} docks")
                                     + ("" if move == 0 else f", so {'bring' if move > 0 else 'take'} {abs(move)}"))})
     docked = sum(st["bikes"] for st in stations)
-    notes = [f"for {nxt} {'(' + s.kind(nxt) + ') ' if s.weekends_differ else ''}opening at {s.open_time}: "
-             f"stations where riders mostly depart in {win} start at up to {s.depart_share:.0%}, where "
-             f"they mostly arrive at down to {s.arrive_share:.0%} (historical averages, not a forecast)"]
+    if saved_plan.get("method") == "previous-week projected availability":
+        notes = [f"for {nxt} opening at {s.open_time}: Week {baseline_week}'s complete rider-flow paths and "
+                 "20%-80% availability results set these opening counts; the 80/20 morning plan is the tie-break; "
+                 f"each station changes by at most {saved_plan.get('optimization', {}).get('max_change_per_station', 1)} bike this week to avoid chasing noise"]
+    else:
+        notes = [f"for {nxt} {'(' + s.kind(nxt) + ') ' if s.weekends_differ else ''}opening at {s.open_time}: "
+                 f"stations where riders mostly depart in {win} start at up to {s.depart_share:.0%}, where "
+                 f"they mostly arrive at down to {s.arrive_share:.0%} (historical averages, not a forecast)"]
     if depot_bikes is None:
         reserve = s.fleet - docked
         if reserve < 0:
@@ -342,17 +469,22 @@ def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) ->
         reserve = depot_bikes
     if missing:
         notes.append(f"no reading on {day} for {', '.join(missing)}: left out of the plan")
-    calendar_complete = day >= phase1_end
-    observed_complete = (not s.phase1_through or
-                         (required_days > 0 and len(complete_phase1_days) == required_days))
-    baseline_complete = calendar_complete and observed_complete
-    baseline = {"source": "week 1 baseline" if s.phase1_through else "earlier readings",
+    baseline_complete = (baseline_week is None or
+                         (baseline_end <= day and len(complete_baseline_days) == required_days))
+    baseline = {"source": f"week {baseline_week} baseline" if baseline_week else "available history",
                 "from": baseline_start.isoformat() if baseline_start else None,
                 "through": history_through.isoformat(),
                 "window": win,
-                "complete_days": len(complete_phase1_days) if s.phase1_through else max(hist_days.values(), default=0),
-                "required_days": required_days or s.min_history_days,
+                "complete_days": len(complete_baseline_days) if baseline_week else max(hist_days.values(), default=0),
+                "required_days": required_days,
+                "week_number": baseline_week,
+                "target_week": baseline_week + 1 if baseline_week else None,
                 "complete": baseline_complete}
+    if baseline_week and saved_plan.get("method") == "previous-week projected availability":
+        baseline.update({"method": saved_plan["method"],
+                         "projected_out_of_spec": saved_plan.get("optimization", {}).get("projected_out_of_spec"),
+                         "preferred_targets": saved_plan.get("preferred_targets", {}),
+                         "max_change_per_station": saved_plan.get("optimization", {}).get("max_change_per_station")})
     if not baseline_complete:
         # Return readiness metadata only. Do not expose targets or transfer actions before
         # the required, fully observed Week 1 baseline is available.
@@ -361,7 +493,7 @@ def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) ->
                 "for": f"{nxt.isoformat()}T{s.open_time}",
                 "ready_at": f"{nxt.isoformat()}T{s.open_time}",
                 "baseline": baseline, "rows": [], "transfers": [], "feasible": False,
-                "notes": notes + [f"Learning Week 1: {baseline['complete_days']} of "
+                "notes": notes + [f"Learning Week {baseline_week}: {baseline['complete_days']} of "
                                   f"{baseline['required_days']} complete morning days are available; "
                                   "no station targets or transfer plan is published yet."]}
     return _plan(ds, stations, reserve, {"kind": "overnight", "at": f"{day.isoformat()}T{s.close_time}",

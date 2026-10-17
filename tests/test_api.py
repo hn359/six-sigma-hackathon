@@ -31,9 +31,10 @@ def test_frames_have_the_contract_fields_and_rules():
 
 
 def test_every_van_stop_in_the_data_matches_a_trigger_and_move_from_the_api():
-    frames = {f["as_of"]: f for f in client.get("/frames/event").json()["frames"]}
+    body = client.get("/frames/event").json()
+    frames = {f["as_of"]: f for f in body["frames"]}
     with open(DATA / "van_log.csv") as fh:
-        stops = [r for r in csv.DictReader(fh) if r["timestamp"].startswith("2026-10-19")]
+        stops = [r for r in csv.DictReader(fh) if r["timestamp"].startswith(body["date"])]
     assert stops
     for v in stops:
         st = next(s for s in frames[v["timestamp"]]["stations"] if s["station_id"] == v["station_id"])
@@ -43,7 +44,8 @@ def test_every_van_stop_in_the_data_matches_a_trigger_and_move_from_the_api():
 
 
 def test_event_day_crowd_is_rule_1_at_s02():
-    f = next(f for f in client.get("/frames/event").json()["frames"] if f["as_of"].endswith("18:15"))
+    event = client.get("/frames/event").json()
+    f = next(f for f in event["frames"] if f["as_of"].endswith("18:15"))
     s02 = next(s for s in f["stations"] if s["station_id"] == "S02")
     assert s02["trigger"] == "rule 1" and s02["direction"] == "full" and s02["severity"] == 3
 
@@ -133,24 +135,28 @@ def test_upload_of_an_unknown_network_learns_its_own_history():
 
 
 def test_upload_off_grid_reading_is_rejected_clearly():
-    text = (ROOT / "collegetown" / "event_day.csv").read_text().replace("2026-10-19T06:15", "2026-10-19T06:17", 1)
+    event_date = client.get("/frames/event").json()["date"]
+    original = f"{event_date}T06:15"
+    text = (ROOT / "collegetown" / "event_day.csv").read_text().replace(original, f"{event_date}T06:17", 1)
     files = {"readings": ("r.csv", text.encode()), "stations": ("s.csv", (ROOT / "collegetown" / "stations.csv").read_bytes())}
     r = client.post("/replay", files=files)
     assert r.status_code == 400 and "grid" in r.json()["detail"]
 
 
-def test_chart_limits_are_rolling_by_default_with_week1_for_comparison_and_never_move_the_van():
+def test_chart_limits_use_the_previous_complete_week_by_default_and_never_change_van_decisions():
     roll = client.get("/frames/event").json()
     week = client.get("/frames/event", params={"limits": "week1"}).json()
-    assert roll["limits"] == "rolling" and week["limits"] == "week1"
-    assert roll["chart"]["S01"]["basis_days"] == [f"2026-10-{d}" for d in range(12, 19)]
+    assert roll["limits"] == "phase" and week["limits"] == "week1"
+    latest_week = max(int(k[4:]) for k in client.get("/scenarios").json() if k.startswith("week"))
+    baseline_dates = client.get("/scenarios").json()[f"week{latest_week}"]
+    assert roll["baseline_week"] == latest_week
+    assert roll["chart"]["S01"]["basis_days"] == baseline_dates
     assert roll["chart"]["S01"]["sigma"] != week["chart"]["S01"]["sigma"]
     # the van's decisions are identical in both modes; only the chart fields differ
     van = lambda r: [(s["station_id"], s["x"], s["severity"], s["trigger"], s["bikes_to_move"])
                      for f in r["frames"] for s in f["stations"]]
     assert van(roll) == van(week)
-    assert all(s["chart_x"] == s["x"] for f in week["frames"] for s in f["stations"])
-    assert any(s["chart_x"] != s["x"] for f in roll["frames"] for s in f["stations"] if s["x"] is not None)
+    assert any(s["chart_x"] != s["x"] for f in week["frames"] for s in f["stations"] if s["x"] is not None)
     assert client.get("/frames/event", params={"limits": "monthly"}).status_code == 400
 
 

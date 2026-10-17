@@ -1,6 +1,6 @@
 """End-to-end checks of the BikeFlow API with a tiny CSV built in the test (not the team dataset)."""
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -70,13 +70,14 @@ def test_plan_changes_with_the_time_filter():
     assert a["at"] != b["at"]
 
 
-def test_overnight_80_20_uses_week_one_baseline_every_night_after_week_one():
+def test_overnight_plan_learns_from_the_previous_complete_week():
     load_default()
     summary = client.get("/api/bikeflow/summary").json()
     phase1_end = date.fromisoformat(summary["settings"]["phase1_through"])
     first_day = date.fromisoformat(summary["days"][0])
     next_week_day = next(date.fromisoformat(d) for d in summary["days"]
                          if date.fromisoformat(d) > phase1_end)
+    week_three_day = phase1_end + timedelta(days=7)
 
     partial_week = client.get("/api/bikeflow/plan/overnight",
                               params={"day": first_day.isoformat()}).json()
@@ -84,12 +85,26 @@ def test_overnight_80_20_uses_week_one_baseline_every_night_after_week_one():
                                      params={"day": phase1_end.isoformat()}).json()
     later_night = client.get("/api/bikeflow/plan/overnight",
                              params={"day": next_week_day.isoformat()}).json()
+    week_three = client.get("/api/bikeflow/plan/overnight",
+                            params={"day": week_three_day.isoformat()}).json()
 
     assert later_night["baseline"] == {
         "source": "week 1 baseline", "from": summary["phase1_days"][0],
         "through": phase1_end.isoformat(), "window": "06:00-10:00",
-        "complete_days": 7, "required_days": 7, "complete": True}
+        "complete_days": 7, "required_days": 7, "week_number": 1,
+        "target_week": 2, "complete": True}
+    assert week_three["baseline"]["source"] == "week 2 baseline"
+    assert week_three["baseline"]["from"] == "2026-10-12"
+    assert week_three["baseline"]["through"] == "2026-10-18"
+    assert week_three["baseline"]["window"] == "06:00-10:00"
+    assert week_three["baseline"]["complete_days"] == week_three["baseline"]["required_days"] == 7
+    assert week_three["baseline"]["week_number"] == 2
+    assert week_three["baseline"]["target_week"] == 3 and week_three["baseline"]["complete"] is True
+    assert week_three["baseline"]["method"] == "previous-week projected availability"
+    assert week_three["baseline"]["projected_out_of_spec"] is not None
     assert all(row["history_days"] >= 2 for row in later_night["rows"])
+    assert any(a["morning_net"] != b["morning_net"]
+               for a, b in zip(later_night["rows"], week_three["rows"]))
     assert partial_week["baseline"]["complete"] is False
     assert last_learning_night["baseline"]["complete"] is True
     assert {r["station_id"]: (r["morning_net"], r["target_share"])
@@ -99,6 +114,50 @@ def test_overnight_80_20_uses_week_one_baseline_every_night_after_week_one():
     assert later_night["at"].startswith(next_week_day.isoformat() + "T")
     assert later_night["redistribute_by"] == next_week_day.isoformat() + "T22:00"
     assert later_night["ready_at"] == (next_week_day + date.resolution).isoformat() + "T06:00"
+
+
+def test_weekly_deviation_shows_complete_observed_weeks_and_does_not_claim_stability_early():
+    load_default()
+
+    r = client.get("/api/bikeflow/plan/weekly", params={
+        "dataset": "collegetown", "through": "2026-10-19"})
+
+    assert r.status_code == 200
+    review = r.json()
+    assert [(w["week"], w["defects"], w["readings"]) for w in review["weeks"]] == [
+        (1, 607, 2240), (2, 165, 2240)]
+    assert [w["status"] for w in review["weeks"]] == ["baseline", "improved"]
+    assert review["best_week"] == 2
+    assert review["stable_week"] is None
+
+
+def test_weekly_deviation_marks_stable_after_two_weeks_inside_week_one_limits():
+    # Three complete weeks repeat the same small daily variation. The readings are
+    # test data: 4-6 of 325 station/slot opportunities are outside the dock limits.
+    start = date(2026, 10, 5)
+    daily_defects = [4, 5, 6, 5, 4, 6, 5]
+    lines = ["station_id,timestamp,bikes_available,capacity"]
+    for day_offset in range(21):
+        day = start + timedelta(days=day_offset)
+        bad_count = daily_defects[day_offset % 7]
+        opportunity = 0
+        for sid in "ABCDE":
+            for slot in range(Settings().n_slots):
+                minute = slot * Settings().interval_min
+                hour, minute = divmod(6 * 60 + minute, 60)
+                bikes = 0 if opportunity < bad_count else 10
+                lines.append(f"{sid},{day.isoformat()}T{hour:02d}:{minute:02d},{bikes},20")
+                opportunity += 1
+    load_text("\n".join(lines), Settings(
+        phase1_through=(start + timedelta(days=6)).isoformat(), weekends_differ=False))
+
+    r = client.get("/api/bikeflow/plan/weekly", params={"through": "2026-10-25"})
+
+    assert r.status_code == 200
+    review = r.json()
+    assert [w["status"] for w in review["weeks"]] == ["baseline", "stable", "stable"]
+    assert review["best_week"] == 1
+    assert review["stable_week"] == 3
 
 
 def test_overnight_plan_is_withheld_until_all_week_one_station_mornings_are_complete():
@@ -160,5 +219,7 @@ def test_upload_sits_beside_the_cities_and_is_picked_by_name():
     assert up["dataset"] == "uploaded" and up["readings"] < 4800
     names = [d["id"] for d in client.get("/api/bikeflow/datasets").json()["datasets"]]
     assert set(names) == {"collegetown", "downtown", "waterfront", "uploaded"}
-    assert client.get("/api/bikeflow/summary", params={"dataset": "downtown"}).json()["readings"] == 8640
+    downtown_days = next(d for d in client.get("/api/bikeflow/datasets").json()["datasets"]
+                         if d["id"] == "downtown")["days"]
+    assert client.get("/api/bikeflow/summary", params={"dataset": "downtown"}).json()["readings"] == len(downtown_days) * 96 * 6
     assert client.get("/api/bikeflow/summary", params={"dataset": "nowhere"}).status_code == 404

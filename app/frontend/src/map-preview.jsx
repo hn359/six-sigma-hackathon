@@ -1,5 +1,5 @@
 // Station map page (the home page). One data source: the simulated cities from the API
-// (GET /frames/{week1|week2|event}?dataset=...), replayed one reading per step.
+// (GET /frames/{week1..weekN|event}?dataset=...), replayed one reading per step.
 // Every frame is checked against docs/map-contract.md before it is trusted.
 // Under the map (src/dispatch/): the van on the map, the live feed, each station's charts and the
 // weekly review. They only draw what the API sent. Run `npm run dev` and open /.
@@ -13,14 +13,13 @@ import { createSimulationState, publishSimulationState } from './map/sync.js'
 import { bikesToMoveLabel, directionLabel, pct } from './map/stationMap.js'
 import { API_URL, fetchDatasets, fetchFrames, fetchSummary, fetchTrips } from './api.js'
 import { useVan } from './dispatch/VanLayer.jsx'
-import { BikesChart, IChart, PChart } from './dispatch/charts.jsx'
+import { BikesChart, IChart, WeeklyDeviationChart } from './dispatch/charts.jsx'
 import { clock, feedEntries, stationStatus } from './dispatch/feed.js'
 import { joinGap, rushWindows, windowAt } from './dispatch/rush.js'
 import './styles.css'
 import './dispatch/dispatch.css'
 
 const SPEEDS = [[5000, '5 s'], [2000, '2 s'], [1000, '1 s'], [700, '0.7 s']] // one reading per step
-const SCENARIOS = [['event', 'Event day'], ['week2', 'Week 2 · policy'], ['week1', 'Week 1 · no van']]
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function Preview() {
@@ -33,11 +32,10 @@ function Preview() {
   // ?dataset=downtown in the address opens that city directly
   const [dataset, setDataset] = useState(() => new URLSearchParams(window.location.search).get('dataset') || 'collegetown')
   const [scenario, setScenario] = useState('event')
-  const [limits, setLimits] = useState('rolling') // chart limits: last 7 clean days, or week 1 for comparison
+  const [limits, setLimits] = useState('phase') // previous complete week; also drives van signals
   const [day, setDay] = useState(0)
   const [chart, setChart] = useState(null) // control-chart centre and sigma per station, from the API
   const [summary, setSummary] = useState(null)
-  const [pStation, setPStation] = useState(0)
   const [selectedId, setSelectedId] = useState(null)
   const [status, setStatus] = useState('') // what the API is doing, or why it failed
   const [tripsByTime, setTripsByTime] = useState({}) // rider trips per reading time, for the cyclists
@@ -50,6 +48,12 @@ function Preview() {
   const feed = useMemo(() => (frames.length ? feedEntries(frames, i) : []), [frames, i])
   const rush = summary?.rush_slots ?? []
   const about = datasets.find((d) => d.id === dataset)
+  const scenarios = useMemo(() => {
+    const weeks = Object.keys(about?.days ?? {}).filter((name) => /^week\d+$/.test(name))
+      .sort((a, b) => Number(a.slice(4)) - Number(b.slice(4)))
+      .map((name) => [name, name === 'week1' ? 'Week 1 · baseline' : `Week ${name.slice(4)} · policy`])
+    return [...weeks, ['event', 'Event day']]
+  }, [about])
   const rushWin = useMemo(() => rushWindows(rush, joinGap(about?.interval_minutes)), [rush, about?.interval_minutes])
   const inRush = windowAt(rushWin, Math.min(i, frames.length - 1))
   const hhmm = (k) => frames[Math.min(k, frames.length - 1)]?.as_of.slice(11, 16)
@@ -63,7 +67,8 @@ function Preview() {
         if (cancelled) return
         setFrames(res.frames); setFrameContext({ dataset, scenario, dayIndex: scenario === 'event' ? 0 : day, date: res.date })
         setChart(res.chart); setI(0); setSelectedId(null)
-        setStatus(`Simulated ${res.date}: one reading every ${about?.interval_minutes ?? 15} min, replayed one per step`)
+        setStatus(`Simulated ${res.date}: one reading every ${about?.interval_minutes ?? 15} min, replayed one per step. ` +
+          (scenario === 'week1' ? 'Week 1 baseline.' : `Van and chart limits learned from Week ${res.baseline_week}.`))
       })
       .catch((err) => { if (!cancelled) setStatus(`Cannot reach ${API_URL || 'the API'}/frames (${err.message}). Is the API running?`) })
     return () => { cancelled = true }
@@ -84,7 +89,7 @@ function Preview() {
   }, [scenario, day, dataset])
 
   useEffect(() => { fetchDatasets().then(setDatasets).catch(() => {}) }, [])
-  useEffect(() => { setSummary(null); setPStation(0); fetchSummary(dataset).then(setSummary).catch(() => {}) }, [dataset])
+  useEffect(() => { setSummary(null); fetchSummary(dataset).then(setSummary).catch(() => {}) }, [dataset])
 
   // Replay clock
   useEffect(() => {
@@ -127,15 +132,15 @@ function Preview() {
       <h1>Ithaca bikeshare: where to send the vans</h1>
 
       <div className="d-sim">
-        <select value={dataset} onChange={(e) => { setDataset(e.target.value); setPlaying(true) }} aria-label="Simulated city">
-          {(datasets.length ? datasets : [{ id: 'collegetown', name: 'Collegetown' }]).map((d) => (
+        <select value={dataset} onChange={(e) => { setDataset(e.target.value); setScenario('event'); setDay(0); setPlaying(true) }} aria-label="Simulated city">
+          {(datasets.length ? datasets : [{ id: 'collegetown', name: 'Collegetown', days: { week1: [], week2: [], event: [] } }]).map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
         </select>
         <div className="source" role="radiogroup" aria-label="Simulated day">
-          {SCENARIOS.map(([k, label]) => (
+          {scenarios.map(([k, label]) => (
             <button key={k} type="button" role="radio" aria-checked={scenario === k}
-              className={scenario === k ? 'on' : ''} onClick={() => { setScenario(k); setPlaying(true) }}>{label}</button>
+              className={scenario === k ? 'on' : ''} onClick={() => { setScenario(k); setDay(0); setPlaying(true) }}>{label}</button>
           ))}
         </div>
         {scenario !== 'event' && (
@@ -144,9 +149,10 @@ function Preview() {
           </select>
         )}
         <select value={limits} onChange={(e) => setLimits(e.target.value)} aria-label="Chart limits"
-          title="Control-chart limits: the last 7 clean days before the day shown (update daily), or week 1 for comparison">
-          <option value="rolling">Chart limits: last 7 clean days</option>
-          <option value="week1">Chart limits: week 1 (fixed)</option>
+          title="The van uses the active phase baseline. Charts can show that baseline, a fixed Week 1 comparison, or a rolling diagnostic.">
+          <option value="phase">Limits: previous complete week</option>
+          <option value="week1">Limits: Week 1 (fixed)</option>
+          <option value="rolling">Chart only: last 7 days</option>
         </select>
         <p className="sample-note">Simulated data (data/README.md){about
           ? `: ${about.stations} stations, ${Math.min(...about.docks) === Math.max(...about.docks) ? `${about.docks[0]} docks each` : `${Math.min(...about.docks)}-${Math.max(...about.docks)} docks`}, ${about.fleet} bikes, a reading every ${about.interval_minutes} min`
@@ -242,7 +248,7 @@ function Preview() {
           <h2>Each station today <span>top: bikes, the spec band (20%-80% of docks), dashed expected path, ▲▼ van; bottom: control chart of net flow minus the usual, ±1/2/3σ, red = a rule fired</span></h2>
           <p className="status">Control-chart limits: {limits === 'rolling'
             ? `the last 7 clean days before this day (readings beyond 3σ removed), so they update every day${chart[stations[0]?.station_id]?.basis_days?.length ? ` (${chart[stations[0].station_id].basis_days[0]} to ${chart[stations[0].station_id].basis_days.slice(-1)[0]})` : ' (week 1 here: fewer than 2 earlier days)'}`
-            : 'week 1, fixed (comparison mode)'}. The van's decisions always use the week-1 limits.</p>
+              : limits === 'week1' ? 'Week 1, fixed (chart-only comparison)' : 'the previous complete week, frozen during this week'}. Chart-only comparisons never change the van's active phase limits.</p>
           <div className="d-stations">
             {stations.map((s) => {
               const st = stationStatus(frames, i, s.station_id)
@@ -263,7 +269,7 @@ function Preview() {
       {summary && (
         <section className="d-section d-lower">
           <div>
-            <h2>Night plan <span>learned from week 1</span></h2>
+            <h2>Week 2 night plan <span>the original 80/20 plan learned from Week 1</span></h2>
             <table className="d-table">
               <thead><tr><th>Station</th><th>Docks</th><th>Spec</th><th>Normal swing</th><th>Allowed start</th><th>Start</th></tr></thead>
               <tbody>{summary.plan.map((p) => (
@@ -276,16 +282,9 @@ function Preview() {
             {summary.warnings?.map((w) => <p key={w} className="status stale">{w}</p>)}
           </div>
           <div>
-            <h2>Did the policy work? <span>out-of-spec readings {summary.kpis.out_of_spec_week1} → {summary.kpis.out_of_spec_week2}</span></h2>
-            <div className="source">
-              {summary.pcharts.map((pc, n) => (
-                <button key={pc.station_id} type="button" className={n === pStation ? 'on' : ''} onClick={() => setPStation(n)}>{pc.station_id}</button>
-              ))}
-            </div>
-            <PChart pc={summary.pcharts[pStation]} />
-            <p className="status">p-chart, one point per day: week 1 sets p̄ = {summary.pcharts[pStation].pbar.toFixed(3)},
-              UCL = {summary.pcharts[pStation].ucl.toFixed(3)}, LCL = {summary.pcharts[pStation].lcl.toFixed(3)}; cyan week-2 days are
-              below the LCL ({summary.pcharts[pStation].phase2.filter((d) => d.status === 'improved').length} of 7).</p>
+            <h2>Weekly availability <span>Week 1 to Week {summary.weekly_deviation?.weeks?.at(-1)?.week ?? 2}</span></h2>
+            <WeeklyDeviationChart review={summary.weekly_deviation} />
+            <p className="status">Each point is the share of station readings outside 20%-80% dock capacity. Limits change each week using the previous complete week. Being within 3σ means statistically stable; it does not by itself mean Six Sigma capability.</p>
           </div>
         </section>
       )}

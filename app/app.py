@@ -2,12 +2,14 @@
 Bikeshare dispatch API: a thin FastAPI layer. No statistics here; app/engine.py organises
 readings and app/qc.py does every calculation. Frames follow docs/map-contract.md.
 
-Datasets: every folder data/<id>/ holding stations.csv, week1_baseline.csv (no van: Phase I),
-week2_policy.csv and event_day.csv (with van moves) and about.json is loaded at startup.
+Datasets: every folder data/<id>/ holding stations.csv, a Week 1 baseline, policy weeks, an
+event_day.csv and about.json is loaded at startup. Each policy week uses the preceding complete
+week's learned flow and control limits; Week 1 and Week 2 remain the original comparison.
 """
 
 import csv
 import json
+import re
 import time
 from pathlib import Path
 
@@ -23,7 +25,7 @@ except ImportError:  # running from inside app/ (e.g. on Posit Connect)
 
 HERE = Path(__file__).resolve().parent
 DATA = next((d for d in (HERE.parent / "data", HERE / "data") if d.is_dir()), None)
-FILES = {"week1": "week1_baseline.csv", "week2": "week2_policy.csv", "event": "event_day.csv"}
+WEEK_FILE = re.compile(r"week(\d+)_policy\.csv$")
 DEFAULT = "collegetown"
 LIVE_SECONDS_PER_READING = 5
 
@@ -43,8 +45,16 @@ def _load_all():
     out = {}
     for folder in sorted(p for p in DATA.iterdir() if (p / "stations.csv").exists()):
         stations = engine.parse_stations((folder / "stations.csv").read_text())
-        days = {name: engine.parse_readings((folder / f).read_text()) for name, f in FILES.items()}
+        week_files = {1: "week1_baseline.csv"}
+        for candidate in folder.glob("week*_policy.csv"):
+            match = WEEK_FILE.fullmatch(candidate.name)
+            if match:
+                week_files[int(match.group(1))] = candidate.name
+        days = {f"week{number}": engine.parse_readings((folder / filename).read_text())
+                for number, filename in sorted(week_files.items()) if (folder / filename).exists()}
+        days["event"] = engine.parse_readings((folder / "event_day.csv").read_text())
         about = json.loads((folder / "about.json").read_text()) if (folder / "about.json").exists() else {"id": folder.name}
+        adaptive = json.loads((folder / "adaptive_plans.json").read_text()) if (folder / "adaptive_plans.json").exists() else {}
         trips = {}
         if (folder / "trips.csv").exists():   # every simulated rider trip, for the map's cyclists
             with open(folder / "trips.csv") as fh:
@@ -52,6 +62,7 @@ def _load_all():
                     trips.setdefault(r["timestamp"][:10], []).append(
                         {"timestamp": r["timestamp"], "from": r["from_station"], "to": r["to_station"]})
         out[folder.name] = {"stations": stations, "days": days, "about": about, "trips": trips,
+                            "adaptive": adaptive,
                             "hist": engine.learn(days["week1"], sorted(stations))}
     if not out:
         raise RuntimeError("no datasets in data/: run python data/simulate.py")
@@ -93,40 +104,73 @@ def scenarios(dataset: str = DEFAULT):
     return {name: [str(d) for d in sorted(days)] for name, days in _ds(dataset)["days"].items()}
 
 
-LIMITS = ("rolling", "week1")
+LIMITS = ("phase", "rolling", "week1")
 
 
-def _chart_hist(ds, date, limits):
-    """The charts' history: the last 7 clean days before `date` (default), or week 1 (comparison)."""
+def _phase_history(ds, scenario):
+    """The frozen reference used to judge and dispatch the selected complete policy week."""
+    week_numbers = sorted(int(name[4:]) for name in ds["days"] if name.startswith("week"))
+    if scenario == "week1":
+        reference_week = 1
+    elif scenario == "event":
+        reference_week = max(week_numbers)
+    else:
+        current_week = int(scenario[4:])
+        reference_week = current_week - 1
+    if reference_week == 1:
+        result = {sid: {**h, "basis": "Week 1 baseline (7 days)",
+                        "basis_days": [str(d) for d in sorted(ds["days"]["week1"])]}
+                  for sid, h in ds["hist"].items()}
+    else:
+        result = engine.learn(ds["days"][f"week{reference_week}"], sorted(ds["stations"]))
+        basis_days = [str(d) for d in sorted(ds["days"][f"week{reference_week}"])]
+        for h in result.values():
+            h["basis"] = f"Week {reference_week} baseline ({len(basis_days)} days)"
+            h["basis_days"] = basis_days
+    target_scenario = scenario if scenario != "event" else ds.get("adaptive", {}).get("next_week_plan")
+    targets = (ds.get("adaptive", {}).get("plans", {}).get(target_scenario, {}).get("targets") or {})
+    for sid, value in targets.items():
+        if sid in result:
+            result[sid]["overnight_start"] = int(value)
+    return result, reference_week
+
+
+def _chart_hist(ds, date, limits, phase_hist):
+    """The chart history is phase-frozen by default, or can show rolling/week-1 diagnostics."""
     if limits not in LIMITS:
         raise HTTPException(400, f"limits must be one of {list(LIMITS)}")
+    if limits == "phase":
+        return phase_hist
     if limits == "week1":
-        return None
-    every = {d: v for days in ds["days"].values() for d, v in days.items()}
+        return ds["hist"]
+    every = {d: v for name, days in ds["days"].items() if name != "event" for d, v in days.items()}
     return engine.rolling_history(every, date, sorted(ds["stations"]), ds["hist"])
 
 
 @app.get("/frames/{scenario}")
-def frames(scenario: str, day: int = Query(0, ge=0), dataset: str = DEFAULT, limits: str = "rolling"):
+def frames(scenario: str, day: int = Query(0, ge=0), dataset: str = DEFAULT, limits: str = "phase"):
     """Every reading of one day, oldest first, plus each station's chart centre, sigma and spec limits.
-    limits=rolling (default): the charts use the last 7 clean days before this day, so they update
-    every day; limits=week1: the fixed week-1 limits. The van's decisions always use week 1."""
+    limits=phase (default): the selected policy week and van use the previous complete week's limits;
+    limits=rolling: chart-only rolling limits; limits=week1: fixed Week 1 chart comparison."""
     ds = _ds(dataset)
     date, data = _day(ds, scenario, day)
-    ch = _chart_hist(ds, date, limits)
+    phase_hist, baseline_week = _phase_history(ds, scenario)
+    ch = _chart_hist(ds, date, limits, phase_hist)
     return engine.clean({"dataset": dataset, "scenario": scenario, "date": str(date), "limits": limits,
-                         "frames": engine.day_frames(data, ds["stations"], ds["hist"], policy=scenario != "week1",
+                         "baseline_week": baseline_week,
+                         "frames": engine.day_frames(data, ds["stations"], phase_hist, policy=scenario != "week1",
                                                      chart_hist=ch),
-                         "chart": engine.chart_meta(ch or ds["hist"])})
+                         "chart": engine.chart_meta(ch)})
 
 
 @app.get("/latest")
-def latest(scenario: str = "event", day: int = 0, dataset: str = DEFAULT, limits: str = "rolling"):
+def latest(scenario: str = "event", day: int = 0, dataset: str = DEFAULT, limits: str = "phase"):
     """Live mode: the frame 'now', replaying the day at one reading every 5 seconds."""
     ds = _ds(dataset)
     date, data = _day(ds, scenario, day)
-    f = engine.day_frames(data, ds["stations"], ds["hist"], policy=scenario != "week1",
-                          chart_hist=_chart_hist(ds, date, limits))
+    phase_hist, _ = _phase_history(ds, scenario)
+    f = engine.day_frames(data, ds["stations"], phase_hist, policy=scenario != "week1",
+                          chart_hist=_chart_hist(ds, date, limits, phase_hist))
     return engine.clean(f[int(time.time() // LIVE_SECONDS_PER_READING) % len(f)])
 
 
@@ -173,7 +217,21 @@ def trips(scenario: str, day: int = Query(0, ge=0), dataset: str = DEFAULT):
 def summary(dataset: str = DEFAULT):
     """Night plan, rush slots, weekly p-charts (baseline limits, policy week judged) and before/after counts."""
     ds = _ds(dataset)
+    weeks = ds.get("adaptive", {}).get("weeks", [])
+    stable_week = next((w["week"] for w in weeks if w.get("stable_run", 0) >= 2), None)
+    best = min(weeks, key=lambda w: (w.get("rate", 1), w.get("week", 0))) if weeks else None
+    weekly_deviation = {
+        "weeks": [{k: w.get(k) for k in ("week", "rate", "status", "baseline_week", "center", "lcl", "ucl",
+                                           "defects", "readings", "signals", "stable_run")}
+                  for w in weeks],
+        "best_week": best.get("week") if best else None,
+        "stable_week": stable_week,
+        "stable": stable_week is not None,
+        "measure": "share of station readings outside the 20%-80% dock range",
+        "limits": "weekly p-chart limits learned from the immediately preceding complete week"
+    }
     return engine.clean({"dataset": dataset, "about": ds["about"],
+                         "weekly_deviation": weekly_deviation,
                          **engine.summary(ds["days"]["week1"], ds["days"]["week2"], ds["stations"], ds["hist"])})
 
 

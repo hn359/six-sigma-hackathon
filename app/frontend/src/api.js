@@ -56,14 +56,15 @@ export function fetchLatest() {
 
 // Dispatch console routes (app/app.py).
 
-/** GET /datasets: [{id, name, interval_minutes, stations, docks, days: {week1, week2, event}}]. */
+/** GET /datasets: [{id, name, interval_minutes, stations, docks, days: {week1..weekN, event}}]. */
 export function fetchDatasets() {
   return getJson('/datasets')
 }
 
 /** GET /frames/{scenario}?day=d&dataset=id: {"frames": [Frame per reading], "chart": {station_id: {xbar, sigma, lsl, usl}}}. */
-// limits: 'rolling' (the charts use the last 7 clean days before this day) or 'week1' (fixed).
-export function fetchFrames(scenario, day = 0, dataset = 'collegetown', limits = 'rolling') {
+// limits: 'phase' (the preceding complete week, also used by dispatch), 'rolling' (chart only),
+// or 'week1' (fixed comparison).
+export function fetchFrames(scenario, day = 0, dataset = 'collegetown', limits = 'phase') {
   return getJson(`/frames/${encodeURIComponent(scenario)}?day=${day}&dataset=${encodeURIComponent(dataset)}&limits=${encodeURIComponent(limits)}`)
 }
 

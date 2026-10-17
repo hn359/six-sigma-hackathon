@@ -38,23 +38,32 @@ every 15 minutes, starting Monday 06:00 (t0). A reading is **out of spec** when 
 can fill it). The limits leave a 4-bike buffer at each end of a 20-dock station.
 
 - **Method** (the van moves on a control-chart signal or an out-of-spec safety trigger):
-  1. **After week 1: learn the morning pattern and set week 2's opening inventory.** For each
-     station, average its rider net flow from 06:00 through 10:00 across the seven baseline days.
+  1. **After each completed week: learn and set the next week's opening inventory.** Week 1
+     retains its original 50/50 starts. Week 1's morning pattern sets Week 2 using the 80/20 rule.
+     For Week 3 onward, the previous complete week's rider-flow paths and out-of-spec readings
+     inform a constrained opening allocation that keeps the same number of bikes docked and seeks
+     fewer projected readings outside the 20%-80% station band. Ties prefer the 80/20 morning-flow
+     recommendation. Each plan is ready by 22:00 for the next operating day's opening. The plan is
+     a hypothesis; random demand can still increase the observed deviation. To set Week 2, for
+     each station average its rider net flow from 06:00 through 10:00 across the seven baseline days.
      The station with the largest net loss (most bikes leaving) starts week 2 at 80% of its docks;
      the station with the largest net gain (most bikes arriving) starts at 20%. Other stations are
      placed proportionally between those shares; a station with no history or zero net flow starts
      at 50%. This is the same 80/20 overnight recommendation shown by BikeFlow. The remaining
-     bikes stay in the depot. This allocation is a policy hypothesis, not a guarantee that every
-     station will stay in spec. For daytime dispatch, E(k) is each station's 80/20 start plus its
-     cumulative historical mean rider net flow from 06:00 to slot k over the whole day. Rush slots:
+     bikes stay in the depot. For Week 2, daytime dispatch uses the 80/20 start plus its cumulative
+     Week 1 mean rider net flow from 06:00 to slot k over the whole day. For later weeks, the same
+     equation uses the previous week's mean flow. Rush slots:
      a slot whose historical mean network rentals are at least 1.5 x the mean over all slots,
      shown to the dispatcher.
   2. **Every 15 minutes: I-MR chart of slot-adjusted net flow, per station** (graded core). Net
      flow = change in bikes since the last reading minus `van_moved` (riders only). x = net flow
      minus the station's historical mean for that slot, so the normal rush-hour pattern is not a
      signal. Phase I (week 1) sets x-bar, MR-bar and sigma = MR-bar / d2 (d2 = 1.128, n = 2);
-     limits x-bar ± 3 sigma (= ± 2.66·MR-bar), MR UCL = 3.267·MR-bar. Every new reading is checked
-     against the **Western Electric rules**, all on the same side of x-bar:
+     limits x-bar ± 3 sigma (= ± 2.66·MR-bar), MR UCL = 3.267·MR-bar. Week 2 is checked against
+     Week 1. At the start of each later week, the previous complete week supplies that week's
+     slot means and control limits; those limits stay fixed while the week is monitored and are
+     updated only after it is complete. The van uses the same phase limits shown by the chart.
+     Every new reading is checked against the **Western Electric rules**, all on the same side of x-bar:
      (1) 1 point beyond 3 sigma; (2) 2 of the last 3 beyond 2 sigma; (3) 4 of the last 5 beyond
      1 sigma; (4) 8 in a row. Rule 1 catches a sudden surge, rules 2-4 a sustained drift.
   3. **Dispatch = a signal, or out of spec.** A station gets the van when its chart signals, or,
@@ -66,9 +75,13 @@ can fill it). The limits leave a 4-bike buffer at each end of a 20-dock station.
      run-rule history for that station restarts.
   4. **End of week: p-chart, one chart per station, one point per day** (did the policy work?).
      n = 64 readings a day, d = readings out of spec, p = d / n. Phase I: pbar = sum(d) / sum(n)
-     over week 1 (no rebalancing, every station starts at 10), limits pbar ± 3·sqrt(pbar(1 −
-     pbar)/n), LCL floored at 0. Phase II: week 2 (80/20 opening placement + chart-driven van) against
-     week 1's limits. Below LCL = the policy really reduced out-of-spec time; above UCL = worse.
+     over the preceding complete week, limits pbar ± 3·sqrt(pbar(1 − pbar)/n), LCL floored at 0.
+     Week 2 is judged against Week 1; each later week is judged against its immediately preceding
+     week. The center and limits update only between complete weeks. The weekly improvement chart
+     also shows the actual share of all readings outside 20%-80%, with weekly p-chart limits based
+     on the full week's sample size. Two consecutive complete weekly points inside the immediately
+     preceding week's 3-sigma limits are labelled stable/in control. That is a control-chart result,
+     not a claim of Six Sigma capability. The station I-MR charts separately flag live special causes.
 - **Why it fits the use case:** the 80/20 opening allocation aims to place more bikes where
   morning rentals start and leave more empty docks where morning trips end. It is a policy
   hypothesis, not a guarantee: the van and weekly p-chart show whether availability improves.
@@ -107,7 +120,7 @@ Fixed for every team:
 - You can explain every number the tool prints. If you cannot, it is not done.
 
 ## 5. Delivery (rubric: working tool 25)
-- **Stack:** dashboard: a Python FastAPI back end (statistics in `app/qc.py`, frames in `app/engine.py`, routes in `app/app.py`, the simulation in `data/simulate.py`) and Jim's React + Leaflet station map (`app/frontend/`, Node.js 20+) with the van, live feed, station charts and weekly review added under `src/dispatch/`. FastAPI serves the built front end, so one deploy holds both. No database: readings, van logs and stations live in CSV files in `data/`, loaded at startup. The map and API agree through `docs/map-contract.md` (v2).
+- **Stack:** dashboard: a Python FastAPI back end (statistics in `app/qc.py`, frames in `app/engine.py`, routes in `app/app.py`, the simulation in `data/simulate.py`) and a React front end (`app/frontend/`, Node.js 20+). The dispatch scene uses MapLibre GL with Three.js models for the 3D stations and van; dispatch charts and the live feed are in `src/dispatch/`. FastAPI serves the built front end, so one deploy holds both. No database: readings, van logs and stations live in CSV files in `data/`, loaded at startup. The map and API agree through `docs/map-contract.md` (v2).
 - **Starting demo:** `demos/fastapi/` copied into `app/`, with the React front end from `demos/reactfront/` in `app/frontend/` (Jim's map).
 
 Fixed for every team:
@@ -127,15 +140,17 @@ Fixed for every team:
   a bikes chart (spec band, expected path, van moves) and the I-chart of slot-adjusted net flow
   with 1, 2 and 3 sigma zones, signals in red; (4) the night plan: tomorrow's 06:00 start, the expected path and the rush slots;
   (5) end of week: per-station p-charts of the daily share of readings out of spec, week 1 band
-  with week 2 points, improved days in green. How to read it: a red station is straying from its
-  normal day for a reason the history does not explain, so the van goes there; green p-chart
-  points below the band mean the policy worked.
+  with each policy week judged against the prior complete week. A simple weekly chart tracks the
+  share of station readings outside the 20%-80% band and marks the lowest-deviation and stable
+  weeks. How to read it: a red station is straying from its normal day for a reason the history
+  does not explain, so the van goes there; special causes trigger dispatch, while the weekly chart
+  shows whether availability improved.
 
 ## 7. Test datasets and codebook (rubric: demo 10, datasets 5, codebook 5)
 Three simulated city datasets in `data/`, invented but shaped like real field data, each showing different station sizes, demand profiles, and outcomes.
 `data/README.md` is the codebook: every file, every column with units, and what it would take to
 collect this data for real.
-- **Datasets** (made by a seeded simulation, `data/simulate.py`): week 1 is a no-van baseline; week 2 starts from the 80/20 morning-flow plan and runs chart-driven dispatch; event day adds a planted slow drain and crowd. The 80/20 policy reduces out-of-spec readings in Collegetown and Downtown but raises them in Waterfront (607 to 165, 838 to 213, and 186 to 238 respectively), so the weekly p-chart is needed to judge the result. Every file and column is documented in `data/README.md`.
+- **Datasets** (made by a seeded simulation, `data/simulate.py`): Week 1 is a no-van baseline; Week 2 is the original 80/20 morning-flow policy; Weeks 3 onward use the previous complete week's rider-flow pattern and observed availability to optimize the next opening allocation. The generated run stops after two consecutive stable weeks or a fixed maximum, and keeps the Week 1 and Week 2 CSV files unchanged. Event day adds a planted slow drain and crowd after the learning weeks. Week 2's 80/20 policy reduces out-of-spec readings in Collegetown and Downtown but raises them in Waterfront (607 to 165, 838 to 213, and 186 to 238 respectively), so the later-week chart is needed to judge the result. Every file and column is documented in `data/README.md`.
 
 ## 8. Documentation and reproducibility (rubric: docs 10, public repo 5)
 - `README.md` says what the tool does, for whom, every input and parameter, how to run it in one
@@ -149,12 +164,14 @@ What we will NOT build, so nobody (human or agent) builds it by accident.
 - No van routing or travel-time model (one van, one stop per reading, no distances, van capacity or
   labor limits); no weekend, weather or seasonal demand; no live feed connection (CSV files only);
   no broken-dock repair model; no multi-city comparison.
-- No machine-learning forecasting (the BikeFlow module in `app/bikeflow/` uses historical averages
-  only, and says so).
+- No machine-learning forecasting: the weekly improvement loop uses a bounded optimization over
+  the preceding week's observed rider-flow paths, with no learned model or external forecast.
 
-## 10. BikeFlow Analyze and Improve module (PROPOSED on branch `jasmine`, needs team approval)
-`app/bikeflow/` adds a slot-adjusted I-MR chart, a station inventory chart, a net-flow chart and a
-redistribution plan (daytime and 10 PM for the 6 AM opening) for 5 stations x 20 docks and a 120-bike
-fleet. It reads any station-snapshot CSV (`app/bikeflow/README.md` has the columns) and does not
-generate data or draw the map. Method, formulas and assumptions: `app/bikeflow/qc.py` and
-`app/bikeflow/plan.py` docstrings. Known answers are worked by hand in `tests/test_bikeflow.py`.
+## 10. BikeFlow Analyze and Improve module (integrated)
+`app/bikeflow/` adds slot-adjusted I-MR charts, station inventory and net-flow views, and a
+redistribution plan for the next 06:00 opening, ready by 22:00. Its weekly review measures readings
+outside the 20%-80% dock band and learns from the previous complete week. The combined app at
+`app/bikeflow/combined.py` serves this view beside the dispatch console and checks that both views
+show the same city, date, reading time and station counts. It reads uploaded or simulated station
+snapshots. Method, formulas and assumptions: `app/bikeflow/qc.py` and `app/bikeflow/plan.py`
+docstrings. Known answers are in `tests/test_bikeflow.py`.

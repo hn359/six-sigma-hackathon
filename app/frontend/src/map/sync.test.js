@@ -17,10 +17,18 @@ describe('simulation state bridge', () => {
   })
 
   it('does not publish an old frame while the selected scenario is loading', () => {
-    const state = createSimulationState({ city: 'downtown', scenario: 'week2', status: 'loading' })
+    const state = createSimulationState({ city: 'downtown', scenario: 'week11', status: 'loading' })
     expect(isSimulationState(state)).toBe(true)
     expect(state.as_of).toBeNull()
     expect(state.stations).toEqual([])
+  })
+
+  it('accepts numbered policy weeks while rejecting invalid week names', () => {
+    const state = createSimulationState({ city: 'collegetown', scenario: 'week11', status: 'loading' })
+    expect(isSimulationState(state)).toBe(true)
+    expect(() => createSimulationState({ city: 'collegetown', scenario: 'week0', status: 'loading' }))
+      .toThrow('invalid simulation scenario')
+    expect(isSimulationState({ ...state, scenario: 'week0' })).toBe(false)
   })
 
   it('rejects malformed ready frames and unsupported versions', () => {

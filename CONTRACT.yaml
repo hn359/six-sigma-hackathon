@@ -160,14 +160,15 @@ tasks:
     title: BikeFlow Improve - redistribution plan and 10 PM overnight plan (PROPOSED)
     points: "supports 25 - an effective, working tool"
     status: in_progress
-    owner: "Aayam + Codex"
+    owner: "Aayam"
     started_at: "2026-10-17"
     owns: ["app/bikeflow/plan.py", "app/bikeflow/api.py", "app/bikeflow/server.py", "app/bikeflow/dashboard/", "app/frontend/src/map-preview.jsx", "app/frontend/src/map/sync.js", "app/frontend/src/map/sync.test.js", "app/frontend/dist/", "tests/test_bikeflow_api.py", "tests/test_bikeflow_combined.py"]
     notes: >
       Proposed on branch jasmine. Historical-average baseline only; no distances,
       van capacity or labor limits are assumed. The combined page shares a versioned,
       same-origin simulation-state message, verifies scenario/date/time and station counts,
-      and clearly reports stale, loading, or mismatched states.
+      and clearly reports stale, loading, or mismatched states. H-12 takes the weekly-learning
+      extension paths listed there as a specific carve-out; existing H-10 work remains Aayam's.
     definition_of_done: >
       pytest tests/test_bikeflow.py tests/test_bikeflow_api.py passes (empty and full
       stations, insufficient donors, capacity violations, 120-bike conservation) and
@@ -273,6 +274,33 @@ tasks:
       numbered from 1, the time in the SPC and end-of-day tabs equals the console's after dragging it
       in the Map tab, and there are no new console errors.
     result: "Four tabs (About, Map and dispatch, End-of-day redistribution, SPC charts) over one tool page and one clock; sections numbered from 1 per tab; Validation in no tab; dragging the map to 08:15 showed 08:15 in the other tabs; 30 tests passed."
+
+  - id: H-16
+    title: Weekly learning loop - improve availability and refresh control limits by phase
+    points: "supports 25 - valid analyses and an effective, working improvement tool"
+    status: done
+    owner: "Codex"
+    started_at: "2026-10-17"
+    owns: ["CONTRACT.yaml", "SPEC.md", "data/", "app/engine.py", "app/app.py", "app/bikeflow/config.py", "app/bikeflow/cities.py", "app/bikeflow/analyze.py", "app/bikeflow/plan.py", "app/bikeflow/api.py", "app/bikeflow/dashboard/", "app/frontend/src/api.js", "app/frontend/src/map-preview.jsx", "app/frontend/src/map/sync.js", "app/frontend/src/map/sync.test.js", "app/frontend/src/dispatch/charts.jsx", "app/frontend/src/dispatch/dispatch.css", "app/frontend/dist/", "tests/test_weekly_learning.py", "tests/test_api.py", "tests/test_data.py", "tests/test_bikeflow.py", "tests/test_bikeflow_api.py", "tests/test_bikeflow_cities.py", "tests/test_bikeflow_combined.py"]
+    notes: >
+      Preserve the existing Week 1 and Week 2 CSV bytes and behavior. Weeks 3 onward use
+      the immediately preceding complete week to set the next opening inventory and the
+      frozen I-MR and p-chart reference limits; each station's opening count can change by
+      at most one bike per week to limit overreaction to random variation. Van decisions and displayed signals use
+      that same phase baseline. The weekly progress measure is the share of readings
+      outside the station's 20%-80% dock specification; being within 3-sigma limits is
+      called stable/in control, not Six Sigma capability. This task's explicit file list
+      carves its weekly-learning work out of the broader H-02/H-04/H-05/H-10 paths. The
+      simulation-state bridge and its tests are included so every numbered policy week can
+      be selected and synchronized with the matching week-specific control limits.
+    definition_of_done: >
+      pytest tests/test_weekly_learning.py tests/test_api.py tests/test_data.py
+      tests/test_bikeflow_api.py tests/test_bikeflow_cities.py tests/test_bikeflow_combined.py
+      passes, including unchanged Week 1 and Week 2 data, previous-week limits used by both
+      live dispatch and charts, fleet conservation, complete-week gating, special-cause
+      flags, and week-by-week deviation/stability reporting. npx vitest run and npm run
+      build pass; /side-by-side shows the weekly learning result and the active phase limits.
+    result: "Added prior-complete-week policies and frozen I-MR/p limits for live dispatch and charts, complete-week gating, and visible active MR limits. Validation: pytest 133 passed; Vitest 53 passed; frontend build and replay/API checks passed."
 
   - id: H-08
     title: Reproducible public repo, submitted on Devpost

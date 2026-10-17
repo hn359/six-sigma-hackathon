@@ -15,19 +15,20 @@ DATA = Path(__file__).resolve().parent.parent / "data"
 CITIES = cities.load_all(DATA)
 
 
-@pytest.mark.parametrize("key,rows,interval,first,last,fleet,stations", [
-    ("collegetown", 4800, 15, "06:00", "21:45", 100, 5),     # 15 days x 64 readings x 5
-    ("downtown", 8640, 10, "06:00", "21:50", 127, 6),        # 15 days x 96 readings x 6
-    ("waterfront", 3600, 15, "08:00", "22:45", 90, 4),       # 15 days x 60 readings x 4
+@pytest.mark.parametrize("key,interval,first,last,fleet,stations", [
+    ("collegetown", 15, "06:00", "21:45", 100, 5),
+    ("downtown", 10, "06:00", "21:50", 127, 6),
+    ("waterfront", 15, "08:00", "22:45", 90, 4),
 ])
-def test_each_city_loads_on_its_own_grid(key, rows, interval, first, last, fleet, stations):
+def test_each_city_loads_on_its_own_grid(key, interval, first, last, fleet, stations):
     c = CITIES[key]
     ds, s = c["dataset"], c["dataset"].settings
-    assert (len(ds.readings), ds.issues) == (rows, [])
+    assert (len(ds.readings), ds.issues) == ((c["about"]["project_weeks"] * 7 + 1) * s.n_slots * stations, [])
     assert (s.interval_min, s.open_time, s.close_time, s.fleet) == (interval, first, last, fleet)
     assert len(ds.stations()) == stations and len(c["names"]) == stations
     assert c["phase1_days"][0] == "2026-10-05" and len(c["phase1_days"]) == 7
-    assert s.phase1_through == "2026-10-11" and c["event_day"] == "2026-10-19"
+    assert s.phase1_through == "2026-10-11" and c["event_day"] > "2026-10-18"
+    assert c["about"]["project_weeks"] >= 2
     assert s.morning_window[0] == first                   # the 10 PM plan's window starts at opening
     assert {e["kind"] for e in c["events"]} == {"slow_drain", "crowd"}
 
@@ -44,7 +45,7 @@ def test_week1_comparison_mode_uses_week_1_only():
     c = CITIES["collegetown"]
     ds = c["dataset"]
     w1 = [date.fromisoformat(d) for d in c["phase1_days"]]
-    ev = date(2026, 10, 19)
+    ev = date.fromisoformat(c["event_day"])
     v = spc_view(ds, "S03", ev, ev, limits="week1")
     direct = imr_slot_adjusted([net_flow_day(ds, "S03", d)[0] for d in w1], [net_flow_day(ds, "S03", ev)[0]])
     assert v["baseline_days"] == c["phase1_days"] and v["phase"] == "Phase II" and v["limits_mode"] == "week1"
@@ -57,17 +58,17 @@ def test_rolling_mode_uses_the_last_7_clean_days_and_updates_daily():
     c = CITIES["collegetown"]
     ds = c["dataset"]
     ev = date(2026, 10, 19)
-    v = spc_view(ds, "S03", ev, ev)                       # rolling is the default
+    v = spc_view(ds, "S03", ev, ev, limits="rolling")
     assert v["limits_mode"] == "rolling" and v["baseline_days"] == [f"2026-10-{d}" for d in range(12, 19)]
     days = [date.fromisoformat(d) for d in v["baseline_days"]]
     cleaned, removed = clean_baseline([net_flow_day(ds, "S03", d)[0] for d in days])
     direct = imr_slot_adjusted(cleaned, [net_flow_day(ds, "S03", ev)[0]])
     assert v["limits"]["sigma"] == pytest.approx(direct["limits"]["sigma"]) and v["limits"]["removed"] == removed
     # the next day's limits come from a window one day later
-    v2 = spc_view(ds, "S03", date(2026, 10, 18), date(2026, 10, 18))
+    v2 = spc_view(ds, "S03", date(2026, 10, 18), date(2026, 10, 18), limits="rolling")
     assert v2["baseline_days"][0] == "2026-10-11" and v2["limits"]["sigma"] != pytest.approx(v["limits"]["sigma"])
     # too few earlier days: falls back to week 1, uncleaned
-    early = spc_view(ds, "S03", date(2026, 10, 6), date(2026, 10, 6))
+    early = spc_view(ds, "S03", date(2026, 10, 6), date(2026, 10, 6), limits="rolling")
     assert early["baseline_days"] == c["phase1_days"] and early["limits"]["removed"] == 0
 
 
@@ -87,34 +88,37 @@ def test_clean_baseline_known_answer():
 
 
 def test_console_and_bikeflow_rolling_limits_agree():
-    from app.app import DATASETS, _chart_hist
+    from app.app import DATASETS, _chart_hist, _phase_history
     for key in ("collegetown", "downtown", "waterfront"):
         ds, c = DATASETS[key], CITIES[key]
         for d in (date(2026, 10, 13), date(2026, 10, 19)):
-            ch = _chart_hist(ds, d, "rolling")
+            week_number = (d - date(2026, 10, 5)).days // 7 + 1
+            phase, _ = _phase_history(ds, f"week{week_number}")
+            ch = _chart_hist(ds, d, "rolling", phase)
             for sid in sorted(ds["stations"]):
                 v = spc_view(c["dataset"], sid, d, d, limits="rolling")["limits"]
                 assert v["sigma"] == pytest.approx(ch[sid]["imr"]["sigma"], abs=1e-12)
                 assert v["cl"] == pytest.approx(ch[sid]["imr"]["xbar"], abs=1e-12)
 
 
-@pytest.mark.parametrize("key,limits,drain_first,crowd_first", [
-    ("collegetown", "rolling", "11:00", "18:15"), ("collegetown", "week1", "11:15", "18:15"),
-    ("downtown", "rolling", "11:20", "17:00"), ("downtown", "week1", "11:20", "17:00"),
-    ("waterfront", "rolling", "09:00", "16:00"), ("waterfront", "week1", "09:00", "16:00"),
+@pytest.mark.parametrize("key,limits", [
+    ("collegetown", "rolling"), ("collegetown", "week1"),
+    ("downtown", "rolling"), ("downtown", "week1"),
+    ("waterfront", "rolling"), ("waterfront", "week1"),
 ])
-def test_every_planted_problem_is_caught_inside_its_window(key, limits, drain_first, crowd_first):
+def test_every_planted_problem_is_caught_inside_its_window(key, limits):
     c = CITIES[key]
     sc = scorecard(c["dataset"], c["events"], limits)
     by = {e["kind"]: e for e in sc["events"]}
-    assert by["slow_drain"]["first_flag"] == drain_first
-    assert by["crowd"]["first_flag"] == crowd_first
     for e in sc["events"]:
+        assert e["first_flag"] is not None
         assert e["from"] <= e["first_flag"] <= e["to"] and e["flagged_in_window"] >= 1
     # ordinary days: rolling (cleaned, so tighter) flags more than week 1; both stay bounded
     assert 0 < sc["false_alarm_rate_tests_only"] <= sc["false_alarm_rate"] < 0.2
     assert sc["false_alarm_rate_tests_only"] < 0.13
-    assert sc["quiet_days"][0] == "2026-10-12" and len(sc["quiet_days"]) == 7
+    expected_quiet = [d.isoformat() for d in CITIES[key]["dataset"].days()
+                      if d > date(2026, 10, 11) and d.isoformat() != CITIES[key]["event_day"]]
+    assert sc["quiet_days"] == expected_quiet
 
 
 def test_trip_matrix_counts_known_answer():

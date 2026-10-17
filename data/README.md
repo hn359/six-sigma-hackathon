@@ -1,7 +1,8 @@
 # Data codebook
 
 **Every file here is invented.** [`simulate.py`](simulate.py) writes them with a fixed seed per
-city, so `python data/simulate.py` rebuilds exactly the same files. They are shaped like a real
+city, so `python data/simulate.py` rebuilds exactly the same files. The original Week 1 and Week 2
+CSV files are frozen; the script adds later policy weeks and updates the event-day files. They are shaped like a real
 bikeshare station feed, but no number is real. How the simulation works, step by step, is in the
 main [README](../README.md#how-the-datasets-are-generated).
 
@@ -23,14 +24,20 @@ The fleet is as many bikes as docks. At the start of the baseline week half the 
 | File | Rows | What it shows |
 |---|---|---|
 | `stations.csv` | one per station | id, name, position, docks, role in the demand model |
-| `week1_baseline.csv` | 7 days × readings × stations | Mon 5 – Sun 11 Oct 2026. **No van.** Phase I: the history the tool learns from |
-| `week2_policy.csv` | 7 days x readings x stations | Mon 12 - Sun 18 Oct. Week 1's 06:00-10:00 average net flow sets the 80/20 opening targets shown by BikeFlow; each day starts at those targets. The van goes on a chart signal or a reading outside the spec limits |
-| `event_day.csv` | 1 day × readings × stations | Mon 19 Oct: the policy, plus a planted slow drain and a planted crowd (see `about.json`) |
-| `van_log.csv` | one per van stop | every stop in week 2 and on the event day |
-| `trips.csv` | one per rider trip | every completed simulated trip, all 15 days: where it started and ended |
-| `about.json` | 1 | the city's name, reading interval, hours, docks, fleet, seed and the planted event |
+| `week1_baseline.csv` | 7 days × readings × stations | Mon 5 – Sun 11 Oct 2026. **No van.** Frozen Phase I reference |
+| `week2_policy.csv` | 7 days x readings x stations | Mon 12 - Sun 18 Oct. Frozen 80/20 opening plan from Week 1; the van uses Week 1 limits |
+| `weekN_policy.csv` | 7 days x readings x stations | Week 3 onward. The prior complete week sets the opening plan and frozen chart limits |
+| `event_day.csv` | 1 day × readings × stations | A planted slow drain and crowd after the learning run (see `about.json`) |
+| `adaptive_plans.json` | one weekly plan and result per project week | Opening counts, source week, outside-spec rate, prior-week limits and stability status |
+| `van_log.csv` | one per van stop | every daytime stop during policy weeks and on the event day |
+| `trips.csv` | one per rider trip | every completed simulated trip: where it started and ended |
+| `about.json` | 1 | the city's name, reading interval, hours, docks, fleet, project length and planted event |
 
-Expected results (checked by `tests/test_data.py`):
+Week 1 and Week 2 are preserved exactly. Later weeks are judged from the simulated readings; random
+demand can produce a worse week. `adaptive_plans.json` reports the lowest-deviation week and whether
+two successive complete weeks have no p-chart special cause.
+
+Expected Week 1-to-Week 2 results (checked by `tests/test_data.py`):
 
 | City | Out-of-spec readings: baseline -> policy | Lost rentals | Event |
 |---|---|---|---|
@@ -40,7 +47,7 @@ Expected results (checked by `tests/test_data.py`):
 
 ## Columns
 
-**`week1_baseline.csv`, `week2_policy.csv`, `event_day.csv`**
+**`week1_baseline.csv`, `week2_policy.csv`, `weekN_policy.csv`, `event_day.csv`**
 
 | Column | Type and units | Meaning |
 |---|---|---|
@@ -93,9 +100,14 @@ reading, where they come from).
 - A rental at an empty station is **lost**. A return to a full station goes on to the emptiest
   station with room.
 - Bikes are never created or lost: the script checks docked + reserve = fleet after every reading.
-- The rates were tuned so each station's normal daily swing fits inside its spec band. Week 2
-  uses week 1's morning net-flow pattern for its 80/20 opening targets; every simulated day has the
-  same demand profile, with random trip counts but no separate weekend or weather effects.
+- Week 2 uses Week 1's morning net-flow pattern for its 80/20 opening targets. Week 3 onward uses
+  an integer allocation search that minimizes projected outside-spec readings over the preceding
+  week's observed rider-only flow paths, subject to the same docked fleet total and 20%-80% opening
+  limits, and changes any one station by at most one bike per week to avoid chasing random noise.
+  It prefers the 80/20 recommendation when projected scores tie. Demand has random trip counts but
+  no separate weekend or weather effects; observed weekly deviation can therefore rise as well as
+  fall. The simulation stops after two successive weekly p-chart points land within the previous
+  week's 3-sigma limits or at its fixed maximum, whichever comes first.
 
 The exact rates and weights for each city are in `DATASETS` at the top of [`simulate.py`](simulate.py).
 

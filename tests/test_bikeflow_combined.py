@@ -24,10 +24,12 @@ def team_data():
 
 def test_his_api_and_bikeflow_share_one_server():
     frames = client.get("/frames/event").json()
-    assert frames["date"] == "2026-10-19" and len(frames["frames"]) == 64
+    assert frames["date"] > "2026-10-18" and len(frames["frames"]) == 64
     assert client.get("/latest").status_code == 200
     s = client.get("/api/bikeflow/summary").json()
-    assert s["stations"] == ["S01", "S02", "S03", "S04", "S05"] and s["readings"] == 4800
+    project_weeks = client.get("/summary").json()["about"]["project_weeks"]
+    assert s["stations"] == ["S01", "S02", "S03", "S04", "S05"]
+    assert s["readings"] == (project_weeks * 7 + 1) * 64 * 5
     his = {d["id"] for d in client.get("/datasets").json()}
     mine = {d["id"] for d in client.get("/api/bikeflow/datasets").json()["datasets"]}
     assert his == mine == {"collegetown", "downtown", "waterfront"}
@@ -43,12 +45,14 @@ def test_side_by_side_page_and_bikeflow_page():
 @pytest.mark.parametrize("city,at", [("collegetown", "18:30"), ("downtown", "17:20"), ("waterfront", "16:30")])
 def test_both_tools_read_the_same_readings(city, at):
     # his event-day frame and BikeFlow's inventory give the same bikes at every station
-    frames = client.get("/frames/event", params={"dataset": city}).json()["frames"]
-    frame = [f for f in frames if f["as_of"] == f"2026-10-19T{at}"][0]
+    body = client.get("/frames/event", params={"dataset": city}).json()
+    event_date = body["date"]
+    frames = body["frames"]
+    frame = [f for f in frames if f["as_of"] == f"{event_date}T{at}"][0]
     his = {st["station_id"]: st["bikes"] for st in frame["stations"]}
-    inv = client.get("/api/bikeflow/inventory", params={"start": "2026-10-19", "end": "2026-10-19",
+    inv = client.get("/api/bikeflow/inventory", params={"start": event_date, "end": event_date,
                                                         "dataset": city}).json()
-    mine = {s["station_id"]: [p["bikes"] for p in s["series"] if p["t"] == f"2026-10-19T{at}"][0]
+    mine = {s["station_id"]: [p["bikes"] for p in s["series"] if p["t"] == f"{event_date}T{at}"][0]
             for s in inv["stations"]}
     assert his == mine
 
@@ -87,6 +91,8 @@ def test_home_page_has_four_tabs_over_one_tool_page():
     assert count("none") == 2                          # Tomorrow's plan and Validation: full page only
     assert 'data-sub="night"' in page and 'data-sub="night-tomorrow"' in page and 'id="tmmap"' in page
     assert 'class="not-in-tabs"' in page                # the hour-by-hour heatmap: full page only
+    # Aayam's logic in Jasmine's layout: phase limits by default, the weekly p-chart in tomorrow's sub-tab
+    assert 'data-lim="phase" class="on"' in page and 'id="weeklydeviation"' in page and '"plan/weekly"' in page
     assert client.get("/home/images/how-the-van-decides.png").status_code == 200
     assert client.get("/home/images/hero-bikes.jpg").status_code == 200   # the banner photo
     assert 'class="hero"' in r.text and "CC BY-SA 4.0" in r.text           # banner on every tab, credited

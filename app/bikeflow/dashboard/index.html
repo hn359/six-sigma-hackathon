@@ -264,7 +264,8 @@
   <section data-view="night-tomorrow">
     <div class="eyebrow"><span class="secno">4</span> &middot; Redistribution for tomorrow</div><h2>Tonight's moves, so every station is ready at 6 AM</h2>
     <p class="how" id="tmhow">Where riders mostly <b>leave</b> in the morning, the station starts nearly full; where they mostly <b>arrive</b>, it starts
-      nearly empty so there is room to park. Calculated from the replay day's last reading and Week 1's morning pattern.</p>
+      nearly empty so there is room to park. Week 1's morning pattern sets Week 2; after that, each week's plan is learned from the
+      previous complete week (no station's start changes by more than one bike a week). Calculated from the replay day's last reading.</p>
     <div class="tomorrow-grid">
       <div><h3 style="margin-top:4px">Route map: what the van does tonight</h3>
         <p class="how">Stations placed as on the city map (spread out slightly where they are close). Arrow = a move (thicker = more bikes). Label = bikes at 10 PM &rarr; 6 AM target.</p>
@@ -274,6 +275,11 @@
         <p class="how">Positive moves mean the station receives bikes; negative moves mean bikes are taken away.</p>
         <p class="how" id="tmnote"></p></div>
     </div>
+    <h3>Is each week better than the last? (weekly p-chart)</h3>
+    <p class="how">Each point is a complete week's share of station readings outside the 20&ndash;80% dock range (lower is better), judged
+      against the previous week's 3&sigma; p-chart limits. Two weeks in a row inside those limits = the plan has settled (stable, which is
+      not the same as Six Sigma capability).</p>
+    <div id="weeklydeviation" aria-label="Out-of-range station readings by week"></div>
   </section>
 
   <section data-view="none">
@@ -294,7 +300,7 @@
 
   <section data-view="spc">
     <div class="eyebrow"><span class="secno">6</span> &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
-    <div class="seg" id="limwin"><button type="button" data-lim="rolling" class="on">Limits: last 7 clean days (updates daily)</button><button type="button" data-lim="week1">Week 1 (fixed, for comparison)</button></div>
+    <div class="seg" id="limwin"><button type="button" data-lim="phase" class="on">Limits: previous complete week (what the van uses)</button><button type="button" data-lim="rolling">Last 7 clean days</button><button type="button" data-lim="week1">Week 1 (fixed, for comparison)</button></div>
     <p class="how"><b id="limbasis"></b></p>
     <p class="how">Each point is the station's rider net flow in one reading minus what is usual at that time of day on the days the limits come from.
       Around the centre line, <b>Zone C</b> is within 1&sigma;, <b>Zone B</b> 1&ndash;2&sigma; and <b>Zone A</b> 2&ndash;3&sigma;; the dashed red lines are the
@@ -328,7 +334,8 @@ const BASE = location.pathname.includes("/bikeflow/")
   ? location.pathname.slice(0, location.pathname.indexOf("/bikeflow/") + 1) : "./";
 const API = BASE + "api/bikeflow";
 const FOLLOW = new URLSearchParams(location.search).get("follow") === "console";
-let limitsMode = "rolling";   // chart limits: the last 7 clean days before each day, or week 1 (comparison)
+let limitsMode = "phase";     // chart limits (Aayam): the previous complete week, frozen for the week;
+                              // "rolling" (last 7 clean days) and "week1" are comparison modes
 let city = null, info = null, cache = {}, timer = null, autoStart = false, playing = false, planBusy = false, planAgain = false, loadId = 0;
 
 /* ---- colour: validated categorical slots (one per station, fixed order), status, diverging ---- */
@@ -466,7 +473,8 @@ function setInfo(body) {
   $("spcstation").innerHTML = body.stations.map(x => `<option value="${esc(x)}">${esc(label(x))}</option>`).join("");
   const q = new URLSearchParams(location.search), pick = q.get("day");
   const day = pick && days.includes(pick) ? pick : days[days.length - 1];     // ?day=2026-10-19&at=12:30&station=S02
-  $("start").value = day; $("end").value = day;
+  const from = q.get("from");                                                  // &from=2026-10-17: chart several days
+  $("start").value = from && days.includes(from) && from <= day ? from : day; $("end").value = day;
   if (q.get("station") && body.stations.includes(q.get("station"))) $("spcstation").value = q.get("station");
   autoStart = !q.get("at") && !FOLLOW;       // like his console, the day starts playing from opening
   if (autoStart) $("slot").value = 0;
@@ -556,14 +564,35 @@ function renderSpc() {
   $("rulelist").textContent = `${d.method}. ${d.note}`;
   if (!lim) { emptyChart("spcI", "No control limits for this day: " + d.warnings.join(" ")); return; }
   const pts = d.points.filter(p => upTo(p.t) && p.residual !== null), x = pts.map(p => p.t);
-  const s = lim.sigma, cl = lim.cl, line = dark() ? "#a5acb8" : "#4b5563";
+  const line = dark() ? "#a5acb8" : "#4b5563";
+  // Limits by phase (Aayam): each point carries the limits it is judged by (chart_cl, chart_sigma, ...),
+  // frozen within a week and refreshed from the previous complete week. Consecutive points with the same
+  // baseline form one segment; each segment gets its own zones, limits and centre line.
+  const at = (p, k, f) => p[k] == null ? f : p[k];
+  const segs = [];
+  pts.forEach((p, i) => {
+    const last = segs[segs.length - 1];
+    if (!last || last.basis !== p.baseline) segs.push({ basis: p.baseline, i0: i, i1: i, cl: at(p, "chart_cl", lim.cl), s: at(p, "chart_sigma", lim.sigma),
+      mrU: at(p, "chart_mr_ucl", lim.mr_ucl), mrB: at(p, "chart_mr_bar", lim.mr_bar) });
+    else last.i1 = i;
+  });
+  if (!segs.length) segs.push({ basis: d.basis, i0: 0, i1: 0, cl: lim.cl, s: lim.sigma, mrU: lim.mr_ucl, mrB: lim.mr_bar });
+  const one = segs.length === 1, segOf = pts.map((_, i) => segs.find(g => g.i0 <= i && i <= g.i1));
+  const ext = (g, k) => one ? { xref:"paper", x0:0, x1:1 }
+    : { xref:"x", x0: pts[g.i0].t, x1: k < segs.length - 1 ? pts[segs[k + 1].i0].t : pts[g.i1].t };
+  const { s, cl } = segs[segs.length - 1];          // the right-hand labels describe the latest limits
   // the three zones on each side, the 1 and 2 sigma lines, the control limits and the centre line
-  const band = (lo, hi, fill) => ({ type:"rect", xref:"paper", x0:0, x1:1, y0:cl + lo * s, y1:cl + hi * s, fillcolor:fill, line:{ width:0 }, layer:"below" });
   const zC = "rgba(69,227,255,.13)", zB = "rgba(161,99,247,.10)", zA = "rgba(229,72,77,.10)";   // cyan, purple, coral
-  const hline = (k, color, dash, width) => ({ type:"line", xref:"paper", x0:0, x1:1, y0:cl + k * s, y1:cl + k * s, line:{ color, dash, width } });
-  const shapes = [band(-1, 1, zC), band(1, 2, zB), band(-2, -1, zB), band(2, 3, zA), band(-3, -2, zA),
-    hline(1, muted(), "dot", 1), hline(-1, muted(), "dot", 1), hline(2, muted(), "dot", 1), hline(-2, muted(), "dot", 1),
-    hline(3, "#c53030", "dash", 1.6), hline(-3, "#c53030", "dash", 1.6), hline(0, ink(), "solid", 1.2)];
+  const shapes = segs.flatMap((g, k) => {
+    const band = (lo, hi, fill) => ({ type:"rect", ...ext(g, k), y0:g.cl + lo * g.s, y1:g.cl + hi * g.s, fillcolor:fill, line:{ width:0 }, layer:"below" });
+    const hline = (q, color, dash, width) => ({ type:"line", ...ext(g, k), y0:g.cl + q * g.s, y1:g.cl + q * g.s, line:{ color, dash, width } });
+    return [band(-1, 1, zC), band(1, 2, zB), band(-2, -1, zB), band(2, 3, zA), band(-3, -2, zA),
+      hline(1, muted(), "dot", 1), hline(-1, muted(), "dot", 1), hline(2, muted(), "dot", 1), hline(-2, muted(), "dot", 1),
+      hline(3, "#c53030", "dash", 1.6), hline(-3, "#c53030", "dash", 1.6), hline(0, ink(), "solid", 1.2)];
+  });
+  for (const g of segs.slice(1)) shapes.push({ type:"line", xref:"x", yref:"paper", x0: pts[g.i0].t, x1: pts[g.i0].t, y0:0, y1:1,
+    line:{ color: muted(), dash:"dot", width:1.2 } });   // a new week's limits start here
+  if (!one) $("limbasis").textContent = `Limits change after each complete week: ${segs.map(g => g.basis).join("; ")}.`;
   const evs = (info.events || []).filter(e => e.station === sid && $("start").value <= e.day && e.day <= $("end").value);
   const plus = (t, m) => { const v = hours(t) * 60 + m; return `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`; };
   for (const e of evs) shapes.push({ type:"rect", xref:"x", yref:"paper", x0:`${e.day}T${e.from}`, x1:`${e.day}T${plus(e.to, Math.floor(info.settings.interval_min / 2))}`,
@@ -576,7 +605,9 @@ function renderSpc() {
     right(3, `UCL +3σ (${fmt(cl + 3 * s, 2)})`), right(-3, `LCL −3σ (${fmt(cl - 3 * s, 2)})`), right(0, `CL (${fmt(Math.abs(cl) < 0.005 ? 0 : cl, 2)})`),
     ...evs.map(e => ({ x:`${e.day}T${e.from}`, xanchor:"left", yref:"paper", y:1.0, yanchor:"bottom", showarrow:false,
                        text:`planted: ${e.kind.replace("_", " ")}`, font:{ size:11, color:"#6250d6" } }))];
-  const yr = Math.max(3.8 * s, ...pts.map(p => Math.abs(p.residual - cl) + 1.0 * s));
+  const lo = Math.min(...segs.map(g => g.cl - 3.8 * g.s), ...pts.map((p, i) => p.residual - segOf[i].s));
+  const hi = Math.max(...segs.map(g => g.cl + 3.8 * g.s), ...pts.map((p, i) => p.residual + segOf[i].s));
+  const yr = Math.max(cl - lo, hi - cl);
   const data = [{ x, y: pts.map(p => p.residual), name:"net flow vs usual", mode:"lines+markers", showlegend:false,
     line:{ color: line, width:1.6 }, marker:{ size:5, color: line },
     text: pts.map(p => `${p.t.slice(11)}: ${fmt(p.x)} vs usual ${fmt(p.expected, 1)} (${p.z >= 0 ? "+" : ""}${fmt(p.z, 1)}σ)`),
@@ -584,9 +615,10 @@ function renderSpc() {
   for (const t of TESTS) {                       // a flagged point shows the symbol of the first test it fired
     const mine = pts.filter(p => p.signals.length && firstTest(p.signals) === t);
     if (!mine.length) continue;
+    const segCl = p => segOf[pts.indexOf(p)].cl;
     data.push({ x: mine.map(p => p.t), y: mine.map(p => p.residual), name: t[4].split(":")[0], mode:"markers+text",
       marker:{ symbol: t[1], size: t[0] === "mr" ? 13 : 13, color: testColor(t), line:{ color: dark() ? "#171a21" : "#ffffff", width: t[0] === "mr" ? 2.5 : 1.5 } },
-      text: mine.map(p => p.signals.map(testNo).join(",")), textposition: mine.map(p => p.residual >= cl ? "top center" : "bottom center"),
+      text: mine.map(p => p.signals.map(testNo).join(",")), textposition: mine.map(p => p.residual >= segCl(p) ? "top center" : "bottom center"),
       textfont:{ size:11, color: ink() }, cliponaxis:false,
       customdata: mine.map(p => `<b>${p.t.slice(11)}</b>: ${fmt(p.x)} vs usual ${fmt(p.expected, 1)} (${p.z >= 0 ? "+" : ""}${fmt(p.z, 1)}σ)<br>` + p.reasons.join("<br>")),
       hovertemplate:"%{customdata}<extra></extra>" });
@@ -594,8 +626,9 @@ function renderSpc() {
   plot("spcI", data, theme({ height:380, shapes, annotations, margin:{ t:22, r:118, b:44, l:56 }, xaxis: xaxis(),
     legend:{ orientation:"h", y:-0.16, font:{ size:11 } },
     yaxis:{ title:`bikes per ${info.settings.interval_min} min vs usual`, range:[cl - yr, cl + yr], zeroline:false, gridcolor: grid(),
-            tickvals:[-3, -2, -1, 0, 1, 2, 3].map(k => cl + k * s), ticktext:["−3σ", "−2σ", "−1σ", "0", "+1σ", "+2σ", "+3σ"] } }));
+            ...(one ? { tickvals:[-3, -2, -1, 0, 1, 2, 3].map(k => cl + k * s), ticktext:["−3σ", "−2σ", "−1σ", "0", "+1σ", "+2σ", "+3σ"] } : {}) } }));
   const mp = pts.filter(p => p.mr !== null), mf = mp.filter(p => p.signals.includes("mr")), mrT = TESTS[8];
+  const { mrU, mrB } = segs[segs.length - 1];
   plot("spcMR", [
     { x: mp.map(p => p.t), y: mp.map(p => p.mr), name:"moving range", mode:"lines+markers", line:{ color: line, width:1.4 }, marker:{ size:4, color: line },
       hovertemplate:"MR %{y:.2f}<extra></extra>" },
@@ -603,10 +636,11 @@ function renderSpc() {
       marker:{ symbol: mrT[1], size:13, color: testColor(mrT), line:{ color: testColor(mrT), width:2.5 } }, hoverinfo:"skip" }],
     theme({ height:180, showlegend:false, margin:{ t:8, r:118, b:30, l:56 }, xaxis: xaxis(),
       yaxis:{ title:"MR", rangemode:"tozero", gridcolor: grid() },
-      shapes:[{ type:"line", xref:"paper", x0:0, x1:1, y0:lim.mr_ucl, y1:lim.mr_ucl, line:{ color:"#c53030", dash:"dash", width:1.6 } },
-              { type:"line", xref:"paper", x0:0, x1:1, y0:lim.mr_bar, y1:lim.mr_bar, line:{ color: ink(), width:1.2 } }],
-      annotations:[{ xref:"paper", x:1.006, xanchor:"left", y:lim.mr_ucl, text:`UCL (${fmt(lim.mr_ucl, 2)})`, showarrow:false, font:{ size:11, color:muted() } },
-                   { xref:"paper", x:1.006, xanchor:"left", y:lim.mr_bar, text:`MR̄ (${fmt(lim.mr_bar, 2)})`, showarrow:false, font:{ size:11, color:muted() } }] }));
+      shapes: segs.flatMap((g, k) => [
+        { type:"line", ...ext(g, k), y0:g.mrU, y1:g.mrU, line:{ color:"#c53030", dash:"dash", width:1.6 } },
+        { type:"line", ...ext(g, k), y0:g.mrB, y1:g.mrB, line:{ color: ink(), width:1.2 } }]),
+      annotations:[{ xref:"paper", x:1.006, xanchor:"left", y:mrU, text:`UCL (${fmt(mrU, 2)})`, showarrow:false, font:{ size:11, color:muted() } },
+                   { xref:"paper", x:1.006, xanchor:"left", y:mrB, text:`MR̄ (${fmt(mrB, 2)})`, showarrow:false, font:{ size:11, color:muted() } }] }));
 }
 
 function renderScorecard() {
@@ -615,7 +649,7 @@ function renderScorecard() {
   if ($("scorewrap").hidden) return;
   const d = sc.v, pct = v => v === null || v === undefined ? "-" : `${(100 * v).toFixed(1)}%`;
   $("scorehow").innerHTML = `The simulation hid these problems in ${esc(evs[0].day)}'s data on purpose. Did the red dots go off when they started? ` +
-    `(Normal is learned from ${limitsMode === "rolling" ? "the last 7 clean days before each day" : "week 1, when no van ran"}.) ` +
+    `(Normal is learned from ${limitsMode === "phase" ? "the previous complete week" : limitsMode === "rolling" ? "the last 7 clean days before each day" : "week 1, when no van ran"}.) ` +
     `On the ordinary days ${esc(d.quiet_days[0])} to ${esc(d.quiet_days[d.quiet_days.length - 1])} the same chart flags <b>${pct(d.false_alarm_rate_tests_only)}</b> of readings by the eight tests ` +
     `(${pct(d.false_alarm_rate)} with the MR chart), so one flag on its own is a prompt to look, not proof.`;
   $("scorecards").innerHTML = d.events.map(e => {
@@ -1013,6 +1047,27 @@ function planTable(id, p) {
       <td><span class="pill ${r.priority}">${r.priority}</span> ${esc(r.reason)}<div class="how">${esc(r.projection_basis)}</div></td></tr>`).join("");
 }
 function schedulePlan() { if (planBusy) { planAgain = true; return; } loadPlans(); }
+/* Weekly availability (Aayam's plan/weekly): each complete week's out-of-range share against the previous
+   week's 3-sigma p-chart limits. Nothing is computed here. */
+let weeklySignature = null;
+function renderWeeklyDeviation(review) {
+  const weeks = review.weeks || [];
+  if (!weeks.length) return emptyChart("weeklydeviation", "Complete weeks will appear here");
+  const x = weeks.map(w => w.label);
+  const dot = w => w.status === "worse" ? "#e5484d" : w.week === review.best_week ? "#45e3ff" : w.status === "improved" ? "#a163f7" : "#6f88fc";
+  const traces = [{ type:"scatter", mode:"lines+markers", name:"weekly out-of-range share", x, y: weeks.map(w => w.rate * 100),
+    line:{ color:"#6f88fc", width:2.5 }, marker:{ color: weeks.map(dot), size:11, line:{ color:"#ffffff", width:2 } },
+    customdata: weeks.map(w => [w.status, w.defects, w.readings, w.week - 1]),
+    hovertemplate:"%{x}<br>%{y:.2f}% outside 20-80%<br>%{customdata[1]} of %{customdata[2]} readings<br>%{customdata[0]} vs Week %{customdata[3]}'s limits<extra></extra>" }];
+  for (const [key, name, color, dash] of [["ucl", "UCL (+3σ)", "#c53030", "dash"], ["center", "centre (last week)", ink(), "dot"], ["lcl", "LCL (−3σ)", "#c53030", "dash"]])
+    traces.push({ type:"scatter", name, x, y: weeks.map(w => w[key] == null || w.status === "baseline" ? null : w[key] * 100),
+      mode:"lines+markers", marker:{ size:4, color }, line:{ color, dash, width:1.4 }, connectgaps:false, hovertemplate:`%{x}<br>${name}: %{y:.2f}%<extra></extra>` });
+  plot("weeklydeviation", traces, theme({ height:320, margin:{ t:40, r:22, b:48, l:58 },
+    title:{ text:`Lowest: Week ${review.best_week ?? "-"} · ${review.stable_week ? `stable from Week ${review.stable_week}` : "still settling"}`,
+            x:0.01, xanchor:"left", font:{ size:14, color: ink() } },
+    xaxis:{ gridcolor: grid() }, yaxis:{ title:"readings outside range", ticksuffix:"%", rangemode:"tozero", gridcolor: grid() },
+    legend:{ orientation:"h", y:-0.2 } }));
+}
 /* Redistribution for tomorrow: a route map (stations at their places, an arrow per move, thicker = more
    bikes) and a planning table, both straight from the 10 PM plan (plan/overnight). Nothing is computed here. */
 function clearTomorrow(message) {
@@ -1125,6 +1180,11 @@ async function loadPlans() {
       }
     }
   } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; $("nightpicture").innerHTML = ""; emptyChart("nightbars", ""); $("night").innerHTML = ""; }
+  try {
+    const review = await get("plan/weekly", { through: $("end").value });
+    const signature = JSON.stringify([city, review.through, review.weeks.map(w => [w.week, w.rate, w.status])]);
+    if (signature !== weeklySignature) { renderWeeklyDeviation(review); weeklySignature = signature; }
+  } catch (e) { emptyChart("weeklydeviation", e.message); weeklySignature = null; }
   planBusy = false;
   if (planAgain) { planAgain = false; loadPlans(); }
 }
@@ -1187,7 +1247,7 @@ function paintSync(state, status, detail = "") {
 function validSimulationState(s) {
   return !!s && s.type === "sixsigma.simulation-state" && s.version === 1 &&
     ["ready", "loading", "error"].includes(s.status) && typeof s.city === "string" &&
-    ["week1", "week2", "event"].includes(s.scenario) && Number.isInteger(s.day_index) && s.day_index >= 0 &&
+    (s.scenario === "event" || /^week[1-9]\d*$/.test(s.scenario)) && Number.isInteger(s.day_index) && s.day_index >= 0 &&
     ["replay", "live"].includes(s.source) && Number.isInteger(s.interval_minutes) && s.interval_minutes > 0 &&
     typeof s.playing === "boolean" && typeof s.reason === "string" && Array.isArray(s.stations) &&
     (s.status === "ready" ? (/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(s.as_of || "") &&

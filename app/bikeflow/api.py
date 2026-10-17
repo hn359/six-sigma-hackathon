@@ -192,7 +192,7 @@ async def flow(station: Optional[List[str]] = Query(None), start: Optional[str] 
 @router.get("/spc")
 async def spc(station: str, start: str, end: str, measure: str = "net_flow",
               day_type: Optional[str] = None, dataset: Optional[str] = None, limits: Optional[str] = None):
-    """limits: rolling (default: the last 7 clean days before each day) or week1 (fixed)."""
+    """limits: phase (default: previous complete week), rolling (last 7 days) or week1 (fixed)."""
     ds = _ds(dataset)
     if station not in ds.stations():
         raise HTTPException(400, f"unknown station {station!r}; known: {ds.stations()}")
@@ -213,5 +213,11 @@ async def plan_endpoint(at: str, depot_bikes: Optional[int] = None, dataset: Opt
 
 @router.get("/plan/overnight")
 async def plan_overnight(day: str, depot_bikes: Optional[int] = None, dataset: Optional[str] = None):
-    """The 10 PM plan for the next morning's opening."""
+    """The next week's learned 10 PM plan for the following morning's opening."""
     return _guard(plan.plan_overnight, _ds(dataset), _day(day), depot_bikes)
+
+
+@router.get("/plan/weekly")
+async def weekly_plan_review(through: str, dataset: Optional[str] = None):
+    """Complete-week out-of-spec rates and whether weekly performance has stabilized."""
+    return _guard(plan.weekly_deviation, _ds(dataset), _day(through))
