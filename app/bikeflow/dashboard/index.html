@@ -25,6 +25,17 @@
   h3 { margin:16px 0 4px; font-size:14px; font-weight:600; }
   .eyebrow { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent); margin-bottom:2px; }
   .sub { color:var(--mute); margin:0 0 12px; }
+  /* read-only time bar on top of each section: follows the replay clock, never dragged */
+  .tbar { display:flex; align-items:center; gap:10px; margin:0 0 14px; font-size:12px; color:var(--mute); }
+  .tbar .track { position:relative; flex:1; height:6px; margin-bottom:6px; border-radius:3px; background:var(--line); }
+  .tbar .fill { position:absolute; left:0; top:0; bottom:0; border-radius:3px; background:var(--accent); opacity:.45; }
+  .tbar .knob { position:absolute; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%;
+                background:var(--accent); box-shadow:0 0 0 2px var(--card); }
+  .tbar .rush { position:absolute; top:calc(100% + 3px); height:3px; border-radius:2px; background:#ffb020; min-width:3px; }
+  .tbar .t { font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink); white-space:nowrap; }
+  .tbar .rb { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap;
+              font-variant-numeric:tabular-nums; padding:2px 8px; border-radius:999px; background:#ffb020; color:#111827; }
+  .tbar .rb.off { visibility:hidden; }
   .kpis { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); margin:12px 0 4px; }
   .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
   .kpi .v { font-size:24px; font-weight:700; line-height:1.15; letter-spacing:-.01em; }
@@ -325,6 +336,62 @@ function showClock() {
   const d = new Date($("end").value + "T00:00");
   $("clock").textContent = `${d.toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short" })} ${slotTime(+$("slot").value)}`;
 }
+
+/* ---- a read-only copy of the time bar on top of every section (the slider above stays the only control) ----
+   Rush windows: the console's /summary rush_slots (readings whose usual |net flow| is at least 1.5x the
+   day's mean, learned from week 1), joined when less than an hour apart exactly like its time bar
+   (app/frontend/src/dispatch/rush.js). Without the console: this page's own rush hours (Settings). */
+let rushWins = [];
+function joinRush(slots, maxGap) {
+  const out = [];
+  for (const k of [...new Set(slots)].sort((a, b) => a - b)) {
+    const last = out[out.length - 1];
+    if (last && k - last[1] <= maxGap) last[1] = k; else out.push([k, k]);
+  }
+  return out;
+}
+function slotIndex(hm) {
+  const s = info.settings, [h, m] = hm.split(":").map(Number), [oh, om] = s.open_time.split(":").map(Number);
+  return Math.round((h * 60 + m - oh * 60 - om) / s.interval_min);
+}
+async function loadRush() {
+  const forCity = city, s = info.settings;
+  let slots = null;
+  try {
+    const r = await fetch(`${BASE}summary?dataset=${encodeURIComponent(forCity)}`);
+    if (r.ok) { const b = await r.json(); if (Array.isArray(b.rush_slots)) slots = b.rush_slots; }
+  } catch (e) { /* no console on this server: use the settings below */ }
+  if (!slots) {                                  // [start, end) windows from Settings, e.g. 07:00-10:00
+    slots = [];
+    for (const w of [s.morning_rush, s.evening_rush].filter(Boolean))
+      for (let k = Math.max(0, slotIndex(w[0])); k < Math.min(slotIndex(w[1]), +$("slot").max + 1); k++) slots.push(k);
+  }
+  if (forCity !== city) return;                  // the city changed while this was loading
+  rushWins = joinRush(slots, Math.max(1, Math.ceil(60 / s.interval_min) - 1));
+  const max = Math.max(1, +$("slot").max);
+  const segs = rushWins.map(([a, b]) => `<span class="rush" title="Rush hour ${slotTime(a)}-${slotTime(b)}"
+      style="left:${(a / max) * 100}%;width:${((b - a) / max) * 100}%"></span>`).join("");
+  document.querySelectorAll(".tbar .rushes").forEach(el => el.innerHTML = segs);
+  renderTimeBars();
+}
+function renderTimeBars() {
+  if (!info) return;
+  const k = +$("slot").value, max = Math.max(1, +$("slot").max), pct = (k / max) * 100;
+  const w = rushWins.find(([a, b]) => a <= k && k <= b), shown = w || rushWins[0];
+  const text = shown ? `Rush hour ${slotTime(shown[0])}-${slotTime(shown[1])}` : "";
+  document.querySelectorAll(".tbar").forEach(bar => {
+    bar.querySelector(".fill").style.width = `${pct}%`;
+    bar.querySelector(".knob").style.left = `${pct}%`;
+    bar.querySelector(".t").textContent = slotTime(k);
+    const rb = bar.querySelector(".rb");
+    rb.textContent = text; rb.classList.toggle("off", !w); rb.hidden = !shown;
+    bar.setAttribute("aria-label", `Replay time ${slotTime(k)}${w ? ", rush hour" : ""}`);
+  });
+}
+document.querySelectorAll("main > section").forEach(sec => sec.insertAdjacentHTML("afterbegin",
+  `<div class="tbar" role="img"><div class="track"><div class="rushes"></div><div class="fill"></div><div class="knob"></div></div>` +
+  `<span class="t">-</span><span class="rb off"></span></div>`));
+
 const hours = t => +t.slice(0, 2) + +t.slice(3) / 60;
 function xaxis(extra = {}) {            // a real time axis; the hours the network is closed are skipped
   const s = info.settings, multi = $("start").value !== $("end").value;
@@ -363,7 +430,7 @@ function setInfo(body) {
   $("status").className = "msg";
   $("status").textContent = `${body.dataset_name || body.dataset || ""}: ${body.stations.length} stations, ${days.length} days (${days[0]} to ${days[days.length - 1]}), ${body.readings} readings every ${s.interval_min} min (${s.open_time}-${s.close_time}); fleet ${s.fleet}, spec ${Math.round(s.band_low_share * 100)}-${Math.round(s.band_high_share * 100)}% of each station's docks. ` +
     `Net flow: ${body.flow_source}.` + (body.issue_count ? ` ${body.issue_count} rows skipped (first: ${body.issues[0]})` : "");
-  loadAll();
+  loadAll(); loadRush();
   if (FOLLOW && simulationState) applySimulationState(simulationState, ++syncValidationId);
 }
 
@@ -406,7 +473,7 @@ async function hisFrames(day) {
 /* ---- rendering (clipped to the replay clock; no network) ---- */
 function render() {
   if (!cache.inv) return;                   // the first load has not arrived yet
-  showClock();
+  showClock(); renderTimeBars();
   renderBoard(); renderDays(); renderHeat(); renderScorecard(); renderKpis(); scheduleTrips();
   renderSpc(); renderSignalMap();
   schedulePlan();
@@ -1109,7 +1176,8 @@ if (FOLLOW) {
   $("console-wrap").hidden = false;
   // ?dataset= opens his console on that city; the charts below then follow whatever it shows
   const wantCity = new URLSearchParams(location.search).get("dataset");
-  $("console").src = BASE + (wantCity ? `?dataset=${encodeURIComponent(wantCity)}` : "");
+  // index.html: on the combined server / is the home page, and his console is index.html
+  $("console").src = BASE + "index.html" + (wantCity ? `?dataset=${encodeURIComponent(wantCity)}` : "");
   $("subtitle").textContent = "Following the console above: every chart, signal and plan shows its day up to its current reading.";
   paintSync(null, "loading", "Waiting for a fresh, versioned state message from the simulation.");
   window.addEventListener("message", onSimulationMessage);

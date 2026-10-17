@@ -196,6 +196,47 @@ tasks:
       the replay is inside one.
     result: "Amber rush bands under the slider (collegetown 07:00-09:15, 16:00-18:30) and a Rush hour badge; slider keeps one width while dragging or playing; vitest 52 passed, build ok."
 
+  - id: H-12
+    title: Read-only time bar at the top of each BikeFlow section
+    points: "supports 25 - an effective, working tool (every section shows which moment it describes)"
+    status: done
+    owner: "Jim + Claude"
+    started_at: "2026-10-17"
+    owns: ["app/bikeflow/dashboard/index.html"]
+    notes: >
+      Presentation only; the console's slider stays the only control. Each section (01-07)
+      gets a bar that follows the page's replay clock: progress through the day, the rush
+      windows (the console's /summary rush_slots joined like H-11's rush.js; Jasmine's
+      Settings 07-10 and 16-19 when the page runs without the console) and a Rush hour
+      badge. The dashboard is also listed under H-10 (Aayam): only the new bar is added.
+    definition_of_done: >
+      On /side-by-side, every section 01-07 shows a bar whose time equals the console's,
+      that moves when the console's slider is dragged, cannot itself be dragged, and shows
+      collegetown's rush windows 07:00-09:15 and 16:00-18:30; no new browser console errors;
+      pytest tests/test_bikeflow_combined.py still passes.
+    result: "Every section 01-07 has a read-only bar that follows the console (08:15 shows Rush hour in all 7, 12:00 none); collegetown rush 07:00-09:15, 16:00-18:30; combined tests 25 passed."
+
+  - id: H-13
+    title: Home page with two tabs - Documentation and Tool
+    points: "supports 10 - Tool Documentation, and 10 - demo (one front door for judges and dispatchers)"
+    status: done
+    owner: "Jim + Claude"
+    started_at: "2026-10-17"
+    owns: ["app/bikeflow/home.html", "app/bikeflow/combined.py", "app/bikeflow/dashboard/index.html", "tests/test_bikeflow_combined.py"]
+    notes: >
+      The combined server's / becomes the home page: a Documentation tab (team and authors,
+      how a dispatcher uses the tool, what it decides, the statistics, where the data comes
+      from, results, limits, how to run it) and a Tool tab that opens /side-by-side. Yash's
+      console moves to /index.html (only the side-by-side iframe and two tests load it).
+      Numbers on the page are the current API's (kpis, 80/20 starts). The Posit Connect
+      deploy still uses app:app (console only); deploying the combined app is separate.
+    definition_of_done: >
+      pytest tests/test_bikeflow_combined.py passes, including a new test that / serves the
+      home page with both tabs and /index.html serves the console; in a browser both tabs work,
+      the Tool tab shows the console and the BikeFlow sections following it, and there are
+      no new console errors.
+    result: "/ is the home page: Documentation tab (authors, repo link, dispatcher guide, decisions, statistics, data, results, limits, run it) and Tool tab (/side-by-side); console at /index.html; combined tests 25 passed."
+
   - id: H-08
     title: Reproducible public repo, submitted on Devpost
     points: "5 - Tool Documentation: fully reproducible code, posted publicly to GitHub"

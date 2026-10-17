@@ -1,4 +1,4 @@
-"""The combined server: Yash's console and API unchanged at /, BikeFlow beside it."""
+"""The combined server: the home page at /, Yash's console at /index.html and his API unchanged, BikeFlow beside it."""
 
 from pathlib import Path
 import re
@@ -71,17 +71,26 @@ def test_every_scenario_has_an_exact_matching_station_snapshot(city, scenario):
     assert actual == expected
 
 
-def test_his_console_is_served_at_root_when_built():
+def test_home_page_has_documentation_and_tool_tabs():
+    r = client.get("/")
+    assert r.status_code == 200
+    assert 'id="tab-docs"' in r.text and 'id="tab-tool"' in r.text
+    assert '"side-by-side"' in r.text                 # the Tool tab opens the combined page
+    assert client.get("/home/images/how-the-van-decides.png").status_code == 200
+    assert client.get("/home/images/banner.png").status_code == 404     # only the docs' own images
+
+
+def test_his_console_is_served_at_index_html_when_built():
     if not DIST.exists():
         return                                   # build it with: cd app/frontend && npm ci && npm run build
-    r = client.get("/")
+    r = client.get("/index.html")
     assert r.status_code == 200 and '<div id="root">' in r.text
 
 
 def test_production_side_by_side_uses_versioned_state_and_exact_snapshot_checks():
     if not DIST.exists():
         return
-    console = client.get("/")
+    console = client.get("/index.html")
     scripts = re.findall(r'<script[^>]+src="([^"]+\.js)"', console.text)
     assert console.status_code == 200 and scripts
     asset = client.get("/" + scripts[0].removeprefix("./"))

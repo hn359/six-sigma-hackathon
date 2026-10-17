@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bikeshare Dispatch</title>
+<style>
+  :root { --bg:#f3f4f6; --card:#ffffff; --ink:#111827; --mute:#4b5563; --line:#e3e6eb; --accent:#1f5fbf;
+          --head:#0f1b2d; --rush:#ffb020; --soft:#eef3fb; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#eef0f3; --mute:#b4bac5; --line:#2a2f3a;
+            --accent:#7fb0f0; --head:#0b1220; --soft:#1b2433; } }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--ink);
+               font:15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { background:var(--head); color:#fff; }
+  header .in { max-width:1240px; margin:0 auto; padding:16px 20px 0; }
+  header h1 { margin:0; font-size:20px; letter-spacing:-.01em; }
+  header p { margin:2px 0 12px; color:#c3cddc; font-size:13px; }
+  header .repo { color:#fff; font-weight:600; } header .repo:hover { color:var(--rush); }
+  [role="tablist"] { display:flex; gap:4px; }
+  [role="tab"] { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:8px 8px 0 0;
+                 padding:9px 18px; background:transparent; color:#c3cddc; }
+  [role="tab"]:hover { color:#fff; }
+  [role="tab"][aria-selected="true"] { background:var(--bg); color:var(--ink); }
+  [role="tab"]:focus-visible { outline:2px solid var(--rush); outline-offset:-2px; }
+  #panel-tool iframe { display:block; width:100%; height:calc(100vh - 92px); border:0; background:var(--bg); }
+
+  .doc { max-width:880px; margin:0 auto; padding:28px 20px 64px; }
+  .doc nav { font-size:13px; color:var(--mute); margin:0 0 24px; display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .doc nav a { color:var(--accent); text-decoration:none; } .doc nav a:hover { text-decoration:underline; }
+  .doc section { margin:0 0 34px; }
+  .eyebrow { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent); }
+  .doc h2 { margin:2px 0 10px; font-size:20px; letter-spacing:-.01em; }
+  .doc h3 { margin:18px 0 6px; font-size:15px; }
+  .doc p, .doc li { color:var(--ink); } .doc .mute { color:var(--mute); }
+  .doc a { color:var(--accent); }
+  .doc ol, .doc ul { padding-left:22px; } .doc li { margin:3px 0; }
+  .doc code { font:13px ui-monospace, SFMono-Regular, Menlo, monospace; background:var(--soft); padding:1px 5px; border-radius:4px; }
+  .doc pre { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow:auto; }
+  .doc pre code { background:none; padding:0; }
+  .doc table { width:100%; border-collapse:collapse; font-size:14px; margin:8px 0; }
+  .doc th, .doc td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .doc th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); }
+  .doc td.n { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .doc figure { margin:12px 0; } .doc figure img { width:100%; border-radius:8px; border:1px solid var(--line); background:#fff; }
+  .doc figcaption { font-size:13px; color:var(--mute); margin-top:4px; }
+  .doc .authors { display:flex; flex-wrap:wrap; gap:8px; padding:0; list-style:none; }
+  .authors li { background:var(--card); border:1px solid var(--line); border-radius:999px; padding:4px 14px; margin:0; font-weight:600; }
+  .note { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; }
+  .rushchip { background:var(--rush); color:#111827; font-size:11px; font-weight:700; text-transform:uppercase;
+              letter-spacing:.04em; padding:1px 7px; border-radius:999px; }
+  .go { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:8px; padding:9px 18px;
+        background:#1f5fbf; color:#fff; }
+  .go:hover { background:#1a4f9f; }
+  @media (max-width:600px) { [role="tab"] { padding:9px 12px; } .doc { padding:20px 16px 48px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="in">
+    <h1>Bikeshare Dispatch: where to send the van</h1>
+    <p>Battery Ninjas · Cornell Six Sigma Hackathon · Prompt 1, Urban Systems: "Bikeshare Fleets" ·
+      <a class="repo" href="https://github.com/hn359/six-sigma-hackathon" target="_blank" rel="noopener">GitHub repository</a></p>
+    <div role="tablist" aria-label="Home">
+      <button role="tab" id="tab-docs" aria-controls="panel-docs" aria-selected="true">Documentation</button>
+      <button role="tab" id="tab-tool" aria-controls="panel-tool" aria-selected="false" tabindex="-1">Tool</button>
+    </div>
+  </div>
+</header>
+
+<div role="tabpanel" id="panel-docs" aria-labelledby="tab-docs">
+<article class="doc">
+  <nav aria-label="On this page">
+    <a href="#about">About</a><a href="#use">How a dispatcher uses it</a><a href="#decide">What it decides</a>
+    <a href="#stats">The statistics</a><a href="#data">Where the data comes from</a><a href="#results">Results</a>
+    <a href="#limits">Limits</a><a href="#run">Run it</a>
+  </nav>
+
+  <section id="about">
+    <div class="eyebrow">About</div>
+    <h2>A control-chart dispatcher for bikeshare vans</h2>
+    <p>Bikeshare stations run empty or full at rush hour, and the rebalancing van is often sent blindly.
+      This tool watches every station at every reading. It sends the van when a station behaves
+      unusually for that time of day or leaves its healthy range, and it plans how many bikes each
+      station should start with the next morning.</p>
+    <p><b>User:</b> the dispatcher who runs one rebalancing van and a reserve depot of spare bikes.</p>
+    <h3>Authors</h3>
+    <ul class="authors"><li>Jim</li><li>Jasmine</li><li>Yash</li><li>Aayam</li><li>Sam</li></ul>
+    <p><b>Code:</b> <a href="https://github.com/hn359/six-sigma-hackathon" target="_blank" rel="noopener">github.com/hn359/six-sigma-hackathon</a></p>
+    <p class="note"><b>All data is simulated.</b> Three invented Ithaca networks, generated by our own
+      simulator. Nothing here is real ridership.</p>
+  </section>
+
+  <section id="use">
+    <div class="eyebrow">For the dispatcher</div>
+    <h2>How a dispatcher uses it</h2>
+    <ol>
+      <li><b>Open the Tool tab.</b> The map console is on top, the BikeFlow analysis sections below.</li>
+      <li><b>Pick a city and a day:</b> <i>Event day</i> (a day with planted problems),
+        <i>Week 2 · policy</i> (the van runs on our rules) or <i>Week 1 · no van</i> (the baseline), then a weekday.</li>
+      <li><b>Press Play or drag the time bar.</b> One reading per step; the speed menu sets how fast.
+        Amber bands under the bar mark the rush hours, and a <span class="rushchip">Rush hour</span>
+        badge shows while the replay is inside one. Every section below has the same bar and follows
+        the top one; only the top one can be dragged.</li>
+      <li><b>Read the map.</b> Each station card shows bikes docked out of its docks and its status
+        (in control, or the rule that fired). The ranked list on the right puts the station that
+        needs the van most at the top; the van drives to the stop it makes.</li>
+      <li><b>Scroll the BikeFlow sections:</b>
+        <ul>
+          <li><b>01 Station status</b>: how full each station is now, against the healthy range and a normal day.</li>
+          <li><b>02 Today at each station</b>: bikes through the day; red dots are unusual readings.</li>
+          <li><b>03 Rider flow</b>: which routes riders took, last hour or today.</li>
+          <li><b>04 Redistribution</b>: which bikes the van should move now, from where to where.</li>
+          <li><b>05 Tomorrow's bike plan</b>: the 10 PM plan that sets each station for the 6 AM opening.</li>
+          <li><b>06 Control chart</b>: the station's I-MR chart with the eight tests.</li>
+          <li><b>07 Validation</b>: whether the chart caught the problems we planted.</li>
+        </ul></li>
+      <li><b>One flag means look; repeated flags mean act.</b> Small counts make the chart flag more
+        often than 3σ suggests, so a single dot is a prompt to check, not proof.</li>
+    </ol>
+  </section>
+
+  <section id="decide">
+    <div class="eyebrow">The decisions</div>
+    <h2>What the tool decides</h2>
+    <h3>Every reading: does the van go, where, and how many bikes</h3>
+    <ol>
+      <li>For each station, compare its rider net flow with what is usual for that time slot.</li>
+      <li>The station <b>triggers</b> if a control-chart rule fires, or if it is outside 20%–80% of
+        its docks (a safety net for slow drifts).</li>
+      <li>The van moves the station back toward its expected level: at most 10 bikes, one stop per
+        reading, the station furthest from its expected level first.</li>
+      <li>Bikes come from (or go to) the station with the most to spare on the other side, then the reserve depot.</li>
+    </ol>
+    <figure>
+      <img src="home/images/how-the-van-decides.png" alt="Flowchart: count the bikes, check whether a station is acting strangely or is almost empty or full, then send the van to bring or take bikes" loading="lazy">
+      <figcaption>How the van decides. The version with every formula:
+        <a href="home/images/redistribution-flowchart.png">redistribution flowchart</a>.</figcaption>
+    </figure>
+    <h3>Every night: how many bikes each station starts with</h3>
+    <p>From week 1's average 06:00–10:00 net flow, the station riders leave most starts at 80% of its
+      docks, the one they arrive at most at 20%, and the rest in proportion between. In Collegetown that
+      gives starts of 15, 4, 16, 8 and 9 bikes (S01–S05). The plan is only published once week 1 is
+      fully observed.</p>
+  </section>
+
+  <section id="stats">
+    <div class="eyebrow">Statistics</div>
+    <h2>The statistics</h2>
+    <table>
+      <thead><tr><th>What</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Chart point</td><td>rider net flow in a slot (change in bikes minus the van's move) minus the
+          usual net flow for that slot over the baseline week. This removes the normal rush-hour drain, so
+          only unexplained variation is charted.</td></tr>
+        <tr><td>Control limits (I-MR)</td><td>σ = MR̄ / 1.128; limits = centre ± 3σ; moving-range UCL = 3.267 MR̄.
+          Learned from week 1 only (Phase I), then fixed.</td></tr>
+        <tr><td>Rules that send the van</td><td>Western Electric rules 1–4 (beyond 3σ; 2 of 3 beyond 2σ;
+          4 of 5 beyond 1σ; 8 in a row on one side), or the station outside 20%–80% of its docks.</td></tr>
+        <tr><td>Rules on the BikeFlow chart</td><td>the course's eight tests plus a moving range above its
+          limit. These are shown for analysis; the van currently acts on rules 1–4 above, so a dot below can
+          appear without a van visit.</td></tr>
+        <tr><td>Weekly review</td><td>a p-chart of each day's share of out-of-range readings: week 1 sets
+          p̄ and the limits, week 2 days are judged against them.</td></tr>
+        <tr><td>Rush hours</td><td>a slot is rush when the bikes riders move in or out of all stations is at
+          least 1.5× the day's average (week 1); rush slots less than an hour apart are joined.
+          Collegetown: 07:00–09:15 and 16:00–18:30.</td></tr>
+      </tbody>
+    </table>
+    <p class="mute">Assumptions: chart points roughly independent and normal; readings within a day are
+      correlated, so limits are a little tight; seven baseline days per slot average.</p>
+  </section>
+
+  <section id="data">
+    <div class="eyebrow">Data</div>
+    <h2>Where the data comes from</h2>
+    <p>Our simulator (<code>data/simulate.py</code>) plays out a small bikeshare city with a fixed random seed,
+      so every file can be rebuilt exactly.</p>
+    <ol>
+      <li><b>Riders:</b> at each reading, the number of rentals at a station is a Poisson draw with a rate
+        for that station and time of day (higher at rush hour).</li>
+      <li><b>Trips:</b> each rider rides to another station, picked with weights for that time of day:
+        homes to campus and offices in the morning, back in the evening.</li>
+      <li><b>Limits:</b> an empty station loses the rental; a full one sends the rider on to the emptiest station with room.</li>
+      <li><b>Three files per city:</b> week 1 with no van (the baseline), week 2 with the van running our
+        rules, and an event day with two planted problems (a slow drain and a crowd) to test the chart.</li>
+    </ol>
+    <table>
+      <thead><tr><th>City</th><th>Stations</th><th>Fleet</th><th>Readings</th><th>Story</th></tr></thead>
+      <tbody>
+        <tr><td>Collegetown</td><td class="n">5 × 20 docks</td><td class="n">100</td><td class="n">every 15 min, 06:00–21:45</td><td>student commute</td></tr>
+        <tr><td>Downtown</td><td class="n">6, 12–31 docks</td><td class="n">127</td><td class="n">every 10 min, 06:00–21:50</td><td>office commute</td></tr>
+        <tr><td>Waterfront</td><td class="n">4, 15–30 docks</td><td class="n">90</td><td class="n">every 15 min, 08:00–22:45</td><td>leisure, midday and evening peaks</td></tr>
+      </tbody>
+    </table>
+    <p><b>With real data:</b> most bikeshares publish GBFS. Saving <code>station_status</code> every 15
+      minutes gives the readings, <code>station_information</code> gives names, locations and docks, and
+      the van crew's log gives the van moves.</p>
+  </section>
+
+  <section id="results">
+    <div class="eyebrow">Results</div>
+    <h2>Did the policy work?</h2>
+    <table>
+      <thead><tr><th>City</th><th>Out-of-range readings, week 1 (no van)</th><th>Week 2 (our policy)</th></tr></thead>
+      <tbody>
+        <tr><td>Collegetown</td><td class="n">607</td><td class="n">165</td></tr>
+        <tr><td>Downtown</td><td class="n">838</td><td class="n">213</td></tr>
+        <tr><td>Waterfront</td><td class="n">186</td><td class="n">238</td></tr>
+      </tbody>
+    </table>
+    <p>The commuter cities improve by about three quarters. <b>Waterfront gets worse:</b> its leisure
+      demand has no morning commute, so the 80/20 overnight start built from 06:00–10:00 flow does not fit
+      it. On the Collegetown event day the BikeFlow chart flags the slow drain at 11:15 and the crowd at
+      18:15, inside both planted windows.</p>
+  </section>
+
+  <section id="limits">
+    <div class="eyebrow">Limits</div>
+    <h2>Known limits</h2>
+    <ul>
+      <li>Simulated data only; demand rates are invented and tuned, not fitted to a real system.</li>
+      <li>One van, one stop per reading, no travel time or van capacity.</li>
+      <li>Same demand every day: no weekends, weather or semester effects.</li>
+      <li>The history is learned once from week 1 and never updated.</li>
+      <li>Rush hours use net-flow activity, not rentals (the readings have no rental counts).</li>
+    </ul>
+  </section>
+
+  <section id="run">
+    <div class="eyebrow">Reproduce</div>
+    <h2>Run it yourself</h2>
+    <pre><code>git clone https://github.com/hn359/six-sigma-hackathon.git &amp;&amp; cd six-sigma-hackathon
+python3 -m venv .venv &amp;&amp; .venv/bin/pip install -r app/requirements.txt -r app/bikeflow/requirements.txt
+cd app/frontend &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ../..
+.venv/bin/python -m uvicorn app.bikeflow.combined:app --port 8000</code></pre>
+    <p>Then open <code>http://localhost:8000</code>. The API's interactive docs are at <code>/docs</code>.
+      Code, tests and the full technical README are in the
+      <a href="https://github.com/hn359/six-sigma-hackathon" target="_blank" rel="noopener">team repository</a>.</p>
+    <p><button class="go" type="button" data-open="tool">Open the tool</button></p>
+  </section>
+</article>
+</div>
+
+<div role="tabpanel" id="panel-tool" aria-labelledby="tab-tool" hidden>
+  <iframe id="tool" title="Bikeshare dispatch tool"></iframe>
+</div>
+
+<script>
+// Two tabs; #tool or #docs in the address picks one, so either can be linked directly.
+const tabs = { docs: document.getElementById("tab-docs"), tool: document.getElementById("tab-tool") };
+const panels = { docs: document.getElementById("panel-docs"), tool: document.getElementById("panel-tool") };
+function show(name, focus) {
+  for (const k of Object.keys(tabs)) {
+    const on = k === name;
+    tabs[k].setAttribute("aria-selected", on); tabs[k].tabIndex = on ? 0 : -1; panels[k].hidden = !on;
+  }
+  // load the tool only when it is first opened, so reading the docs costs nothing
+  if (name === "tool" && !document.getElementById("tool").src) document.getElementById("tool").src = "side-by-side";
+  if (focus) tabs[name].focus();
+  if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+}
+tabs.docs.addEventListener("click", () => show("docs"));
+tabs.tool.addEventListener("click", () => show("tool"));
+document.querySelector('[role="tablist"]').addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") show(tabs.docs.getAttribute("aria-selected") === "true" ? "tool" : "docs", true);
+});
+document.querySelectorAll("[data-open]").forEach(b => b.addEventListener("click", () => { show(b.dataset.open); scrollTo(0, 0); }));
+document.querySelectorAll('.doc nav a').forEach(a => a.addEventListener("click", e => {
+  e.preventDefault(); document.querySelector(a.getAttribute("href")).scrollIntoView({ behavior: "smooth" });
+}));
+show(location.hash === "#tool" ? "tool" : "docs");
+</script>
+</body>
+</html>

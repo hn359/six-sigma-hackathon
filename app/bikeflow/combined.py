@@ -2,7 +2,8 @@
 
     python -m uvicorn app.bikeflow.combined:app --port 8000      (from the repo root)
 
-  /                  his console and API (app/app.py and the built app/frontend/dist), unchanged
+  /                  home page: a Documentation tab and a Tool tab (the side-by-side page)
+  /index.html        his console (app/frontend/dist); his API routes are unchanged
   /side-by-side      his console on top; the BikeFlow charts below follow its day and time
   /bikeflow/         the BikeFlow charts on their own
   /api/bikeflow/...  the BikeFlow API
@@ -13,7 +14,7 @@ His console must be built once first: cd app/frontend && npm ci && npm run build
 from typing import Optional
 from urllib.parse import quote
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 
 from app.app import app as console          # his API and the built React console
@@ -24,6 +25,22 @@ from .server import HERE, load_default
 app = FastAPI(title="Ithaca bikeshare: dispatch console + BikeFlow charts", version="0.1.0")
 app.include_router(router)
 load_default()
+
+IMAGES = HERE.parent.parent / "docs" / "images"
+HOME_IMAGES = {"how-the-van-decides.png", "redistribution-flowchart.png"}   # the two the docs tab shows
+
+
+@app.get("/")
+async def home():
+    """The front door: Documentation and Tool tabs. His console itself is at /index.html."""
+    return FileResponse(HERE / "home.html")
+
+
+@app.get("/home/images/{name}")
+async def home_image(name: str):
+    if name not in HOME_IMAGES:
+        raise HTTPException(404, "not a documentation image")
+    return FileResponse(IMAGES / name)
 
 
 @app.get("/side-by-side")
