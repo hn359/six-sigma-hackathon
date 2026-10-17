@@ -2,6 +2,28 @@
 
 # 🚲 Bikeshare Dispatch: where to send the van (Battery Ninjas)
 
+> ## ▶ Run the demo
+>
+> You need **Python 3.11+** and **Node.js 20+**. In a terminal:
+>
+> ```bash
+> git clone https://github.com/hn359/six-sigma-hackathon.git
+> cd six-sigma-hackathon
+> ./demo.sh
+> ```
+>
+> Then open **http://localhost:8000**. The first run installs and builds (a minute or two); the map
+> needs internet for its street tiles.
+>
+> **What you'll see:** four tabs.
+> - **About:** what the tool does, how a dispatcher uses it, and the statistics.
+> - **Map and dispatch:** press **Play** or drag the time bar. It is the only control, and the other tabs follow it.
+>   Try **Event day** at 18:15 for a planted crowd at Schwartz Center.
+> - **Redistribution:** which bikes the van should move now.
+> - **SPC charts:** each station's day and its I-MR control chart.
+>
+> Windows: run `./demo.sh` from Git Bash. To run the tests instead: `./app/testme.sh`.
+
 **Prompt 1, Urban Systems: "Bikeshare Fleets".** Stations run empty or full at rush hour and
 rebalancing vans are sent blindly. This tool watches every station at every reading with a
 **control chart**. It sends the van only when a station behaves unusually or leaves its spec limits,
