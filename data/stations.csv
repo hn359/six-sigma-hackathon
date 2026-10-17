@@ -1,0 +1,6 @@
+station_id,name,lat,lon,capacity
+S01,North Campus (RPCC),42.4556,-76.4778,15
+S02,Main Campus (Ho Plaza),42.447,-76.4833,23
+S03,Fall Creek,42.4495,-76.4953,11
+S04,Downtown (Ithaca Commons),42.4392,-76.4964,19
+S05,Wegmans (Meadow St),42.4334,-76.5108,15
