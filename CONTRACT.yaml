@@ -204,17 +204,17 @@ tasks:
     started_at: "2026-10-17"
     owns: ["app/bikeflow/dashboard/index.html"]
     notes: >
-      Presentation only; the console's slider stays the only control. Each section (01-07)
+      Presentation only; the console's slider stays the only control. Each section (1-7)
       gets a bar that follows the page's replay clock: progress through the day, the rush
       windows (the console's /summary rush_slots joined like H-11's rush.js; Jasmine's
       Settings 07-10 and 16-19 when the page runs without the console) and a Rush hour
       badge. The dashboard is also listed under H-10 (Aayam): only the new bar is added.
     definition_of_done: >
-      On /side-by-side, every section 01-07 shows a bar whose time equals the console's,
+      On /side-by-side, every section 1-7 shows a bar whose time equals the console's,
       that moves when the console's slider is dragged, cannot itself be dragged, and shows
       collegetown's rush windows 07:00-09:15 and 16:00-18:30; no new browser console errors;
       pytest tests/test_bikeflow_combined.py still passes.
-    result: "Every section 01-07 has a read-only bar that follows the console (08:15 shows Rush hour in all 7, 12:00 none); collegetown rush 07:00-09:15, 16:00-18:30; combined tests 25 passed."
+    result: "Every section 1-7 has a read-only bar that follows the console (08:15 shows Rush hour in all 7, 12:00 none); collegetown rush 07:00-09:15, 16:00-18:30; combined tests 25 passed."
 
   - id: H-13
     title: Home page with two tabs - Documentation and Tool
@@ -236,6 +236,23 @@ tasks:
       the Tool tab shows the console and the BikeFlow sections following it, and there are
       no new console errors.
     result: "/ is the home page: Documentation tab (authors, repo link, dispatcher guide, decisions, statistics, data, results, limits, run it) and Tool tab (/side-by-side); console at /index.html; combined tests 25 passed."
+
+  - id: H-14
+    title: Section numbers without a leading zero (1, 2, 3 ... not 01, 02, 03), as a tested rule
+    points: "supports 10 - Tool Documentation (one consistent numbering across the tool and its docs)"
+    status: done
+    owner: "Jim + Claude"
+    started_at: "2026-10-17"
+    owns: ["app/bikeflow/dashboard/index.html", "app/bikeflow/home.html", "tests/test_section_numbers.py", "CLAUDE.md", "AGENTS.md"]
+    notes: >
+      Jim's rule, kept on every merge: section labels and references are written 1, 2, 3 (never
+      01, 02, 03). It governs only how section numbers are written; page logic and back-end
+      calculations stay whoever owns them. tests/test_section_numbers.py enforces it.
+    definition_of_done: >
+      pytest tests/test_section_numbers.py passes, including its own known answers (catches
+      "01 &middot;", "section 04" and "<b>05 "; ignores times like 06:15 and dates like 2026-10-05);
+      the BikeFlow page shows 1-7 and the docs tab refers to sections as 1-7.
+    result: "Sections read 1-7 on the BikeFlow page and in the docs tab; tests/test_section_numbers.py (13 checks) fails on a zero-padded number; rule added to CLAUDE.md and AGENTS.md."
 
   - id: H-08
     title: Reproducible public repo, submitted on Devpost

@@ -192,14 +192,14 @@
 </header>
 <main>
   <section>
-    <div class="eyebrow">01 &middot; Station status</div><h2>Which stations need attention right now?</h2>
+    <div class="eyebrow">1 &middot; Station status</div><h2>Which stations need attention right now?</h2>
     <p class="how">Each bar is one station: how full it is right now. The <b style="color:#0a7d0a">green zone</b> is the healthy range
       (not too empty, not too full). The <b>black tick</b> is where the station should be at this time on a normal day.</p>
     <div class="board" id="board"></div>
   </section>
 
   <section>
-    <div class="eyebrow">02 &middot; Today at each station</div><h2>How each station's day is going</h2>
+    <div class="eyebrow">2 &middot; Today at each station</div><h2>How each station's day is going</h2>
     <p class="how"><b>Solid line</b> = bikes at the station so far today. <b>Dashed line</b> = a normal day.
       <b style="color:#0a7d0a">Green band</b> = healthy range. <b style="color:#d03b3b">Red dot</b> = something unusual happened (hover to see what).
       &#9650; / &#9660; = the van dropped off / picked up bikes.</p>
@@ -207,7 +207,7 @@
   </section>
 
   <section>
-    <div class="eyebrow">03 &middot; Rider flow</div><h2>Where are riders going?</h2>
+    <div class="eyebrow">3 &middot; Rider flow</div><h2>Where are riders going?</h2>
     <p class="how">Each box counts the trips from one station (row) to another (column). <b>The darker the box, the more riders made that trip.</b>
       Totals: how many rides left each station, and how many arrived at each.</p>
     <div class="seg" id="odwin"><button type="button" data-win="hour">Last hour</button><button type="button" data-win="day" class="on">Today so far</button></div>
@@ -223,7 +223,7 @@
   </section>
 
   <section>
-    <div class="eyebrow">04 &middot; Redistribution</div><h2>What the van should do now</h2>
+    <div class="eyebrow">4 &middot; Redistribution</div><h2>What the van should do now</h2>
     <p class="how" id="planhow">The moves for the time on the clock, most urgent first.</p>
     <div class="moves" id="planmoves"></div>
     <h3>Bikes at each station: now and after these moves</h3>
@@ -233,7 +233,7 @@
   </section>
 
   <section>
-    <div class="eyebrow">05 &middot; Tomorrow's bike plan</div><h2>Use Week 1's pattern to set bikes tonight</h2>
+    <div class="eyebrow">5 &middot; Tomorrow's bike plan</div><h2>Use Week 1's pattern to set bikes tonight</h2>
     <p class="how">Week 1 teaches us where morning rides start and end. After Week 1, each night the van uses that pattern to set tomorrow's bikes by 10 PM. Stations are ready for riders at 6 AM.</p>
     <div class="night-steps" aria-label="How the overnight plan works">
       <div class="night-step"><b>Week 1</b> learn the pattern</div><div class="night-step"><b>10 PM</b> move the bikes</div><div class="night-step"><b>6 AM</b> stations are ready</div>
@@ -249,7 +249,7 @@
   </section>
 
   <section>
-    <div class="eyebrow">06 &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
+    <div class="eyebrow">6 &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
     <p class="how">Each point is the station's rider net flow in one reading minus what is usual at that time of day (learned from week 1, when no van ran).
       Around the centre line, <b>Zone C</b> is within 1&sigma;, <b>Zone B</b> 1&ndash;2&sigma; and <b>Zone A</b> 2&ndash;3&sigma;; the dashed red lines are the
       3&sigma; control limits (course lesson 5: &sigma; = MR&#772; / 1.128, MR UCL = 3.267 MR&#772;). A point that completes one of the eight tests gets that
@@ -267,7 +267,7 @@
   </section>
 
   <section>
-    <div class="eyebrow">07 &middot; Validation</div><h2>Does the warning system catch real problems?</h2>
+    <div class="eyebrow">7 &middot; Validation</div><h2>Does the warning system catch real problems?</h2>
     <div id="scorewrap" hidden>
       <p class="how" id="scorehow"></p>
       <div class="moves" id="scorecards"></div>
