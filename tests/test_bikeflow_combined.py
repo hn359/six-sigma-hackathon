@@ -92,7 +92,7 @@ def test_home_page_has_four_tabs_over_one_tool_page():
     assert 'data-sub="night"' in page and 'data-sub="night-tomorrow"' in page and 'id="tmmap"' in page
     assert 'class="not-in-tabs"' in page                # the hour-by-hour heatmap: full page only
     # Aayam's logic in Jasmine's layout: phase limits by default, the weekly p-chart in tomorrow's sub-tab
-    assert 'data-lim="phase" class="on"' in page and 'id="weeklydeviation"' in page and '"plan/weekly"' in page
+    assert 'data-lim="phase" class="on"' in page and 'id="weeklydeviation"' in page and 'id="weeklyplan"' in page and '"plan/weekly"' in page
     assert client.get("/home/images/how-the-van-decides.png").status_code == 200
     assert client.get("/home/images/hero-bikes.jpg").status_code == 200   # the banner photo
     assert 'class="hero"' in r.text and "CC BY-SA 4.0" in r.text           # banner on every tab, credited

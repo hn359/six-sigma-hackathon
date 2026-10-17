@@ -275,6 +275,10 @@
         <p class="how">Positive moves mean the station receives bikes; negative moves mean bikes are taken away.</p>
         <p class="how" id="tmnote"></p></div>
     </div>
+    <h3>Weekly redistribution: each week learns from the one before</h3>
+    <p class="how">The plan used every night of the coming week: each station's bikes at 10 PM tonight next to its 6 AM opening count,
+      learned from the previous complete week.</p>
+    <div id="weeklyplan" aria-label="Next week's opening bike plan"></div>
     <h3>Is each week better than the last? (weekly p-chart)</h3>
     <p class="how">Each point is a complete week's share of station readings outside the 20&ndash;80% dock range (lower is better), judged
       against the previous week's 3&sigma; p-chart limits. Two weeks in a row inside those limits = the plan has settled (stable, which is
@@ -1050,6 +1054,25 @@ function schedulePlan() { if (planBusy) { planAgain = true; return; } loadPlans(
 /* Weekly availability (Aayam's plan/weekly): each complete week's out-of-range share against the previous
    week's 3-sigma p-chart limits. Nothing is computed here. */
 let weeklySignature = null;
+/* Aayam's weekly redistribution chart: 10 PM count vs the learned 6 AM plan for the coming week (plan/overnight) */
+function renderWeeklyPlan(p) {
+  const rows = info.stations.map(sid => p.rows.find(r => r.station_id === sid)).filter(Boolean);
+  if (!rows.length) return emptyChart("weeklyplan", "The next plan appears after a complete week");
+  const b = p.baseline || {}, names = rows.map(r => stName(r.station_id));
+  plot("weeklyplan", [
+    { type:"bar", orientation:"h", name:"10 PM count", y: names, x: rows.map(r => r.bikes),
+      marker:{ color: dark() ? "#77766f" : "#c9c8c2" }, text: rows.map(r => r.bikes), textposition:"outside", cliponaxis:false,
+      textfont:{ color: muted() }, hovertemplate:"%{y}<br>10 PM: %{x} bikes<extra></extra>" },
+    { type:"bar", orientation:"h", name:"6 AM plan", y: names, x: rows.map(r => r.after),
+      marker:{ color: rows.map(r => stationColor(r.station_id)) }, text: rows.map(r => `<b>${r.after}</b>`), textposition:"outside", cliponaxis:false,
+      textfont:{ color: ink() }, hovertemplate:"%{y}<br>6 AM plan: %{x} bikes<extra></extra>" }
+  ], theme({
+    title:{ text:`Week ${b.target_week ?? "next"} plan · learned from Week ${b.week_number ?? "previous"}${p.feasible === false ? " · closest possible" : ""}`,
+            x:0.01, xanchor:"left", font:{ size:14, color: ink() } },
+    barmode:"group", bargap:0.27, height: Math.max(280, 90 + rows.length * 48), margin:{ t:44, r:40, b:54, l:10 },
+    xaxis:{ title:"bikes at each station", rangemode:"tozero", gridcolor: grid() },
+    yaxis:{ automargin:true, autorange:"reversed" }, legend:{ orientation:"h", y:-0.24 } }));
+}
 function renderWeeklyDeviation(review) {
   const weeks = review.weeks || [];
   if (!weeks.length) return emptyChart("weeklydeviation", "Complete weeks will appear here");
@@ -1168,6 +1191,7 @@ async function loadPlans() {
       clearNightMap("Learning the average 6\u201310 AM rider flow from Week 1. No map markers or redistribution targets are shown until Week 1 is complete.");
       clearTomorrow(`Learning Week 1's morning pattern (${b.complete_days} of ${b.required_days} complete days): no targets or moves yet.`);
       emptyChart("nightbars", "The full Week 1 pattern is not ready yet."); $("night").innerHTML = "";
+      emptyChart("weeklyplan", "Waiting for a complete previous week");
       msg("nightmsg", p.notes.join(" "));
     } else {
       const signature = nightSignature(p);
@@ -1176,10 +1200,11 @@ async function loadPlans() {
         await renderNightMap(p);
         nightPlanSignature = signature;
         planBars("nightbars", p, true); planTable("night", p); msg("nightmsg", p.notes.join(" "));
-        renderTomorrow(p);
+        renderTomorrow(p); renderWeeklyPlan(p);
       }
     }
-  } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; $("nightpicture").innerHTML = ""; emptyChart("nightbars", ""); $("night").innerHTML = ""; }
+  } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; $("nightpicture").innerHTML = ""; emptyChart("nightbars", ""); $("night").innerHTML = "";
+                emptyChart("weeklyplan", e.message); }
   try {
     const review = await get("plan/weekly", { through: $("end").value });
     const signature = JSON.stringify([city, review.through, review.weeks.map(w => [w.week, w.rate, w.status])]);
