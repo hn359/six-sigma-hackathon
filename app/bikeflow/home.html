@@ -68,7 +68,7 @@
     <div role="tablist" aria-label="Home">
       <button role="tab" id="tab-about" aria-controls="panel-about" aria-selected="true">About</button>
       <button role="tab" id="tab-map" aria-controls="panel-tool" aria-selected="false" tabindex="-1">Map and dispatch</button>
-      <button role="tab" id="tab-night" aria-controls="panel-tool" aria-selected="false" tabindex="-1">End-of-day redistribution</button>
+      <button role="tab" id="tab-night" aria-controls="panel-tool" aria-selected="false" tabindex="-1">Redistribution</button>
       <button role="tab" id="tab-spc" aria-controls="panel-tool" aria-selected="false" tabindex="-1">SPC charts</button>
     </div>
   </div>
@@ -94,7 +94,7 @@
     <h3>The tabs</h3>
     <ul>
       <li><b><a href="#map" data-open="map">Map and dispatch</a></b>: the live map, its time bar, each station's status and where riders are going.</li>
-      <li><b><a href="#night" data-open="night">End-of-day redistribution</a></b>: which bikes the van should move now, and the 10 PM plan that sets every station for the 6 AM opening.</li>
+      <li><b><a href="#night" data-open="night">Redistribution</a></b>: which bikes the van should move now, and the 10 PM plan that sets every station for the 6 AM opening.</li>
       <li><b><a href="#spc" data-open="spc">SPC charts</a></b>: each station's day and its control chart, and the statistics behind them.</li>
     </ul>
     <h3>Authors</h3>
@@ -112,7 +112,7 @@
         <i>Week 2 · policy</i> (the van runs on our rules) or <i>Week 1 · no van</i> (the baseline), then a weekday.</li>
       <li><b>Press Play or drag the time bar.</b> One reading per step; the speed menu sets how fast.
         Amber bands under the bar mark the rush hours, and a <span class="rushchip">Rush hour</span>
-        badge shows while the replay is inside one. The end-of-day and SPC tabs have the same bar and follow
+        badge shows while the replay is inside one. The Redistribution and SPC tabs have the same bar and follow
         it; only the map's bar can be dragged.</li>
       <li><b>Read the map.</b> Each station card shows bikes docked out of its docks and its status
         (in control, or the rule that fired). The ranked list on the right puts the station that
@@ -121,7 +121,7 @@
         <ul>
           <li><b>Map and dispatch</b>: <b>1 Station status</b> (how full each station is now, against the healthy range
             and a normal day) and <b>2 Rider flow</b> (which routes riders took).</li>
-          <li><b>End-of-day redistribution</b>: <b>1 Redistribution</b> (which bikes the van should move now, from where
+          <li><b>Redistribution</b>: <b>1 Redistribution</b> (which bikes the van should move now, from where
             to where) and <b>2 Tomorrow's bike plan</b>, the 10 PM plan that sets each station for the 6 AM opening.</li>
           <li><b>SPC charts</b>: <b>1 Today at each station</b> (bikes through the day; red dots are unusual readings) and
             <b>2 Control chart</b> (the station's I-MR chart with the eight tests).</li>
@@ -141,7 +141,7 @@
       <tbody>
         <tr><td><b>Empty or full</b>, now or projected within the hour</td>
           <td>riders cannot rent or cannot park: an operational problem, whether or not it is unusual</td>
-          <td><b>HIGH</b> priority in the van plan (<b>1 Redistribution</b> in End-of-day redistribution); send the van first</td></tr>
+          <td><b>HIGH</b> priority in the van plan (<b>1 Redistribution</b> in the Redistribution tab); send the van first</td></tr>
         <tr><td><b>Outside the healthy range</b> (below 20% or above 80% of the docks)</td>
           <td>the station is drifting toward empty or full</td>
           <td><b>MEDIUM</b> priority; also triggers the van on the map as a safety net</td></tr>
@@ -193,7 +193,7 @@
     <h2>Redistribution at the end of each day</h2>
     <p>At closing, the dispatcher gets a plan that the van finishes <b>by 10 PM</b>, so every station
       opens at <b>6 AM</b> with the right number of bikes for the morning rush. It is <b>2 Tomorrow's bike plan</b> in the
-      <a href="#night" data-open="night">End-of-day redistribution</a> tab.</p>
+      <a href="#night" data-open="night">Redistribution</a> tab.</p>
     <h3>1. Decide each station's starting level</h3>
     <ol>
       <li><b>Learn the morning pattern from week 1.</b> For each station, average its rider net flow
