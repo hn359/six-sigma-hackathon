@@ -17,13 +17,14 @@ function FollowSelected({ station }) {
 }
 
 // stations: one replay frame (see sampleFrames.js for the shape).
-export function StationMap({ stations, selectedId, onSelect }) {
+// children: extra layers drawn inside the map (the console adds the van, the depot and counts).
+export function StationMap({ stations, selectedId, onSelect, children, className = 'map' }) {
   const { placed, missing } = splitPlaceable(stations)
   const selected = placed.find((s) => s.station_id === selectedId)
 
   return (
     <div className="map-wrap">
-      <MapContainer center={ITHACA_CENTER} zoom={ITHACA_ZOOM} className="map" scrollWheelZoom>
+      <MapContainer center={ITHACA_CENTER} zoom={ITHACA_ZOOM} className={className} scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -51,6 +52,7 @@ export function StationMap({ stations, selectedId, onSelect }) {
             </Fragment>
           )
         })}
+        {children}
         <FollowSelected station={selected} />
       </MapContainer>
       <Legend />

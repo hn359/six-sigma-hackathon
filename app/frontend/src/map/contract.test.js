@@ -23,6 +23,14 @@ describe('validateFrame accepts', () => {
   it('the example frame in docs/map-frame.example.json', () => {
     expect(validateFrame(example).errors).toEqual([])
   })
+  it('v2: a trigger, including out of spec, and a zero move past the path', () => {
+    expect(errorsFor({ trigger: 'rule 1', expected_bikes: 6 })).toEqual([])
+    expect(errorsFor({ trigger: 'out of spec', severity: 2 })).toEqual([])
+    expect(errorsFor({ trigger: 'rule 3', severity: 1, bikes_to_move: 0 })).toEqual([])
+  })
+  it('v1 still needs a non-zero move', () => {
+    expect(errorsFor({ bikes_to_move: 0 }).join()).toMatch(/rule 3/)
+  })
   it('an in-control station with a null move', () => {
     expect(errorsFor({ severity: 0, direction: 'ok', bikes_to_move: null, rule: null })).toEqual([])
   })
@@ -62,6 +70,15 @@ describe('validateFrame rejects, naming station and rule', () => {
   it('a frame that is not a frame', () => {
     expect(validateFrame(null).ok).toBe(false)
     expect(validateFrame({ as_of: 'yesterday', stations: 'S01' }).errors).toHaveLength(2)
+  })
+  it('v2 rule 2: a trigger on an in-control station, or none on a signalling one', () => {
+    expect(errorsFor({ trigger: 'rule 1', severity: 0, direction: 'ok', bikes_to_move: null }).join()).toMatch(/rule 2/)
+    expect(errorsFor({ trigger: null }).join()).toMatch(/rule 2/)
+    expect(errorsFor({ trigger: 'rule 9' }).join()).toMatch(/rule 2/)
+  })
+  it('v2 frame: a van stop at a station not in the frame', () => {
+    const f = { ...frameOf({ ...good(), trigger: 'rule 1' }), van: { station_id: 'S99', bikes_moved: 3 } }
+    expect(validateFrame(f).errors.join()).toMatch(/van/)
   })
   it('the same station twice', () => {
     expect(validateFrame(frameOf(good(), good())).errors).toContain('S03: appears twice')

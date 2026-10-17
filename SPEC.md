@@ -31,7 +31,7 @@ cannot measure costs points.
 ## 4. The statistics, and why (rubric: valid QC analysis 25)
 Say the method in words before any code exists. Load the `stats-first-steering` skill first.
 
-**Setting.** 5 stations (S1-S5), 20 docks each, 100 docks. Fleet of 100 bikes: 50 in docks at
+**Setting.** 5 stations (S01-S05, at real Ithaca places), 20 docks each, 100 docks. Fleet of 100 bikes: 50 in docks at
 t0 (10 per station on day 1), 50 in the reserve depot. The day runs 06:00-22:00: 64 readings, one
 every 15 minutes, starting Monday 06:00 (t0). A reading is **out of spec** when `bikes` < LSL = 4
 (close to empty: a few riders can empty it) or `bikes` > USL = 16 (close to full: a few returns
@@ -106,8 +106,8 @@ Fixed for every team:
 - You can explain every number the tool prints. If you cannot, it is not done.
 
 ## 5. Delivery (rubric: working tool 25)
-- **Stack:** dashboard: a Python FastAPI back end (statistics in `app/qc.py`, the simulation in `data/simulate.py`) that serves a plain HTML/JS front end from `app/static/`. No React, no Node.js build. No database: readings, van logs and limits live in CSV files in `data/`, which the back end loads at startup.
-- **Starting demo:** `demos/fastapi/` copied into `app/`; the front end is `app/static/index.html`, which only calls the API and draws what it returns.
+- **Stack:** dashboard: a Python FastAPI back end (statistics in `app/qc.py`, frames in `app/engine.py`, routes in `app/app.py`, the simulation in `data/simulate.py`) and Jim's React + Leaflet station map (`app/frontend/`, Node.js 20+) with the van, live feed, station charts and weekly review added under `src/dispatch/`. FastAPI serves the built front end, so one deploy holds both. No database: readings, van logs and stations live in CSV files in `data/`, loaded at startup. The map and API agree through `docs/map-contract.md` (v2).
+- **Starting demo:** `demos/fastapi/` copied into `app/`, with the React front end from `demos/reactfront/` in `app/frontend/` (Jim's map).
 
 Fixed for every team:
 - Start from **one** demo in `demos/`, copied to `app/`. Keep its four-script contract

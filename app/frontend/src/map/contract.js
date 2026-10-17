@@ -4,6 +4,8 @@
 // refuses to show numbers that cannot be right together.
 
 const DIRECTIONS = new Set(['empty', 'full', 'ok'])
+// v2: why the van is sent. A frame with a `trigger` field is checked by the v2 rules.
+const TRIGGERS = new Set(['rule 1', 'rule 2', 'rule 3', 'rule 4', 'out of spec'])
 
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x)
 const isInt = (x) => Number.isInteger(x)
@@ -35,12 +37,24 @@ export function validateStation(s) {
       !(isNum(s.target_occupancy) && s.target_occupancy >= 0 && s.target_occupancy <= 1))
     e.push(`target_occupancy must be a share from 0 to 1 (got ${s.target_occupancy})`)
 
-  // rules 3-5: bikes_to_move
+  // v2: trigger names why the van is sent; severity is 0 exactly when there is no trigger
+  const v2 = 'trigger' in s
+  if (v2) {
+    if (s.trigger !== null && !TRIGGERS.has(s.trigger))
+      e.push(`rule 2: trigger must be rule 1-4, "out of spec" or null (got ${s.trigger})`)
+    else if (sevOk && (s.severity === 0) !== (s.trigger === null))
+      e.push(`rule 2: trigger ${s.trigger} does not fit severity ${s.severity}`)
+    if (s.expected_bikes !== undefined && s.expected_bikes !== null &&
+        !(isNum(s.expected_bikes) && s.expected_bikes >= 0 && capOk && s.expected_bikes <= s.capacity))
+      e.push(`expected_bikes must be from 0 to capacity (got ${s.expected_bikes})`)
+  }
+
+  // rules 3-5: bikes_to_move (v2 allows 0: the station is already past its path, nothing to move)
   const m = s.bikes_to_move
   if (sevOk && s.severity === 0) {
     if (m !== null) e.push(`rule 3: in control, so bikes_to_move must be null (got ${m})`)
   } else if (sevOk) {
-    if (!isInt(m) || m === 0) e.push(`rule 3: out of control, so bikes_to_move must be a non-zero whole number (got ${m})`)
+    if (!isInt(m) || (m === 0 && !v2)) e.push(`rule 3: out of control, so bikes_to_move must be a non-zero whole number (got ${m})`)
     else {
       if (s.direction === 'empty' && m < 0) e.push(`rule 4: too empty but bikes_to_move ${m} removes bikes`)
       if (s.direction === 'full' && m > 0) e.push(`rule 4: too full but bikes_to_move +${m} adds bikes`)
@@ -72,5 +86,13 @@ export function validateFrame(frame) {
     seen.add(id)
     for (const msg of validateStation(s)) errors.push(`${id}: ${msg}`)
   }
+  // v2 frame fields: the van's stop after this reading and the reserve depot
+  if (frame.van !== undefined && frame.van !== null) {
+    const v = frame.van
+    if (!isInt(v.bikes_moved) || v.bikes_moved === 0) errors.push(`van: bikes_moved must be a non-zero whole number (got ${v.bikes_moved})`)
+    if (!seen.has(v.station_id)) errors.push(`van: station ${v.station_id} is not in this frame`)
+  }
+  if (frame.reserve !== undefined && !(isInt(frame.reserve) && frame.reserve >= 0))
+    errors.push(`reserve must be a whole number of bikes (got ${frame.reserve})`)
   return { ok: errors.length === 0, errors }
 }

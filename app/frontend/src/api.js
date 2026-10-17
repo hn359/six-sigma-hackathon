@@ -1,6 +1,11 @@
 // The ONLY place the API base URL lives. Set VITE_API_URL in a .env.local
 // file (or in the build environment) to point at your deployed API.
-export const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+// Unset: the dev server talks to a local API, and a production build talks to the server it is
+// served from (FastAPI serves app/frontend/dist), so one deploy holds both.
+const FROM_ENV = import.meta.env.VITE_API_URL
+export const API_URL = (FROM_ENV !== undefined && FROM_ENV !== ''
+  ? FROM_ENV
+  : import.meta.env.DEV ? 'http://127.0.0.1:8000' : '').replace(/\/$/, '')
 
 async function getJson(path, options) {
   const res = await fetch(`${API_URL}${path}`, options)
@@ -47,4 +52,21 @@ export function replayFromCsv(readingsFile, stationsFile) {
 /** GET /latest. Returns one Frame for the newest reading the server holds. */
 export function fetchLatest() {
   return getJson('/latest')
+}
+
+// Dispatch console routes (app/app.py).
+
+/** GET /frames/{scenario}?day=d: {"frames": [Frame x 64], "chart": {station_id: {xbar, sigma, ...}}}. */
+export function fetchFrames(scenario, day = 0) {
+  return getJson(`/frames/${encodeURIComponent(scenario)}?day=${day}`)
+}
+
+/** GET /scenarios: {"week1": [dates], "week2": [dates], "event": [date]}. */
+export function fetchScenarios() {
+  return getJson('/scenarios')
+}
+
+/** GET /summary: night plan, rush slots, weekly p-charts and before/after counts. */
+export function fetchSummary() {
+  return getJson('/summary')
 }
