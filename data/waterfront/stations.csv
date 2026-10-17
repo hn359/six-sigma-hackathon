@@ -1,0 +1,5 @@
+station_id,name,lat,lon,capacity,role
+W01,Farmers Market,42.451,-76.5112,25,market
+W02,Cass Park,42.4527,-76.5132,30,park
+W03,Inlet hotels,42.4492,-76.5098,20,lodging
+W04,Steamboat Landing (dining),42.4503,-76.5085,15,dining
