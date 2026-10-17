@@ -65,6 +65,22 @@
         background:linear-gradient(90deg, #a163f7, #6f88fc); color:#fff; }
   .go:hover { background:linear-gradient(90deg, #8b4cf0, #5b74f0); }
   @media (max-width:600px) { [role="tab"] { padding:9px 12px; } .doc { padding:20px 16px 48px; } }
+
+  /* hero banner under the header, on every tab */
+  .hero { position:relative; height:340px; overflow:hidden; background:var(--head); }
+  .hero img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 22%; }
+  .hero::after { content:""; position:absolute; inset:0;
+                 background:linear-gradient(90deg, rgba(43,58,82,.92) 0%, rgba(43,58,82,.72) 42%, rgba(111,136,252,.18) 100%); }
+  .hero .in { position:relative; z-index:1; max-width:1240px; height:100%; margin:0 auto; padding:0 20px;
+              display:flex; flex-direction:column; justify-content:center; }
+  .hero .kicker { font:600 13px/1 Poppins, system-ui, sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#9ff1ff; }
+  .hero .slogan { margin:12px 0 0; max-width:640px; font:800 52px/1.04 Poppins, system-ui, sans-serif; letter-spacing:-.025em; color:#fff; }
+  .hero .slogan span { background:linear-gradient(90deg, #c9a6ff, #8fa3ff 50%, #45e3ff);
+                       -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero .sub { margin:14px 0 0; max-width:520px; font-size:16px; color:#dfe5f2; }
+  .hero .credit { position:absolute; right:10px; bottom:6px; z-index:1; font-size:11px; color:rgba(255,255,255,.75); }
+  .hero .credit a { color:inherit; }
+  @media (max-width:600px) { .hero { height:260px; } .hero .slogan { font-size:32px; } .hero .sub { font-size:14px; } }
 </style>
 </head>
 <body>
@@ -91,6 +107,16 @@
     </div>
   </div>
 </header>
+
+<section class="hero" aria-label="Banner">
+  <img src="home/images/hero-bikes.jpg" alt="A full row of docked bike-share bikes along a city street on a sunny evening">
+  <div class="in">
+    <span class="kicker">Six Sigma for the bike fleet</span>
+    <p class="slogan">Every dock ready.<br><span>Every ride on time.</span></p>
+    <p class="sub">Control charts spot a station drifting empty or full before riders do, and the van fixes it.</p>
+  </div>
+  <span class="credit">Photo: <a href="https://commons.wikimedia.org/wiki/File:Vancouver_Mobi_bike_share_near_BC_Place_stadium_in_Downtown_Vancouver.jpg" target="_blank" rel="noopener">Wakasui</a>, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a></span>
+</section>
 
 <!-- 1 About -->
 <div role="tabpanel" id="panel-about" aria-labelledby="tab-about">

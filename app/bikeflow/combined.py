@@ -27,7 +27,8 @@ app.include_router(router)
 load_default()
 
 IMAGES = HERE.parent.parent / "docs" / "images"
-HOME_IMAGES = {"how-the-van-decides.png", "redistribution-flowchart.png"}   # the two the docs tab shows
+HOME_IMAGES = {"how-the-van-decides.png", "redistribution-flowchart.png",   # the two the docs tab shows
+               "hero-bikes.jpg"}                                          # the banner photo (CC BY-SA 4.0)
 
 
 @app.get("/")
