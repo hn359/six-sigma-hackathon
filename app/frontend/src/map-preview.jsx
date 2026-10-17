@@ -15,6 +15,7 @@ import { API_URL, fetchDatasets, fetchFrames, fetchSummary } from './api.js'
 import { useVan } from './dispatch/VanLayer.jsx'
 import { BikesChart, IChart, PChart } from './dispatch/charts.jsx'
 import { clock, feedEntries, stationStatus } from './dispatch/feed.js'
+import { joinGap, rushWindows, windowAt } from './dispatch/rush.js'
 import './styles.css'
 import './dispatch/dispatch.css'
 
@@ -47,6 +48,9 @@ function Preview() {
   const feed = useMemo(() => (frames.length ? feedEntries(frames, i) : []), [frames, i])
   const rush = summary?.rush_slots ?? []
   const about = datasets.find((d) => d.id === dataset)
+  const rushWin = useMemo(() => rushWindows(rush, joinGap(about?.interval_minutes)), [rush, about?.interval_minutes])
+  const inRush = windowAt(rushWin, Math.min(i, frames.length - 1))
+  const hhmm = (k) => frames[Math.min(k, frames.length - 1)]?.as_of.slice(11, 16)
 
   // One simulated day from the API
   useEffect(() => {
@@ -143,9 +147,21 @@ function Preview() {
           <button type="button" onClick={() => setPlaying((p) => !p)} disabled={frames.length < 2}>
             {playing ? 'Pause' : 'Play'}
           </button>
-          <input type="range" min={0} max={frames.length - 1} value={i}
-            onChange={(e) => setI(Number(e.target.value))} aria-label="Replay time" />
+          <div className="rush-bar">
+            {frames.length > 1 && rushWin.map(([a, b]) => (
+              <span key={a} className="rush-seg" title={`Rush hour ${hhmm(a)}-${hhmm(b)}`}
+                style={{ '--a': a / (frames.length - 1), '--b': b / (frames.length - 1) }} />
+            ))}
+            <input type="range" min={0} max={frames.length - 1} value={i}
+              onChange={(e) => setI(Number(e.target.value))} aria-label="Replay time" />
+          </div>
           <output>{frame.as_of.replace('T', ' ')}</output>
+          {/* always in the layout (hidden outside a rush) so the slider keeps its length while dragging */}
+          {rushWin.length > 0 && (
+            <span className={`rush-badge${inRush ? '' : ' off'}`} aria-hidden={!inRush}>
+              Rush hour {hhmm((inRush ?? rushWin[0])[0])}-{hhmm((inRush ?? rushWin[0])[1])}
+            </span>
+          )}
           <label className="d-speed">1 reading =
             <select value={stepMs} onChange={(e) => setStepMs(Number(e.target.value))}>
               {SPEEDS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
