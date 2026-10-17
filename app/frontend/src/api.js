@@ -1,11 +1,13 @@
 // The ONLY place the API base URL lives. Set VITE_API_URL in a .env.local
 // file (or in the build environment) to point at your deployed API.
 // Unset: the dev server talks to a local API, and a production build talks to the server it is
-// served from (FastAPI serves app/frontend/dist), so one deploy holds both.
+// served from (FastAPI serves app/frontend/dist), so one deploy holds both. That base is the
+// page's own folder, not the site root, so it also works under a Posit Connect /content/<guid>/.
 const FROM_ENV = import.meta.env.VITE_API_URL
+const PAGE_DIR = typeof location === 'undefined' ? '' : new URL('.', location.href).pathname
 export const API_URL = (FROM_ENV !== undefined && FROM_ENV !== ''
   ? FROM_ENV
-  : import.meta.env.DEV ? 'http://127.0.0.1:8000' : '').replace(/\/$/, '')
+  : import.meta.env.DEV ? 'http://127.0.0.1:8000' : PAGE_DIR).replace(/\/$/, '')
 
 async function getJson(path, options) {
   const res = await fetch(`${API_URL}${path}`, options)
