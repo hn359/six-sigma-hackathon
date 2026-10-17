@@ -63,7 +63,7 @@
     <p>Battery Ninjas · Cornell Six Sigma Hackathon · Prompt 1, Urban Systems: "Bikeshare Fleets" ·
       <a class="repo" href="https://github.com/hn359/six-sigma-hackathon" target="_blank" rel="noopener">GitHub repository</a></p>
     <div role="tablist" aria-label="Home">
-      <button role="tab" id="tab-docs" aria-controls="panel-docs" aria-selected="true">Documentation</button>
+      <button role="tab" id="tab-docs" aria-controls="panel-docs" aria-selected="true">About the Page</button>
       <button role="tab" id="tab-tool" aria-controls="panel-tool" aria-selected="false" tabindex="-1">Tool</button>
     </div>
   </div>
@@ -136,7 +136,7 @@
           <td>the station is drifting toward empty or full</td>
           <td><b>MEDIUM</b> priority; also triggers the van on the map as a safety net</td></tr>
         <tr><td><b>Control-chart signal</b> (a red dot)</td>
-          <td>rider flow is unusual <i>for that time of day</i>, compared with week 1. The normal rush-hour
+          <td>rider flow is unusual <i>for that time of day</i>, compared with recent normal days. The normal rush-hour
             drain is already subtracted, so a dot means something the usual pattern does not explain:
             an event, a crowd, a broken dock</td>
           <td><b>MEDIUM</b> priority; on the map, rules 1–4 send the van toward the station's expected level</td></tr>
@@ -239,9 +239,12 @@
           usual net flow for that slot over the baseline week. This removes the normal rush-hour drain, so
           only unexplained variation is charted.</td></tr>
         <tr><td>Control limits (I-MR)</td><td>σ = MR̄ / 1.128; limits = centre ± 3σ; moving-range UCL = 3.267 MR̄.
-          Learned from week 1 only (Phase I), then fixed.</td></tr>
+          The charts use the <b>last 7 clean days</b> before the charted day, updated daily: readings beyond
+          3σ are removed and the limits recomputed until none remain (the course's revised limits). A switch on
+          the chart shows week 1's fixed limits for comparison.</td></tr>
         <tr><td>Rules that send the van</td><td>Western Electric rules 1–4 (beyond 3σ; 2 of 3 beyond 2σ;
-          4 of 5 beyond 1σ; 8 in a row on one side), or the station outside 20%–80% of its docks.</td></tr>
+          4 of 5 beyond 1σ; 8 in a row on one side), or the station outside 20%–80% of its docks. The van
+          judges these against week 1's fixed limits, so the simulated data and van log stay valid.</td></tr>
         <tr><td>Rules on the BikeFlow chart</td><td>the course's eight tests plus a moving range above its
           limit. These are shown for analysis; the van currently acts on rules 1–4 above, so a dot below can
           appear without a van visit.</td></tr>
@@ -307,7 +310,8 @@
       <li>Simulated data only; demand rates are invented and tuned, not fitted to a real system.</li>
       <li>One van, one stop per reading, no travel time or van capacity.</li>
       <li>Same demand every day: no weekends, weather or semester effects.</li>
-      <li>The history is learned once from week 1 and never updated.</li>
+      <li>The van's limits, the overnight plan and the rush hours are learned once from week 1 and never
+        updated; only the charts' limits roll forward daily.</li>
       <li>Rush hours use net-flow activity, not rentals (the readings have no rental counts).</li>
     </ul>
   </section>

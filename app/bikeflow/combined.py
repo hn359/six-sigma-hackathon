@@ -2,7 +2,7 @@
 
     python -m uvicorn app.bikeflow.combined:app --port 8000      (from the repo root)
 
-  /                  home page: a Documentation tab and a Tool tab (the side-by-side page)
+  /                  home page: an "About the Page" tab and a Tool tab (the side-by-side page)
   /index.html        his console (app/frontend/dist); his API routes are unchanged
   /side-by-side      his console on top; the BikeFlow charts below follow its day and time
   /bikeflow/         the BikeFlow charts on their own
@@ -32,7 +32,7 @@ HOME_IMAGES = {"how-the-van-decides.png", "redistribution-flowchart.png"}   # th
 
 @app.get("/")
 async def home():
-    """The front door: Documentation and Tool tabs. His console itself is at /index.html."""
+    """The front door: "About the Page" and Tool tabs. His console itself is at /index.html."""
     return FileResponse(HERE / "home.html")
 
 
