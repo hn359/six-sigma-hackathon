@@ -33,14 +33,6 @@ export function StationMap({ stations, selectedId, onSelect }) {
           const isSel = s.station_id === selectedId
           return (
             <Fragment key={s.station_id}>
-              {s.chronic_flag && (
-                <CircleMarker
-                  center={[s.lat, s.lon]}
-                  radius={style.radius + 5}
-                  pathOptions={{ color: '#7a1f1f', weight: 2, dashArray: '4 3', fill: false }}
-                  interactive={false}
-                />
-              )}
               <CircleMarker
                 center={[s.lat, s.lon]}
                 radius={style.radius}
@@ -78,7 +70,6 @@ function Legend() {
       <li><span className="dot" style={{ background: COLORS.full }} /> too full</li>
       <li><span className="dot" style={{ background: COLORS.ok }} /> in control</li>
       <li>bigger dot = more severe</li>
-      <li><span className="ring" /> chronic: send a repair crew</li>
     </ul>
   )
 }
@@ -105,7 +96,6 @@ export function ActionList({ stations, selectedId, onSelect }) {
             </span>
             <span className="act-why">
               {s.severity > 0 ? `${directionLabel(s)}, ${SEVERITY_LABELS[s.severity]}: ${s.rule}` : 'in control'}
-              {s.chronic_flag && ' · chronic'}
             </span>
           </button>
         </li>

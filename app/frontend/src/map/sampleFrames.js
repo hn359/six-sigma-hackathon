@@ -25,7 +25,7 @@ const STATIONS = [
     bikes: [9, 12, 16, 20, 22, 23, 21, 15, 10, 6, 4, 8], sev: [0, 0, 1, 2, 3, 3, 2, 0, 0, 1, 2, 0] },
   { id: 'S03', name: 'Fall Creek', lat: 42.4495, lon: -76.4953, cap: 11, usual: 0.55,
     bikes: [7, 4, 2, 1, 0, 0, 1, 4, 5, 7, 9, 7], sev: [0, 1, 2, 3, 3, 3, 2, 0, 0, 0, 1, 0],
-    chronic: true, availability: 0.71 },
+    availability: 0.71 },
   { id: 'S04', name: 'Downtown (Ithaca Commons)', lat: 42.4392, lon: -76.4964, cap: 19, usual: 0.50,
     bikes: [10, 9, 9, 8, 9, 10, 13, 10, 9, 8, 9, 10], sev: [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] },
   { id: 'S05', name: 'Wegmans (Meadow St)', lat: 42.4334, lon: -76.5108, cap: 15, usual: 0.50,
@@ -73,7 +73,6 @@ function stationAt(s, minute) {
     rule: RULES[severity],
     target_occupancy: s.usual,
     bikes_to_move: severity === 0 ? null : standInMove(bikes, s.cap, s.usual),
-    chronic_flag: Boolean(s.chronic),
     availability: s.availability ?? null,
   }
 }

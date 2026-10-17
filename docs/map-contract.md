@@ -41,7 +41,7 @@ If you name the routes differently, only `app/frontend/src/api.js` changes.
 | `rule` | text or `null` | the run rule that fired, in words |
 | `target_occupancy` | number 0 to 1, or `null` | the chart's centre line as an occupancy, the level a move aims for |
 | `bikes_to_move` | whole number or `null` | `+` add this many bikes, `-` remove this many; `null` when in control |
-| `chronic_flag` | true/false | the station is chronically unusable (the H-03 p-chart flag): repair crew, not a rebalance |
+| `chronic_flag` | true/false, optional | the H-03 p-chart flag (chronically unusable station). **Not shown on the map for now**; the map ignores it |
 | `availability` | number 0 to 1, or `null` | from H-03 |
 
 ## Rules the map checks
