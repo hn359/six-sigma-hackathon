@@ -24,18 +24,19 @@ The fleet is as many bikes as docks. At the start of the baseline week half the 
 |---|---|---|
 | `stations.csv` | one per station | id, name, position, docks, role in the demand model |
 | `week1_baseline.csv` | 7 days × readings × stations | Mon 5 – Sun 11 Oct 2026. **No van.** Phase I: the history the tool learns from |
-| `week2_policy.csv` | 7 days × readings × stations | Mon 12 – Sun 18 Oct. Each day starts at the night plan; the van goes on a chart signal or a reading outside the spec limits |
+| `week2_policy.csv` | 7 days x readings x stations | Mon 12 - Sun 18 Oct. Week 1's 06:00-10:00 average net flow sets the 80/20 opening targets shown by BikeFlow; each day starts at those targets. The van goes on a chart signal or a reading outside the spec limits |
 | `event_day.csv` | 1 day × readings × stations | Mon 19 Oct: the policy, plus a planted slow drain and a planted crowd (see `about.json`) |
 | `van_log.csv` | one per van stop | every stop in week 2 and on the event day |
+| `trips.csv` | one per rider trip | every completed simulated trip, all 15 days: where it started and ended |
 | `about.json` | 1 | the city's name, reading interval, hours, docks, fleet, seed and the planted event |
 
 Expected results (checked by `tests/test_data.py`):
 
-| City | Out-of-spec readings: baseline → policy | Lost rentals | Event |
+| City | Out-of-spec readings: baseline -> policy | Lost rentals | Event |
 |---|---|---|---|
-| collegetown | 607 → 19 | 19 → 0 | S03 slow drain gets bikes; the S02 crowd is caught by rule 1 at 18:15 |
-| downtown | 838 → 16 | 15 → 0 | D06 slow drain gets bikes; the D04 crowd is caught by rule 1 at 17:20 |
-| waterfront | 186 → 9 | 3 → 0 | the W03 drain gets bikes; the W02 festival crowd is caught by rule 1 at 16:15 |
+| collegetown | 607 -> 165 | 19 -> 0 | S03 slow drain gets bikes; the S02 crowd is caught by rule 1 at 18:15 |
+| downtown | 838 -> 213 | 15 -> 0 | D06 slow drain gets bikes; the D04 crowd is caught by rule 1 at 17:20 |
+| waterfront | 186 -> 238 | 3 -> 0 | the W03 drain gets bikes; the W02 festival crowd is caught by rule 1 at 16:15 |
 
 ## Columns
 
@@ -67,6 +68,18 @@ market, park, lodging, dining).
 | `from_station` / `to_station` | the other station the bikes came from or went to, if any |
 | `station_bikes`, `reserve_bikes` | how many of the moved bikes came from (or went to) that station and the reserve depot |
 
+**`trips.csv`** (added for the BikeFlow origin-destination heat map; recording it draws no random
+numbers, so every other file is byte-for-byte unchanged)
+
+| Column | Meaning |
+|---|---|
+| `timestamp` | the reading that ends the interval the trip happened in (trips are not timed inside it) |
+| `from_station` | where the rider took the bike |
+| `to_station` | where the rider docked it (if the planned station was full, the station they rode on to) |
+
+Lost rentals (an empty station) are not trips and are not listed. A real system gets this from its
+trip history (most bikeshare operators publish monthly trip files with start and end stations).
+
 **`about.json`**: `id`, `name`, `interval_minutes`, `first_reading`, `last_reading`,
 `readings_per_day`, `stations`, `docks`, `fleet`, `seed`, `simulated` (always true), and `event`
 (`slow_drain`: station, window, extra rentals per reading; `crowd`: station, window, riders per
@@ -80,8 +93,9 @@ reading, where they come from).
 - A rental at an empty station is **lost**. A return to a full station goes on to the emptiest
   station with room.
 - Bikes are never created or lost: the script checks docked + reserve = fleet after every reading.
-- The rates were tuned so each station's normal daily swing fits inside its spec band, so a single
-  06:00 start plan exists. Every day has the same demand: no weekends and no weather.
+- The rates were tuned so each station's normal daily swing fits inside its spec band. Week 2
+  uses week 1's morning net-flow pattern for its 80/20 opening targets; every simulated day has the
+  same demand profile, with random trip counts but no separate weekend or weather effects.
 
 The exact rates and weights for each city are in `DATASETS` at the top of [`simulate.py`](simulate.py).
 

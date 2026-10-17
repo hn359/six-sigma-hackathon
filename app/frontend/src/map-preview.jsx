@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ActionList, StationMap } from './map/StationMap.jsx'
 import { validateFrame } from './map/contract.js'
+import { createSimulationState, publishSimulationState } from './map/sync.js'
 import { bikesToMoveLabel, directionLabel, pct } from './map/stationMap.js'
 import { API_URL, fetchDatasets, fetchFrames, fetchSummary } from './api.js'
 import { VanLayer, useVan } from './dispatch/VanLayer.jsx'
@@ -22,6 +23,7 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function Preview() {
   const [frames, setFrames] = useState([])
+  const [frameContext, setFrameContext] = useState(null)
   const [i, setI] = useState(0)
   const [playing, setPlaying] = useState(true)
   const [stepMs, setStepMs] = useState(5000)
@@ -52,7 +54,8 @@ function Preview() {
     fetchFrames(scenario, scenario === 'event' ? 0 : day, dataset)
       .then((res) => {
         if (cancelled) return
-        setFrames(res.frames); setChart(res.chart); setI(0); setSelectedId(null)
+        setFrames(res.frames); setFrameContext({ dataset, scenario, dayIndex: scenario === 'event' ? 0 : day, date: res.date })
+        setChart(res.chart); setI(0); setSelectedId(null)
         setStatus(`Simulated ${res.date}: one reading every ${about?.interval_minutes ?? 15} min, replayed one per step`)
       })
       .catch((err) => { if (!cancelled) setStatus(`Cannot reach ${API_URL || 'the API'}/frames (${err.message}). Is the API running?`) })
@@ -68,6 +71,35 @@ function Preview() {
     const id = setInterval(() => setI((k) => (k + 1) % frames.length), stepMs)
     return () => clearInterval(id)
   }, [playing, frames.length, stepMs])
+
+  // The combined BikeFlow page consumes this versioned message instead of scraping UI text.
+  // A loading/error state deliberately carries no old frame, so changing city or scenario
+  // cannot make the adjacent charts look current while this request is still in flight.
+  useEffect(() => {
+    const dayIndex = scenario === 'event' ? 0 : day
+    const current = frame && frameContext?.dataset === dataset && frameContext?.scenario === scenario &&
+      frameContext?.dayIndex === dayIndex && frameContext?.date === frame.as_of.slice(0, 10)
+    const emit = () => {
+      let state
+      if (!current) {
+        const failed = status.startsWith('Cannot reach')
+        state = createSimulationState({ status: failed ? 'error' : 'loading', city:dataset, scenario,
+          dayIndex, intervalMinutes:about?.interval_minutes ?? 15, reason:status })
+      } else if (!check.ok) {
+        state = createSimulationState({ status:'error', city:dataset, scenario, dayIndex,
+          intervalMinutes:about?.interval_minutes ?? 15, reason:`Invalid simulation frame: ${check.errors[0]}` })
+      } else {
+        state = createSimulationState({ city:dataset, scenario, dayIndex,
+          intervalMinutes:about?.interval_minutes ?? 15, asOf:frame.as_of, playing,
+          reserve:frame.reserve,
+          stations:frame.stations.map(({ station_id, bikes, capacity }) => ({ station_id, bikes, capacity })) })
+      }
+      publishSimulationState(state)
+    }
+    emit()
+    const heartbeat = window.setInterval(emit, 1500)
+    return () => window.clearInterval(heartbeat)
+  }, [dataset, scenario, day, frame, frameContext, playing, status, check, about?.interval_minutes])
 
   return (
     <main className="map-page">

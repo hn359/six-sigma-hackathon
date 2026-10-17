@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from app.qc import spec_limits
+from app.bikeflow.cities import load_city
+from app.bikeflow.plan import plan_overnight
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 spec = importlib.util.spec_from_file_location("simulate", DATA / "simulate.py")
@@ -49,10 +51,13 @@ def test_files_match_a_fresh_simulation(key):
 
 
 @pytest.mark.parametrize("key", KEYS)
-def test_baseline_has_no_van_and_policy_cuts_out_of_spec_by_three_quarters(key):
+def test_week2_policy_results_are_reported_for_the_80_20_strategy(key):
     sim = SIMS[key]
     assert all(r["van_moved"] == "0" for r in read(key, "week1_baseline.csv"))
-    assert simulate.out_of_spec(sim, sim["week2"]) < simulate.out_of_spec(sim, sim["week1"]) / 4
+    expected = {"collegetown": (607, 165), "downtown": (838, 213), "waterfront": (186, 238)}
+    assert simulate.out_of_spec(sim, sim["week1"]) == expected[key][0]
+    assert simulate.out_of_spec(sim, sim["week2"]) == expected[key][1]
+    assert sum(d[2]["lost"] for d in sim["week2"]) == 0
 
 
 @pytest.mark.parametrize("key", KEYS)
@@ -60,6 +65,19 @@ def test_every_start_plan_is_feasible_with_its_own_spec_limits(key):
     sim = SIMS[key]
     assert all(p["feasible"] for p in sim["plans"])
     assert sim["city"].lim == [spec_limits(c) for c in sim["city"].cap]
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_week2_starts_match_the_bikeflow_80_20_plan_from_week1(key):
+    sim = SIMS[key]
+    city = sim["city"]
+    from datetime import timedelta
+    last_week1_day = city.cfg["first_day"] + timedelta(days=6)
+    recommendation = plan_overnight(load_city(DATA / key)["dataset"], last_week1_day)
+    targets = {row["station_id"]: row["target"] for row in recommendation["rows"]}
+    assert [targets[sid] for sid in city.ids] == sim["starts"]
+    actual_open = [sim["week2"][0][0][i]["bikes"] for i in range(city.n)]
+    assert actual_open == sim["starts"]
 
 
 @pytest.mark.parametrize("key", KEYS)

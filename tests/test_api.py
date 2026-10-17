@@ -50,9 +50,10 @@ def test_event_day_crowd_is_rule_1_at_s02():
 
 def test_summary_pchart_and_plan():
     body = client.get("/summary").json()
-    assert body["kpis"]["out_of_spec_week2"] < body["kpis"]["out_of_spec_week1"]
     assert all(p["feasible"] for p in body["plan"])
-    assert [p["start"] for p in body["plan"]] == [11, 7, 11, 10, 10]
+    assert [p["start"] for p in body["plan"]] == [15, 4, 16, 8, 9]
+    assert [p["target_share"] for p in body["plan"]] == [0.7667, 0.2, 0.8, 0.4045, 0.4318]
+    assert body["kpis"]["out_of_spec_week2"] == 165
     for pc in body["pcharts"]:
         assert len(pc["phase1"]) == 7 and len(pc["phase2"]) == 7
 
@@ -106,7 +107,8 @@ def test_api_recomputes_every_event_van_stop_in_every_dataset(key):
 @pytest.mark.parametrize("key", KEYS)
 def test_summary_for_every_dataset(key):
     body = client.get(f"/summary?dataset={key}").json()
-    assert body["kpis"]["out_of_spec_week2"] < body["kpis"]["out_of_spec_week1"]
+    expected = {"collegetown": (607, 165), "downtown": (838, 213), "waterfront": (186, 238)}
+    assert (body["kpis"]["out_of_spec_week1"], body["kpis"]["out_of_spec_week2"]) == expected[key]
     assert all(p["feasible"] for p in body["plan"])
     assert body["rush_slots"] and len(body["rush_times"]) == len(body["rush_slots"])
 

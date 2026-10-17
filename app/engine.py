@@ -17,8 +17,10 @@ from datetime import datetime
 
 try:
     from app import qc
+    from app.bikeflow.plan import overnight_shares
 except ImportError:  # running from inside app/ (e.g. on Posit Connect)
     import qc
+    from bikeflow.plan import overnight_shares
 
 SEVERITY = {1: 3, 2: 2, 3: 1, 4: 1}     # rule -> map severity (3 = act now)
 SPEC_SEVERITY = 2                        # out of spec with no rule firing
@@ -116,10 +118,17 @@ def split_baseline(days):
 # ---- Phase I history ---------------------------------------------------------------
 
 def learn(baseline_days, station_ids):
-    """Slot means (mu), I-MR limits of x, cumulative usual flow C, spec limits and start plan, per station."""
+    """Learn slot flows, I-MR limits, and the 80/20 opening targets from baseline days."""
     days = [baseline_days[d] for d in sorted(baseline_days)]
     S = slots_of(days[0])
     hist = {}
+    interval = int((days[0][station_ids[0]][1]["timestamp"]
+                    - days[0][station_ids[0]][0]["timestamp"]).total_seconds() // 60)
+    morning_end = min(S - 1, 240 // interval)
+    morning_net = {}
+    for sid in station_ids:
+        morning_net[sid] = sum(sum(f[1:morning_end + 1]) for f in (net_flows(day, sid) for day in days)) / len(days)
+    shares = overnight_shares(morning_net, 0.8, 0.2)
     for sid in station_ids:
         flows = [net_flows(day, sid) for day in days]
         mu = [0.0] + [sum(f[k] for f in flows) / len(flows) for k in range(1, S)]
@@ -128,8 +137,12 @@ def learn(baseline_days, station_ids):
         for k in range(1, S):
             C.append(C[-1] + mu[k])
         lsl, usl = qc.spec_limits(days[0][sid][0]["capacity"])
+        old_plan = qc.start_plan(C, lsl, usl)
         hist[sid] = {"mu": mu, "imr": limits, "C": C, "lsl": lsl, "usl": usl,
-                     "plan": qc.start_plan(C, lsl, usl), "baseline_days": len(days)}
+                     "plan": old_plan,
+                     "overnight_start": math.floor(shares[sid] * days[0][sid][0]["capacity"] + 0.5),
+                     "overnight_share": shares[sid], "morning_net": morning_net[sid],
+                     "baseline_days": len(days)}
     return hist
 
 
@@ -162,7 +175,7 @@ def day_frames(day, stations, hist, policy):
     path = {}
     for sid in ids:
         h = hist[sid]
-        start = h["plan"]["start"] if policy and h["plan"]["feasible"] else day[sid][0]["bikes"]
+        start = h["overnight_start"] if policy else day[sid][0]["bikes"]
         path[sid] = [start + c for c in h["C"]]
     flows = {sid: net_flows(day, sid) for sid in ids}
     run = {sid: [] for sid in ids}
@@ -237,7 +250,10 @@ def summary(baseline, policy_days, stations, hist):
              "lsl": hist[sid]["lsl"], "usl": hist[sid]["usl"],
              "swing": round(max(hist[sid]["C"]) - min(hist[sid]["C"]), 2),
              "lo": round(hist[sid]["plan"]["lo"], 2), "hi": round(hist[sid]["plan"]["hi"], 2),
-             "start": hist[sid]["plan"]["start"], "feasible": hist[sid]["plan"]["feasible"],
+             "start": hist[sid]["overnight_start"],
+             "target_share": round(hist[sid]["overnight_share"], 4),
+             "morning_net": round(hist[sid]["morning_net"], 2),
+             "feasible": hist[sid]["plan"]["feasible"],
              "sigma": round(hist[sid]["imr"]["sigma"], 3)} for sid in ids]
     pcharts = []
     for sid in ids:

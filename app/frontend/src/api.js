@@ -70,3 +70,4 @@ export function fetchFrames(scenario, day = 0, dataset = 'collegetown') {
 export function fetchSummary(dataset = 'collegetown') {
   return getJson(`/summary?dataset=${encodeURIComponent(dataset)}`)
 }
+
