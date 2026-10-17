@@ -1,0 +1,6 @@
+station_id,name,lat,lon,capacity,role
+S01,Cascadilla Hall (dorms),42.4429,-76.4862,20,residential
+S02,Schwartz Center (campus gate),42.4429,-76.4842,20,campus
+S03,Dryden Rd (apartments),42.4416,-76.484,20,residential
+S04,College Ave (bus stop),42.4421,-76.4852,20,transit hub
+S05,Eddy St (shops),42.4413,-76.4862,20,shopping
