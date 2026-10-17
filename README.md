@@ -147,6 +147,13 @@ part, the daily drain and fill, is handled the night before by the start plan.
 
 ## Redistribution logic: what the van does
 
+**In plain words:**
+
+![How the van decides: count the bikes, check if a station is acting strange or almost empty/full, then send the van to bring or take bikes](docs/images/how-the-van-decides.png)
+
+The detailed version, with every formula, is [`docs/images/redistribution-flowchart.png`](docs/images/redistribution-flowchart.png).
+The same logic in steps:
+
 After **every** reading (not at the first reading of the day), for every station:
 
 1. **Chart point:** append x_k to the station's run history.
@@ -453,13 +460,15 @@ the map's `validateFrame()`.
 - **Home page:** Jim's station map page (`map-preview.jsx`) with **one data source**, the simulated
   cities: pick a city, then Event day, Week 2 or Week 1 (and a day). The page has no upload or live
   mode; uploads go through the API (`POST /replay`, try it at `/docs`).
-- **On the map** (dark mode):
-  - each station is a **ring gauge** showing the share of docks filled, with the bike count in the
-    middle;
-  - a **halo** shows severity;
-  - the **name and status** sit under it;
-  - the **depot** is placed just off the network's centre;
-  - the **van** drives its route on every stop.
+- **On the map** (3D, `src/dispatch/Map3D.jsx` + `scene3d.js`; MapLibre GL with free OpenFreeMap tiles,
+  three.js models):
+  - a tilted dark 3D city with buildings and street names; **2D view** and **Rotate** buttons;
+  - each station is a **3D docking station**: dock posts, **one bike per docked bike**, and a kiosk
+    whose screen and beacon light up in the status colour (the beacon pulses on a chart signal);
+  - a ground **halo** shows severity; a **name card** shows the bikes "7/20" and the status;
+  - the **van** is a 3D delivery van that drives its route and turns to face where it is going;
+  - models are drawn **6× life size** so they stay readable at map zoom; the map needs internet
+    for its tiles.
 - **Ranked list:** Jim's "act now" list, plus station detail (trigger, expected bikes, chart x).
 - **Below the map:**
   - the live feed;

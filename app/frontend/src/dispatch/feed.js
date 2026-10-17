@@ -2,13 +2,15 @@
 // arrive in the frames from the API (app/qc.py). This file only turns frames into words,
 // colours and a van route.
 
-// The reserve depot is drawn just off the middle of whichever network is shown.
+// The reserve depot is drawn just west of whichever network is shown, level with its middle,
+// so its label never sits on top of a station's.
 export function depotOf(stations = []) {
   const pts = stations.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lon))
   if (!pts.length) return { id: 'depot', name: 'Reserve depot', lat: 0, lon: 0 }
   const lat = pts.reduce((a, s) => a + s.lat, 0) / pts.length
   const lon = pts.reduce((a, s) => a + s.lon, 0) / pts.length
-  return { id: 'depot', name: 'Reserve depot', lat: lat + 0.0002, lon: lon - 0.0003 }
+  const west = Math.min(...pts.map((s) => s.lon))
+  return { id: 'depot', name: 'Reserve depot', lat, lon: west - 0.0009 }
 }
 
 export const clock = (asOf) => (asOf ? asOf.slice(11, 16) : '')
