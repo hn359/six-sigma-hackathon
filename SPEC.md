@@ -146,10 +146,11 @@ collect this data for real.
 ## 9. Out of scope
 What we will NOT build, so nobody (human or agent) builds it by accident.
 - Default: logins, databases, real customer data, a second statistic before the first one is tested.
-- No van routing or travel-time model (one van, one stop per reading, no distances); no weekend,
-  weather or seasonal demand; no live feed connection (CSV files only); no broken-dock repair model.
+- No van routing or travel-time model (one van, one stop per reading, no distances, van capacity or
+  labor limits); no weekend, weather or seasonal demand; no live feed connection (CSV files only);
+  no broken-dock repair model; no multi-city comparison.
 - No machine-learning forecasting (the BikeFlow module in `app/bikeflow/` uses historical averages
-  only, and says so); no van capacity or labor limits; no multi-city comparison.
+  only, and says so).
 
 ## 10. BikeFlow Analyze and Improve module (PROPOSED on branch `jasmine`, needs team approval)
 `app/bikeflow/` adds a slot-adjusted I-MR chart, a station inventory chart, a net-flow chart and a

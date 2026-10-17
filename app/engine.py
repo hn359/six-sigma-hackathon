@@ -146,6 +146,28 @@ def learn(baseline_days, station_ids):
     return hist
 
 
+ROLLING_DAYS = 7
+
+
+def rolling_history(days_by_date, date, station_ids, fallback, window=ROLLING_DAYS):
+    """Control-chart history for the charts on `date`: the usual flow per slot and I-MR limits from
+    the last `window` days before it, cleaned with qc.clean_baseline (readings beyond 3 sigma
+    removed, then recomputed). Rider flow is net of van moves, so van-run days are fine to learn
+    from. With fewer than 2 earlier days, the station keeps `fallback` (the week-1 history).
+    Only the charts use this; the van's own decisions keep the week-1 history."""
+    prior = [d for d in sorted(days_by_date) if d < date][-window:]
+    out = {}
+    for sid in station_ids:
+        use = [d for d in prior if sid in days_by_date[d]]
+        if len(use) < 2:
+            out[sid] = {**fallback[sid], "basis": "week 1 (fewer than 2 earlier days)", "basis_days": [], "removed": 0}
+            continue
+        res = qc.clean_baseline([net_flows(days_by_date[d], sid) for d in use])
+        out[sid] = {**fallback[sid], "mu": res["mu"], "imr": res["imr"], "removed": res["removed"],
+                    "basis": f"last {len(use)} days before {date}, cleaned", "basis_days": [str(d) for d in use]}
+    return out
+
+
 # ---- frames --------------------------------------------------------------------------
 
 def _van_trip(day, k, station_ids, triggered=()):
@@ -164,8 +186,11 @@ def _van_trip(day, k, station_ids, triggered=()):
             "partner_bikes": p_amt, "reserve_bikes": abs(m) - p_amt}
 
 
-def day_frames(day, stations, hist, policy):
+def day_frames(day, stations, hist, policy, chart_hist=None):
     """One frame per reading for one day. policy=True: expected path = night plan; False = start as run.
+
+    The van's decisions (x, severity, trigger, bikes_to_move) always use `hist` (week 1). The chart
+    fields (chart_x, chart_rule) use `chart_hist` when given (e.g. rolling_history), else the same.
 
     The fleet is taken to be as many bikes as docks; the reserve is the fleet minus docked bikes."""
     ids = [sid for sid in sorted(day) if sid in stations]
@@ -179,6 +204,7 @@ def day_frames(day, stations, hist, policy):
         path[sid] = [start + c for c in h["C"]]
     flows = {sid: net_flows(day, sid) for sid in ids}
     run = {sid: [] for sid in ids}
+    crun = {sid: [] for sid in ids}
     reserve = sum(day[sid][0]["capacity"] for sid in ids) - sum(day[sid][0]["bikes"] for sid in ids)
     frames = []
     for k in range(slots_of(day)):
@@ -186,12 +212,17 @@ def day_frames(day, stations, hist, policy):
         for sid in ids:
             r, h, st = day[sid][k], hist[sid], stations[sid]
             cap, lsl, usl = r["capacity"], h["lsl"], h["usl"]
-            x = sig = None
+            x = sig = cx = csig = None
             if k > 0:
                 x = flows[sid][k] - h["mu"][k]
                 run[sid].append(x)
                 if h["imr"]["sigma"] > 0:
                     sig = qc.run_rules(run[sid], h["imr"]["xbar"], h["imr"]["sigma"])
+                ch = chart_hist[sid] if chart_hist else h
+                cx = flows[sid][k] - ch["mu"][k]
+                crun[sid].append(cx)
+                if ch["imr"]["sigma"] > 0:
+                    csig = qc.run_rules(crun[sid], ch["imr"]["xbar"], ch["imr"]["sigma"])
             trigger = qc.dispatch_trigger(sig, r["bikes"], lsl, usl) if k > 0 else None
             expected = min(cap, max(0, path[sid][k]))
             if sig:
@@ -215,6 +246,8 @@ def day_frames(day, stations, hist, policy):
                 "rule": sig["name"] if sig else (f"outside {lsl}-{usl} bikes" if trigger else None),
                 "bikes_to_move": move,
                 "x": None if x is None else round(x, 3),
+                "chart_x": None if cx is None else round(cx, 3),
+                "chart_rule": f"rule {csig['rule']}" if csig else None,
                 "van_moved": r["van_moved"],
                 "bikes_after_van": r["bikes"] + r["van_moved"],
                 "availability": None, "chronic_flag": False,
@@ -222,6 +255,7 @@ def day_frames(day, stations, hist, policy):
         for sid in ids:
             if day[sid][k]["van_moved"]:
                 run[sid] = []          # after a visit the run-rule history restarts
+                crun[sid] = []
         trip = _van_trip(day, k, ids, {s["station_id"] for s in out if s["bikes_to_move"]})
         if trip:
             reserve -= trip["reserve_bikes"] if trip["bikes_moved"] > 0 else -trip["reserve_bikes"]
@@ -232,7 +266,9 @@ def day_frames(day, stations, hist, policy):
 
 def chart_meta(hist):
     return {sid: {"xbar": h["imr"]["xbar"], "sigma": h["imr"]["sigma"], "mrbar": h["imr"]["mrbar"],
-                  "ucl": h["imr"]["ucl"], "lcl": h["imr"]["lcl"], "lsl": h["lsl"], "usl": h["usl"]}
+                  "ucl": h["imr"]["ucl"], "lcl": h["imr"]["lcl"], "lsl": h["lsl"], "usl": h["usl"],
+                  "basis": h.get("basis", f"week 1 ({h.get('baseline_days', '?')} days)"),
+                  "basis_days": h.get("basis_days"), "removed": h.get("removed", 0)}
             for sid, h in hist.items()}
 
 

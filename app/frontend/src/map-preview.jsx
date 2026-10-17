@@ -11,10 +11,11 @@ import Map3D from './dispatch/Map3D.jsx'
 import { validateFrame } from './map/contract.js'
 import { createSimulationState, publishSimulationState } from './map/sync.js'
 import { bikesToMoveLabel, directionLabel, pct } from './map/stationMap.js'
-import { API_URL, fetchDatasets, fetchFrames, fetchSummary } from './api.js'
+import { API_URL, fetchDatasets, fetchFrames, fetchSummary, fetchTrips } from './api.js'
 import { useVan } from './dispatch/VanLayer.jsx'
 import { BikesChart, IChart, PChart } from './dispatch/charts.jsx'
 import { clock, feedEntries, stationStatus } from './dispatch/feed.js'
+import { joinGap, rushWindows, windowAt } from './dispatch/rush.js'
 import './styles.css'
 import './dispatch/dispatch.css'
 
@@ -32,12 +33,14 @@ function Preview() {
   // ?dataset=downtown in the address opens that city directly
   const [dataset, setDataset] = useState(() => new URLSearchParams(window.location.search).get('dataset') || 'collegetown')
   const [scenario, setScenario] = useState('event')
+  const [limits, setLimits] = useState('rolling') // chart limits: last 7 clean days, or week 1 for comparison
   const [day, setDay] = useState(0)
   const [chart, setChart] = useState(null) // control-chart centre and sigma per station, from the API
   const [summary, setSummary] = useState(null)
   const [pStation, setPStation] = useState(0)
   const [selectedId, setSelectedId] = useState(null)
   const [status, setStatus] = useState('') // what the API is doing, or why it failed
+  const [tripsByTime, setTripsByTime] = useState({}) // rider trips per reading time, for the cyclists
 
   const frame = frames[Math.min(i, frames.length - 1)]
   const check = useMemo(() => (frame ? validateFrame(frame) : { ok: true, errors: [] }), [frame])
@@ -47,12 +50,15 @@ function Preview() {
   const feed = useMemo(() => (frames.length ? feedEntries(frames, i) : []), [frames, i])
   const rush = summary?.rush_slots ?? []
   const about = datasets.find((d) => d.id === dataset)
+  const rushWin = useMemo(() => rushWindows(rush, joinGap(about?.interval_minutes)), [rush, about?.interval_minutes])
+  const inRush = windowAt(rushWin, Math.min(i, frames.length - 1))
+  const hhmm = (k) => frames[Math.min(k, frames.length - 1)]?.as_of.slice(11, 16)
 
   // One simulated day from the API
   useEffect(() => {
     let cancelled = false
     setStatus(`Loading ${scenario} from ${API_URL || 'this server'} ...`)
-    fetchFrames(scenario, scenario === 'event' ? 0 : day, dataset)
+    fetchFrames(scenario, scenario === 'event' ? 0 : day, dataset, limits)
       .then((res) => {
         if (cancelled) return
         setFrames(res.frames); setFrameContext({ dataset, scenario, dayIndex: scenario === 'event' ? 0 : day, date: res.date })
@@ -61,7 +67,21 @@ function Preview() {
       })
       .catch((err) => { if (!cancelled) setStatus(`Cannot reach ${API_URL || 'the API'}/frames (${err.message}). Is the API running?`) })
     return () => { cancelled = true }
-  }, [scenario, day, dataset, about?.interval_minutes])
+  }, [scenario, day, dataset, limits, about?.interval_minutes])
+
+  useEffect(() => {
+    let cancelled = false
+    setTripsByTime({})
+    fetchTrips(scenario, scenario === 'event' ? 0 : day, dataset)
+      .then((res) => {
+        if (cancelled) return
+        const by = {}
+        for (const t of res.trips) (by[t.timestamp] ??= []).push(t)
+        setTripsByTime(by)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [scenario, day, dataset])
 
   useEffect(() => { fetchDatasets().then(setDatasets).catch(() => {}) }, [])
   useEffect(() => { setSummary(null); setPStation(0); fetchSummary(dataset).then(setSummary).catch(() => {}) }, [dataset])
@@ -123,6 +143,11 @@ function Preview() {
             {DAYS.map((d, n) => <option key={d} value={n}>{d}</option>)}
           </select>
         )}
+        <select value={limits} onChange={(e) => setLimits(e.target.value)} aria-label="Chart limits"
+          title="Control-chart limits: the last 7 clean days before the day shown (update daily), or week 1 for comparison">
+          <option value="rolling">Chart limits: last 7 clean days</option>
+          <option value="week1">Chart limits: week 1 (fixed)</option>
+        </select>
         <p className="sample-note">Simulated data (data/README.md){about
           ? `: ${about.stations} stations, ${Math.min(...about.docks) === Math.max(...about.docks) ? `${about.docks[0]} docks each` : `${Math.min(...about.docks)}-${Math.max(...about.docks)} docks`}, ${about.fleet} bikes, a reading every ${about.interval_minutes} min`
           : ''}. The van goes when a station's control chart signals or it leaves 20%-80% of its docks.</p>
@@ -143,9 +168,21 @@ function Preview() {
           <button type="button" onClick={() => setPlaying((p) => !p)} disabled={frames.length < 2}>
             {playing ? 'Pause' : 'Play'}
           </button>
-          <input type="range" min={0} max={frames.length - 1} value={i}
-            onChange={(e) => setI(Number(e.target.value))} aria-label="Replay time" />
+          <div className="rush-bar">
+            {frames.length > 1 && rushWin.map(([a, b]) => (
+              <span key={a} className="rush-seg" title={`Rush hour ${hhmm(a)}-${hhmm(b)}`}
+                style={{ '--a': a / (frames.length - 1), '--b': b / (frames.length - 1) }} />
+            ))}
+            <input type="range" min={0} max={frames.length - 1} value={i}
+              onChange={(e) => setI(Number(e.target.value))} aria-label="Replay time" />
+          </div>
           <output>{frame.as_of.replace('T', ' ')}</output>
+          {/* always in the layout (hidden outside a rush) so the slider keeps its length while dragging */}
+          {rushWin.length > 0 && (
+            <span className={`rush-badge${inRush ? '' : ' off'}`} aria-hidden={!inRush}>
+              Rush hour {hhmm((inRush ?? rushWin[0])[0])}-{hhmm((inRush ?? rushWin[0])[1])}
+            </span>
+          )}
           <label className="d-speed">1 reading =
             <select value={stepMs} onChange={(e) => setStepMs(Number(e.target.value))}>
               {SPEEDS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
@@ -158,7 +195,9 @@ function Preview() {
       {frame && (
         <div className="map-grid">
           <Map3D frames={frames} i={Math.min(i, frames.length - 1)} van={van}
-            selectedId={selectedId} onSelect={setSelectedId} />
+            selectedId={selectedId} onSelect={setSelectedId}
+            nextTrips={tripsByTime[frames[Math.min(i + 1, frames.length - 1)]?.as_of] ?? []}
+            playing={playing} stepMs={stepMs} />
           <aside className="side">
             <h2>Stations</h2>
             <ActionList stations={stations} selectedId={selectedId} onSelect={setSelectedId} />
@@ -201,6 +240,9 @@ function Preview() {
       {frame && chart && frames.length > 1 && (
         <section className="d-section">
           <h2>Each station today <span>top: bikes, the spec band (20%-80% of docks), dashed expected path, ▲▼ van; bottom: control chart of net flow minus the usual, ±1/2/3σ, red = a rule fired</span></h2>
+          <p className="status">Control-chart limits: {limits === 'rolling'
+            ? `the last 7 clean days before this day (readings beyond 3σ removed), so they update every day${chart[stations[0]?.station_id]?.basis_days?.length ? ` (${chart[stations[0].station_id].basis_days[0]} to ${chart[stations[0].station_id].basis_days.slice(-1)[0]})` : ' (week 1 here: fewer than 2 earlier days)'}`
+            : 'week 1, fixed (comparison mode)'}. The van's decisions always use the week-1 limits.</p>
           <div className="d-stations">
             {stations.map((s) => {
               const st = stationStatus(frames, i, s.station_id)

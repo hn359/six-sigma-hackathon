@@ -137,3 +137,37 @@ def test_upload_off_grid_reading_is_rejected_clearly():
     files = {"readings": ("r.csv", text.encode()), "stations": ("s.csv", (ROOT / "collegetown" / "stations.csv").read_bytes())}
     r = client.post("/replay", files=files)
     assert r.status_code == 400 and "grid" in r.json()["detail"]
+
+
+def test_chart_limits_are_rolling_by_default_with_week1_for_comparison_and_never_move_the_van():
+    roll = client.get("/frames/event").json()
+    week = client.get("/frames/event", params={"limits": "week1"}).json()
+    assert roll["limits"] == "rolling" and week["limits"] == "week1"
+    assert roll["chart"]["S01"]["basis_days"] == [f"2026-10-{d}" for d in range(12, 19)]
+    assert roll["chart"]["S01"]["sigma"] != week["chart"]["S01"]["sigma"]
+    # the van's decisions are identical in both modes; only the chart fields differ
+    van = lambda r: [(s["station_id"], s["x"], s["severity"], s["trigger"], s["bikes_to_move"])
+                     for f in r["frames"] for s in f["stations"]]
+    assert van(roll) == van(week)
+    assert all(s["chart_x"] == s["x"] for f in week["frames"] for s in f["stations"])
+    assert any(s["chart_x"] != s["x"] for f in roll["frames"] for s in f["stations"] if s["x"] is not None)
+    assert client.get("/frames/event", params={"limits": "monthly"}).status_code == 400
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_trips_match_the_readings_exactly(key):
+    # For every station and reading: change in bikes - van move = arrivals - departures in the trips.
+    body = client.get(f"/trips/event?dataset={key}").json()
+    frames = client.get(f"/frames/event?dataset={key}").json()["frames"]
+    assert body["trips"], "no trips for the event day"
+    by_time = {}
+    for t in body["trips"]:
+        by_time.setdefault(t["timestamp"], []).append(t)
+    for k in range(1, len(frames)):
+        prev = {s["station_id"]: s for s in frames[k - 1]["stations"]}
+        for s in frames[k]["stations"]:
+            p = prev[s["station_id"]]
+            moves = by_time.get(frames[k]["as_of"], [])
+            arrivals = sum(t["to"] == s["station_id"] for t in moves)
+            departures = sum(t["from"] == s["station_id"] for t in moves)
+            assert s["bikes"] - p["bikes"] - p["van_moved"] == arrivals - departures, (frames[k]["as_of"], s["station_id"])

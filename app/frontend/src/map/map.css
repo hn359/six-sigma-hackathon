@@ -15,6 +15,25 @@
 
 .replay { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 8px 0 16px; }
 .replay input[type='range'] { max-width: none; flex: 1; min-width: 200px; padding: 0; }
+/* rush windows: an amber band along the slider track (8px = half the thumb, so it lines up with the readings) */
+.rush-bar { position: relative; flex: 1; min-width: 200px; display: flex; padding-bottom: 6px; }
+.rush-bar input[type='range'] { width: 100%; }
+.rush-seg {
+  position: absolute; bottom: 0; height: 4px; border-radius: 2px; pointer-events: none;
+  background: var(--warn, #ffb020); min-width: 4px;
+  left: calc(8px + (100% - 16px) * var(--a));
+  width: calc((100% - 16px) * (var(--b) - var(--a)));
+}
+.rush-badge {
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px; background: var(--warn, #ffb020); color: var(--bg, #050608);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rush-badge.off { visibility: hidden; }
+/* the reserve/van text changes length every reading: its own line, so the slider never resizes */
+.replay .d-reserve { flex-basis: 100%; margin-top: -6px; font-variant-numeric: tabular-nums; }
+.replay output { white-space: nowrap; }
+.replay > button { min-width: 4.5em; }   /* "Play" and "Pause" take the same room */
 .replay output { font-variant-numeric: tabular-nums; font-weight: 600; }
 .replay button { font: inherit; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
 

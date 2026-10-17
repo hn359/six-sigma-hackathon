@@ -239,7 +239,9 @@
 
   <section>
     <div class="eyebrow">06 &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
-    <p class="how">Each point is the station's rider net flow in one reading minus what is usual at that time of day (learned from week 1, when no van ran).
+    <div class="seg" id="limwin"><button type="button" data-lim="rolling" class="on">Limits: last 7 clean days (updates daily)</button><button type="button" data-lim="week1">Week 1 (fixed, for comparison)</button></div>
+    <p class="how"><b id="limbasis"></b></p>
+    <p class="how">Each point is the station's rider net flow in one reading minus what is usual at that time of day on the days the limits come from.
       Around the centre line, <b>Zone C</b> is within 1&sigma;, <b>Zone B</b> 1&ndash;2&sigma; and <b>Zone A</b> 2&ndash;3&sigma;; the dashed red lines are the
       3&sigma; control limits (course lesson 5: &sigma; = MR&#772; / 1.128, MR UCL = 3.267 MR&#772;). A point that completes one of the eight tests gets that
       test's symbol and is labelled with every test it fired. Station: <b id="spcname"></b> (change it with "Control-chart station" at the top).</p>
@@ -271,6 +273,7 @@ const BASE = location.pathname.includes("/bikeflow/")
   ? location.pathname.slice(0, location.pathname.indexOf("/bikeflow/") + 1) : "./";
 const API = BASE + "api/bikeflow";
 const FOLLOW = new URLSearchParams(location.search).get("follow") === "console";
+let limitsMode = "rolling";   // chart limits: the last 7 clean days before each day, or week 1 (comparison)
 let city = null, info = null, cache = {}, timer = null, autoStart = false, playing = false, planBusy = false, planAgain = false, loadId = 0;
 
 /* ---- colour: validated categorical slots (one per station, fixed order), status, diverging ---- */
@@ -376,12 +379,12 @@ async function loadAll() {
   const [inv, flow, score, ...spcs] = await Promise.all([
     ok(get("inventory", { station: st, ...range })),
     ok(get("flow", { station: st, ...range })),
-    (cache.scoreCity === city && cache.score) ? Promise.resolve(cache.score) : ok(get("scorecard")),
-    ...info.stations.map(x => ok(get("spc", { station: x, ...range, measure: "net_flow" })))]);
+    (cache.scoreCity === city && cache.scoreLim === limitsMode && cache.score) ? Promise.resolve(cache.score) : ok(get("scorecard", { limits: limitsMode })),
+    ...info.stations.map(x => ok(get("spc", { station: x, ...range, measure: "net_flow", limits: limitsMode })))]);
   if (id !== loadId) return;                       // a newer filter change superseded this load
   const his = await hisFrames(range.end);
   if (id !== loadId) return;
-  cache = { inv, flow, score, his, scoreCity: city, spc: Object.fromEntries(info.stations.map((x, i) => [x, spcs[i]])) };
+  cache = { inv, flow, score, his, scoreCity: city, scoreLim: limitsMode, spc: Object.fromEntries(info.stations.map((x, i) => [x, spcs[i]])) };
   render();
   if (autoStart) { autoStart = false; play(); }
 }
@@ -434,6 +437,9 @@ function renderSpc() {
   $("testkey").innerHTML = TESTS.map(t => `<div><span class="g" style="color:${testColor(t)}">${t[2]}</span><span>${esc(t[4])}</span></div>`).join("");
   if (!c || c.e) { emptyChart("spcI", c ? c.e : "No data"); Plotly.purge("spcMR"); $("spcMR").innerHTML = ""; return; }
   const d = c.v, lim = d.limits;
+  const span = d.baseline_days.length ? ` (${d.baseline_days[0]} to ${d.baseline_days[d.baseline_days.length - 1]})` : "";
+  $("limbasis").textContent = `Limits for ${$("end").value}: ${d.basis}${span}` +
+    (lim && lim.removed ? `; ${lim.removed} unusual reading${lim.removed === 1 ? "" : "s"} beyond 3σ removed before computing them` : "") + ".";
   msg("spcmsg", d.warnings.join(" "));
   $("rulelist").textContent = `${d.method}. ${d.note}`;
   if (!lim) { emptyChart("spcI", "No control limits for this day: " + d.warnings.join(" ")); return; }
@@ -497,8 +503,8 @@ function renderScorecard() {
   if ($("scorewrap").hidden) return;
   const d = sc.v, pct = v => v === null || v === undefined ? "-" : `${(100 * v).toFixed(1)}%`;
   $("scorehow").innerHTML = `The simulation hid these problems in ${esc(evs[0].day)}'s data on purpose. Did the red dots go off when they started? ` +
-    `(Normal is learned from week 1, when no van ran.) ` +
-    `on the ordinary days ${esc(d.quiet_days[0])} to ${esc(d.quiet_days[d.quiet_days.length - 1])} the same chart flags <b>${pct(d.false_alarm_rate_tests_only)}</b> of readings by the eight tests ` +
+    `(Normal is learned from ${limitsMode === "rolling" ? "the last 7 clean days before each day" : "week 1, when no van ran"}.) ` +
+    `On the ordinary days ${esc(d.quiet_days[0])} to ${esc(d.quiet_days[d.quiet_days.length - 1])} the same chart flags <b>${pct(d.false_alarm_rate_tests_only)}</b> of readings by the eight tests ` +
     `(${pct(d.false_alarm_rate)} with the MR chart), so one flag on its own is a prompt to look, not proof.`;
   $("scorecards").innerHTML = d.events.map(e => {
     const ok = !!e.first_flag;
@@ -949,6 +955,11 @@ $("file").addEventListener("change", e => e.target.files[0] && upload(e.target.f
 ["stations","start","end"].forEach(id => $(id).addEventListener("change", () => { stop(); loadAll(); }));
 $("spcstation").addEventListener("change", () => { if (info && cache.inv) renderSpc(); });
 $("depot").addEventListener("change", schedulePlan);
+document.querySelectorAll("#limwin button").forEach(b => b.addEventListener("click", () => {
+  limitsMode = b.dataset.lim;
+  document.querySelectorAll("#limwin button").forEach(x => x.classList.toggle("on", x === b));
+  if (info) loadAll();
+}));
 document.querySelectorAll("#odwin button").forEach(b => b.addEventListener("click", () => {
   odWin = b.dataset.win;
   document.querySelectorAll("#odwin button").forEach(x => x.classList.toggle("on", x === b));

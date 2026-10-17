@@ -124,6 +124,7 @@ answers are in SPEC.md section 4.
 | Usual flow for slot k | μ_k = mean of f_k over the baseline days | `engine.learn` |
 | **Chart point** | x_k = f_k − μ_k (net flow compared with the usual for that time) | `engine.day_frames` |
 | I-MR limits | x̄, MR̄ (moving ranges inside a day only), σ = MR̄ / 1.128; limits x̄ ± 3σ = x̄ ± 2.66 MR̄; MR UCL = 3.267 MR̄ | `qc.imr_limits_days` |
+| Chart limits (default) | the **last 7 days before each charted day**, cleaned: readings beyond 3σ removed and μ, x̄, MR̄ recomputed until none remain (the course's revised limits), so the charts update daily. `?limits=week1` shows the fixed week-1 limits for comparison. The van's decisions keep the week-1 limits | `qc.clean_baseline`, `engine.rolling_history` |
 | **Western Electric rules** (same side of x̄) | 1: a point beyond 3σ · 2: 2 of the last 3 beyond 2σ · 3: 4 of the last 5 beyond 1σ · 4: 8 in a row. For rules 2 and 3 the newest point must itself be beyond the zone (Montgomery, *Introduction to SQC*, §5.3) | `qc.run_rules` |
 | Spec limits | LSL = round(0.20 × docks), USL = round(0.80 × docks), halves up. 20 docks → 4 and 16; 12 → 2 and 10; 31 → 6 and 25 | `qc.spec_limits` |
 | Out of spec | bikes < LSL or bikes > USL | `qc.out_of_spec` |
@@ -445,6 +446,7 @@ Column-name mapping for raw GBFS is not built in yet: rename the columns first.
 | `GET /health` | `{"status": "ok"}` |
 | `GET /datasets` | every city: name, interval, readings per day, docks, fleet, event, dates per scenario |
 | `GET /frames/{week1\|week2\|event}?day=0..6&dataset=collegetown` | `{"frames": [Frame per reading], "chart": {station: {xbar, sigma, ucl, lcl, lsl, usl}}}` |
+| `GET /trips/{week1\|week2\|event}?day=0..6&dataset=…` | every rider trip of that day (`timestamp, from, to`), for the map's cyclists; display only, and a test checks it matches the readings exactly |
 | `GET /summary?dataset=…` | night plan (docks, limits, swing, allowed range, start, σ), `rush_times`, weekly `pcharts`, `kpis`, `warnings` |
 | `POST /replay` (multipart `readings`, `stations`) | frames for an upload, plus `history` (where the history came from) |
 | `GET /latest?dataset=…&scenario=event` | a stand-in for a live feed: the frame "now", cycling one reading every 5 seconds (not used by the page) |
@@ -467,6 +469,10 @@ the map's `validateFrame()`.
     whose screen and beacon light up in the status colour (the beacon pulses on a chart signal);
   - a ground **halo** shows severity; a **name card** shows the bikes "7/20" and the status;
   - the **van** is a 3D delivery van that drives its route and turns to face where it is going;
+  - **cyclists** (bike + rider, coloured jersey and helmet) ride the real simulated trips between
+    stations: while a reading is on screen, the riders of the next interval ride from start to end
+    station, so the next reading's bike counts already include them; they are drawn 26× life size;
+  - map **colours follow the time of day** (night, dawn, day, golden afternoon, sunset, dusk);
   - models are drawn **14× life size** so they stay readable at map zoom; the map needs internet
     for its tiles.
 - **Ranked list:** Jim's "act now" list, plus station detail (trigger, expected bikes, chart x).
