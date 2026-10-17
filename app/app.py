@@ -15,7 +15,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 try:
@@ -242,5 +242,24 @@ def docs_redirect():
 
 # The built React app (app/frontend/dist), served at / when it exists.
 DIST = HERE / "frontend" / "dist"
+BIKEFLOW_INDEX = HERE / "bikeflow" / "dashboard" / "index.html"
+
+if BIKEFLOW_INDEX.exists():
+    @app.get("/bikeflow", include_in_schema=False)
+    @app.get("/bikeflow/", include_in_schema=False)
+    def bikeflow_dashboard():
+        return FileResponse(BIKEFLOW_INDEX)
+
 if DIST.exists():
+    @app.get("/", include_in_schema=False)
+    @app.get("/index.html", include_in_schema=False)
+    def root_ui():
+        return FileResponse(DIST / "index.html")
+
+    @app.get("/map", include_in_schema=False)
+    @app.get("/map.html", include_in_schema=False)
+    def map_ui():
+        return FileResponse(DIST / "map.html")
+
     app.mount("/", StaticFiles(directory=DIST, html=True), name="frontend")
+

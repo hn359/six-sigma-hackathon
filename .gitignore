@@ -8,6 +8,8 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
+!app/frontend/dist/
+!app/frontend/dist/**
 rsconnect/
 .opencode/model-ladder-state.json
 

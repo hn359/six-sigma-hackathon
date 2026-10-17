@@ -1,0 +1,278 @@
+{
+  "version": 1,
+  "locale": "English_United States.1252",
+  "metadata": {
+    "appmode": "python-fastapi",
+    "entrypoint": "app:app"
+  },
+  "python": {
+    "version": "3.12.8",
+    "package_manager": {
+      "name": "pip",
+      "version": "26.2.1",
+      "package_file": "requirements.txt"
+    }
+  },
+  "environment": {
+    "python": {
+      "requires": "~=3.12.0"
+    }
+  },
+  "files": {
+    "requirements.txt": {
+      "checksum": "72f2a8e039a566353e0ce2b715d0d34c"
+    },
+    ".env.example": {
+      "checksum": "d14e2b4af7bec2eb81fa0cbb87037659"
+    },
+    ".python-version": {
+      "checksum": "c3052f53ccf07991da5591cab5ee1274"
+    },
+    "app.py": {
+      "checksum": "c3da61fd5e131d01dd94831a38f98652"
+    },
+    "bikeflow/README.md": {
+      "checksum": "e390b1b9bb0ff98747e3f018c7edc75e"
+    },
+    "bikeflow/__init__.py": {
+      "checksum": "4b0ddf5e0343017d95a92d19f6d3a6b5"
+    },
+    "bikeflow/__pycache__/__init__.cpython-314.pyc": {
+      "checksum": "202b16725bb6140a5d1a8802c8194569"
+    },
+    "bikeflow/__pycache__/analyze.cpython-314.pyc": {
+      "checksum": "004a9971fb11679e1ce74ef46c05e2cc"
+    },
+    "bikeflow/__pycache__/config.cpython-314.pyc": {
+      "checksum": "94c7750e7c346b9a4c68d8d93496d630"
+    },
+    "bikeflow/__pycache__/data.cpython-314.pyc": {
+      "checksum": "d8c5892f4c58ff9130764746a00596b0"
+    },
+    "bikeflow/__pycache__/plan.cpython-314.pyc": {
+      "checksum": "0fd34e134c5878afeba01fe01c81dfb1"
+    },
+    "bikeflow/__pycache__/qc.cpython-314.pyc": {
+      "checksum": "8c75cbc9704d9927a9c88c427fbbc742"
+    },
+    "bikeflow/analyze.py": {
+      "checksum": "55d4522f6ff657ecb92409660a3d5a7d"
+    },
+    "bikeflow/api.py": {
+      "checksum": "15b6ac2ea13eac1016ed234eee7a1b0c"
+    },
+    "bikeflow/cities.py": {
+      "checksum": "45a90a31baa32c27f94ae79a2fc8ef53"
+    },
+    "bikeflow/combined.py": {
+      "checksum": "0f424ec17ef73c62da2163f239e2312f"
+    },
+    "bikeflow/config.py": {
+      "checksum": "e1a212db59a8a81c5691f96ad90dc129"
+    },
+    "bikeflow/dashboard/index.html": {
+      "checksum": "fac87ea781078827a37dabd0ea5d78de"
+    },
+    "bikeflow/data.py": {
+      "checksum": "b9e4ff7ce0ce1cc38970ff7c1c9015ca"
+    },
+    "bikeflow/plan.py": {
+      "checksum": "0f466aa6873d9a7fd0ce30a10466539a"
+    },
+    "bikeflow/qc.py": {
+      "checksum": "a56fab9bf58776da52d20436fb6fd587"
+    },
+    "bikeflow/requirements.txt": {
+      "checksum": "8d3bcac9ff8e9b226edf657e970dab9e"
+    },
+    "bikeflow/server.py": {
+      "checksum": "b03d79bf558f338b071df1df7ea511b6"
+    },
+    "bikeflow/testme.sh": {
+      "checksum": "6fa130363eb2621b51093bdab337f2eb"
+    },
+    "data/README.md": {
+      "checksum": "7d67024dffba185bc50470d7bf3c7427"
+    },
+    "data/collegetown/about.json": {
+      "checksum": "cca36a5c65bb8c77ca5cf518e97d7d0a"
+    },
+    "data/collegetown/event_day.csv": {
+      "checksum": "6e9688a470f5ae0f512703affb090f29"
+    },
+    "data/collegetown/stations.csv": {
+      "checksum": "27c6591c46ad546a5a3b4d98b804f50a"
+    },
+    "data/collegetown/trips.csv": {
+      "checksum": "5125498e0c854ea32317aac9dc1e0e89"
+    },
+    "data/collegetown/van_log.csv": {
+      "checksum": "da8e82858310e0cfe8383819b7793ea7"
+    },
+    "data/collegetown/week1_baseline.csv": {
+      "checksum": "3d0a7aefda86dfa4f2d97c4d03bd48cd"
+    },
+    "data/collegetown/week2_policy.csv": {
+      "checksum": "500b67735ff26b6be2c0e3fd9bfdb5fb"
+    },
+    "data/downtown/about.json": {
+      "checksum": "d40a460529d27f26b464ad1c7c36ccba"
+    },
+    "data/downtown/event_day.csv": {
+      "checksum": "2d54d46053b5d1516cb6e9bca8bd1d32"
+    },
+    "data/downtown/stations.csv": {
+      "checksum": "916368b82dbc0cfd609c3924a7f9665a"
+    },
+    "data/downtown/trips.csv": {
+      "checksum": "dd9547589adb98e417489e3ae4d097a8"
+    },
+    "data/downtown/van_log.csv": {
+      "checksum": "b032a65e38e864f320bb6a4a46c27c81"
+    },
+    "data/downtown/week1_baseline.csv": {
+      "checksum": "e9e31975ca6965089839c6a2799e26ec"
+    },
+    "data/downtown/week2_policy.csv": {
+      "checksum": "14e0985d9c4fd8f3ed5bea9d8a36ca43"
+    },
+    "data/simulate.py": {
+      "checksum": "830ce5c3dda344804987f3501e8b29f7"
+    },
+    "data/waterfront/about.json": {
+      "checksum": "27d826d88e6d2bb879a5082e036c51f5"
+    },
+    "data/waterfront/event_day.csv": {
+      "checksum": "b5696e050ec8321f91539da1abe21cb4"
+    },
+    "data/waterfront/stations.csv": {
+      "checksum": "1540256578d00135d494c33ef63038ec"
+    },
+    "data/waterfront/trips.csv": {
+      "checksum": "866eb7e8dd073769b238c9dceb3c51c8"
+    },
+    "data/waterfront/van_log.csv": {
+      "checksum": "ca27c86008cd0a504db58ea421f22a71"
+    },
+    "data/waterfront/week1_baseline.csv": {
+      "checksum": "bcc441953f14818b40d6aae60460cf57"
+    },
+    "data/waterfront/week2_policy.csv": {
+      "checksum": "28f6c1fae36b4558425535dbe6093d59"
+    },
+    "deployme.ps1": {
+      "checksum": "3dc8d07b3924bb80ead8532bed22fcbc"
+    },
+    "deployme.sh": {
+      "checksum": "ac4ea14a0ab6825a129f99c4183eabc3"
+    },
+    "engine.py": {
+      "checksum": "9105f495e82bbfaccd1283f070ad7ef2"
+    },
+    "frontend/.gitignore": {
+      "checksum": "8901a54efdd08ed080501d9b8eebf9ff"
+    },
+    "frontend/README.md": {
+      "checksum": "02a9c2bffebc287ac5220df5db921033"
+    },
+    "frontend/dist/assets/map-preview-VAav2FLK.js": {
+      "checksum": "e3f149c68940864b42fe307bdd34c916"
+    },
+    "frontend/dist/assets/map-preview-jcjrOp1e.css": {
+      "checksum": "7556fb215bfe1010be641a5e83b137f5"
+    },
+    "frontend/dist/index.html": {
+      "checksum": "2052d2ef968026f1874071b53ee38bde"
+    },
+    "frontend/dist/map.html": {
+      "checksum": "2052d2ef968026f1874071b53ee38bde"
+    },
+    "frontend/index.html": {
+      "checksum": "2a9562108c248bd2bedd64fd84dc447f"
+    },
+    "frontend/map.html": {
+      "checksum": "2a9562108c248bd2bedd64fd84dc447f"
+    },
+    "frontend/package-lock.json": {
+      "checksum": "dceebef818cf1c69533fcf5a4b4592b5"
+    },
+    "frontend/package.json": {
+      "checksum": "f0026aec2ede45a9eee4c21a5070ed1f"
+    },
+    "frontend/src/App.jsx": {
+      "checksum": "86e0b094b535191fe2ed9dde587f80a5"
+    },
+    "frontend/src/api.js": {
+      "checksum": "295260fb98e83b5dfa0ad5d63e0e2a0f"
+    },
+    "frontend/src/dispatch/VanLayer.jsx": {
+      "checksum": "76f99acb55e0bf8c8c3faf86802c7be7"
+    },
+    "frontend/src/dispatch/charts.jsx": {
+      "checksum": "4304b12efaa31af4384216f745c01e98"
+    },
+    "frontend/src/dispatch/dispatch.css": {
+      "checksum": "234624c244bf8a978865a21863dfd097"
+    },
+    "frontend/src/dispatch/feed.js": {
+      "checksum": "13220f8c5228092655af73019d85dc62"
+    },
+    "frontend/src/dispatch/feed.test.js": {
+      "checksum": "9e81481a788c6547180506b4655a4a72"
+    },
+    "frontend/src/main.jsx": {
+      "checksum": "0173baff10e62df475437c3847046633"
+    },
+    "frontend/src/map-preview.jsx": {
+      "checksum": "c2f56f9777b40d728da4efc2ae3fa3f8"
+    },
+    "frontend/src/map/StationMap.jsx": {
+      "checksum": "91d746709ee627e76d5f5455f1c87ee8"
+    },
+    "frontend/src/map/contract.js": {
+      "checksum": "52bb9d30361200529c4e6ae3c46880e4"
+    },
+    "frontend/src/map/contract.test.js": {
+      "checksum": "b77b0b95969d1e25e05cd9880c174ec9"
+    },
+    "frontend/src/map/map.css": {
+      "checksum": "52ae9c69b5eb1d539833e91d2cb7025b"
+    },
+    "frontend/src/map/sampleFrames.js": {
+      "checksum": "7cfc3f1daa4ce979855644ecc399d1bc"
+    },
+    "frontend/src/map/stationMap.js": {
+      "checksum": "97b5ea70b159cfeafce6a4d6963d752e"
+    },
+    "frontend/src/map/stationMap.test.js": {
+      "checksum": "40fe9c14489cb2ae551a504aaa75983e"
+    },
+    "frontend/src/map/sync.js": {
+      "checksum": "e09217f226d36c396b2019fbcd9f545c"
+    },
+    "frontend/src/map/sync.test.js": {
+      "checksum": "b2fbbca0356524cb79b346e2a0d96c99"
+    },
+    "frontend/src/spc.js": {
+      "checksum": "a270d38dcba5c56c40eca657c727bc49"
+    },
+    "frontend/src/spc.test.js": {
+      "checksum": "b91c37e86fc10dc9a62d01a08e5980fa"
+    },
+    "frontend/src/styles.css": {
+      "checksum": "7889b9a2e127bcf4706e10922a375ce9"
+    },
+    "frontend/vite.config.js": {
+      "checksum": "345967908a7c729e85f7b4e22c336af4"
+    },
+    "manifestme.sh": {
+      "checksum": "b26a69801d67b3ea636c4627bd52be73"
+    },
+    "qc.py": {
+      "checksum": "08fc9fadf5065dee3c1ad34e0084b094"
+    },
+    "testme.sh": {
+      "checksum": "203009c9df61aedc667b5c3c97016292"
+    }
+  }
+}

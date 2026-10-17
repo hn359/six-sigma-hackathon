@@ -1,0 +1,37 @@
+{
+  "id": "collegetown",
+  "name": "Collegetown, Ithaca: student commute",
+  "interval_minutes": 15,
+  "first_reading": "06:00",
+  "last_reading": "21:45",
+  "readings_per_day": 64,
+  "stations": 5,
+  "docks": [
+    20,
+    20,
+    20,
+    20,
+    20
+  ],
+  "fleet": 100,
+  "seed": 5300,
+  "simulated": true,
+  "event": {
+    "slow_drain": {
+      "station": "S03",
+      "from": "10:15",
+      "to": "13:00",
+      "extra_rentals_per_reading": 1
+    },
+    "crowd": {
+      "station": "S02",
+      "from": "18:15",
+      "to": "19:00",
+      "riders_per_reading": 4,
+      "coming_from": [
+        "S04",
+        "S05"
+      ]
+    }
+  }
+}
