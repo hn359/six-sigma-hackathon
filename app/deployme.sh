@@ -15,6 +15,9 @@ python -m pip install rsconnect-python
 if [ -f ".env" ]; then
   # shellcheck disable=SC1091
   source .env
+elif [ -f "../.env" ]; then
+  # shellcheck disable=SC1091
+  source ../.env
 fi
 
 # If CONNECT_SERVER and CONNECT_API_KEY are set, use explicit auth.
