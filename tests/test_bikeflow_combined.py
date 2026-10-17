@@ -90,6 +90,9 @@ def test_home_page_has_four_tabs_over_one_tool_page():
     assert client.get("/home/images/how-the-van-decides.png").status_code == 200
     assert client.get("/home/images/hero-bikes.jpg").status_code == 200   # the banner photo
     assert 'class="hero"' in r.text and "CC BY-SA 4.0" in r.text           # banner on every tab, credited
+    for who, li in (("jasmine", "tranngo3110"), ("jim", "chia-chun-hsu-25113a290")):   # author cards
+        assert client.get(f"/home/images/{who}.png").status_code == 200
+        assert f'popovertarget="bio-{who}"' in r.text and f"linkedin.com/in/{li}" in r.text
     assert client.get("/home/images/banner.png").status_code == 404     # only the docs' own images
 
 
