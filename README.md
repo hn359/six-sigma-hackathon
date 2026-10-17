@@ -124,6 +124,7 @@ answers are in SPEC.md section 4.
 | Usual flow for slot k | μ_k = mean of f_k over the baseline days | `engine.learn` |
 | **Chart point** | x_k = f_k − μ_k (net flow compared with the usual for that time) | `engine.day_frames` |
 | I-MR limits | x̄, MR̄ (moving ranges inside a day only), σ = MR̄ / 1.128; limits x̄ ± 3σ = x̄ ± 2.66 MR̄; MR UCL = 3.267 MR̄ | `qc.imr_limits_days` |
+| Chart limits (default) | the **last 7 days before each charted day**, cleaned: readings beyond 3σ removed and μ, x̄, MR̄ recomputed until none remain (the course's revised limits), so the charts update daily. `?limits=week1` shows the fixed week-1 limits for comparison. The van's decisions keep the week-1 limits | `qc.clean_baseline`, `engine.rolling_history` |
 | **Western Electric rules** (same side of x̄) | 1: a point beyond 3σ · 2: 2 of the last 3 beyond 2σ · 3: 4 of the last 5 beyond 1σ · 4: 8 in a row. For rules 2 and 3 the newest point must itself be beyond the zone (Montgomery, *Introduction to SQC*, §5.3) | `qc.run_rules` |
 | Spec limits | LSL = round(0.20 × docks), USL = round(0.80 × docks), halves up. 20 docks → 4 and 16; 12 → 2 and 10; 31 → 6 and 25 | `qc.spec_limits` |
 | Out of spec | bikes < LSL or bikes > USL | `qc.out_of_spec` |

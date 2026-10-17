@@ -61,10 +61,13 @@ export function IChart({ frames, i, id, meta, rush = [] }) {
   const H = 112, L = 22, R = 26, T = 6, B = 18
   if (!meta || !(meta.sigma > 0)) return <p className="c-note">No chart: no variation in the history.</p>
   const SLOTS = frames.length
+  // chart_x / chart_rule are the chart's own value and rule (rolling or week-1 limits, as the API
+  // was asked); older frames without them fall back to x and the van's trigger.
   const pts = []
   for (let k = 1; k <= i && k < frames.length; k++) {
     const s = frames[k].stations.find((t) => t.station_id === id)
-    if (s && s.x !== null) pts.push([k, s])
+    const v = s?.chart_x ?? s?.x
+    if (s && v != null) pts.push([k, { ...s, x: v, sigRule: s.chart_rule !== undefined ? s.chart_rule : (s.trigger?.startsWith('rule') ? s.trigger : null) }])
   }
   const span = Math.max(3.6 * meta.sigma, ...pts.map(([, s]) => Math.abs(s.x - meta.xbar) + 0.3))
   const x = (k) => L + (k * (W - L - R)) / Math.max(1, SLOTS - 1)
@@ -81,13 +84,13 @@ export function IChart({ frames, i, id, meta, rush = [] }) {
       <text x={L - 4} y={zone(0) + 4} textAnchor="end">x̄</text>
       {pts.length > 1 && <path className="c-xline" d={line(pts.map(([k, s]) => [x(k), y(s.x)]))} />}
       {pts.map(([k, s]) => {
-        const sig = s.trigger?.startsWith('rule')
+        const sig = s.sigRule
         return (
           <g key={k}>
             <circle className={sig ? 'c-pt sig' : 'c-pt'} cx={x(k)} cy={y(s.x)} r={sig ? 3.6 : 2}>
-              <title>{`${frames[k].as_of.slice(11)}: x = ${s.x}${sig ? `, ${s.trigger}` : ''}`}</title>
+              <title>{`${frames[k].as_of.slice(11)}: x = ${s.x}${sig ? `, ${sig}` : ''}`}</title>
             </circle>
-            {sig && <text className="c-sigtxt" x={x(k)} y={y(s.x) + (s.x > meta.xbar ? -6 : 13)} textAnchor="middle">R{s.trigger.slice(5)}</text>}
+            {sig && <text className="c-sigtxt" x={x(k)} y={y(s.x) + (s.x > meta.xbar ? -6 : 13)} textAnchor="middle">R{sig.slice(5)}</text>}
           </g>
         )
       })}

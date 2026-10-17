@@ -86,22 +86,40 @@ def scenarios(dataset: str = DEFAULT):
     return {name: [str(d) for d in sorted(days)] for name, days in _ds(dataset)["days"].items()}
 
 
+LIMITS = ("rolling", "week1")
+
+
+def _chart_hist(ds, date, limits):
+    """The charts' history: the last 7 clean days before `date` (default), or week 1 (comparison)."""
+    if limits not in LIMITS:
+        raise HTTPException(400, f"limits must be one of {list(LIMITS)}")
+    if limits == "week1":
+        return None
+    every = {d: v for days in ds["days"].values() for d, v in days.items()}
+    return engine.rolling_history(every, date, sorted(ds["stations"]), ds["hist"])
+
+
 @app.get("/frames/{scenario}")
-def frames(scenario: str, day: int = Query(0, ge=0), dataset: str = DEFAULT):
-    """Every reading of one day, oldest first, plus each station's chart centre, sigma and spec limits."""
+def frames(scenario: str, day: int = Query(0, ge=0), dataset: str = DEFAULT, limits: str = "rolling"):
+    """Every reading of one day, oldest first, plus each station's chart centre, sigma and spec limits.
+    limits=rolling (default): the charts use the last 7 clean days before this day, so they update
+    every day; limits=week1: the fixed week-1 limits. The van's decisions always use week 1."""
     ds = _ds(dataset)
     date, data = _day(ds, scenario, day)
-    return engine.clean({"dataset": dataset, "scenario": scenario, "date": str(date),
-                         "frames": engine.day_frames(data, ds["stations"], ds["hist"], policy=scenario != "week1"),
-                         "chart": engine.chart_meta(ds["hist"])})
+    ch = _chart_hist(ds, date, limits)
+    return engine.clean({"dataset": dataset, "scenario": scenario, "date": str(date), "limits": limits,
+                         "frames": engine.day_frames(data, ds["stations"], ds["hist"], policy=scenario != "week1",
+                                                     chart_hist=ch),
+                         "chart": engine.chart_meta(ch or ds["hist"])})
 
 
 @app.get("/latest")
-def latest(scenario: str = "event", day: int = 0, dataset: str = DEFAULT):
+def latest(scenario: str = "event", day: int = 0, dataset: str = DEFAULT, limits: str = "rolling"):
     """Live mode: the frame 'now', replaying the day at one reading every 5 seconds."""
     ds = _ds(dataset)
-    _, data = _day(ds, scenario, day)
-    f = engine.day_frames(data, ds["stations"], ds["hist"], policy=scenario != "week1")
+    date, data = _day(ds, scenario, day)
+    f = engine.day_frames(data, ds["stations"], ds["hist"], policy=scenario != "week1",
+                          chart_hist=_chart_hist(ds, date, limits))
     return engine.clean(f[int(time.time() // LIVE_SECONDS_PER_READING) % len(f)])
 
 

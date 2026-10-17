@@ -19,7 +19,7 @@ from statistics import mean
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .data import Dataset
-from .qc import RULE_TEXT, imr_slot_adjusted
+from .qc import RULE_TEXT, clean_baseline, imr_slot_adjusted
 
 FLOW_SOURCE = {True: "arrivals - departures",
                "van": "change in bikes since the last reading minus the van move after it (riders only)",
@@ -174,65 +174,92 @@ def flow_view(ds: Dataset, stations: Sequence[str], start=None, end=None, period
             "note": "station-level counts only: rider routes between stations are not inferred"}
 
 
+def chart_baseline(ds: Dataset, station: str, day: date, kind: str, limits: str) -> tuple:
+    """The days a chart of `day` is judged against, and how they were chosen.
+    rolling: the last Settings.rolling_days days before it (same day type); week1: the Phase I days.
+    With fewer than 2 such days: the Phase I days if any, else the charted day itself (warned)."""
+    s = ds.settings
+    cut = date.fromisoformat(s.phase1_through) if s.phase1_through else None
+    phase1 = [d for d in ds.days(station) if cut and d <= cut and s.kind(d) == kind]
+    if limits == "rolling":
+        base = [d for d in ds.days(station) if d < day and s.kind(d) == kind][-s.rolling_days:]
+        if len(base) >= 2:
+            return base, f"last {len(base)} days before {day}, cleaned", None
+    elif phase1:
+        return phase1, f"week 1 ({len(phase1)} days, fixed)", None
+    else:
+        base = comparable_days(ds, station, day, before=day)
+        if len(base) >= 2:
+            return base, f"{len(base)} earlier days", None
+    if len(phase1) >= 2:
+        return phase1, f"week 1 ({len(phase1)} days): fewer than 2 earlier days", None
+    return [day], "the day itself", (f"fewer than 2 {kind}s before {day}: limits are estimated from the "
+                                     f"charted day itself, so a lasting change may be partly absorbed")
+
+
 def spc_view(ds: Dataset, station: str, start: date, end: date, measure: str = "net_flow",
-             kind: Optional[str] = None) -> dict:
+             kind: Optional[str] = None, limits: Optional[str] = None) -> dict:
     """Slot-adjusted I-MR chart for one station over [start, end], one day type at a time, with the
-    course's eight tests (qc.py). The control chart is on net flow; inventory is offered with
-    sigma from the residual spread and test 1 only, because inventory accumulates."""
+    course's eight tests (qc.py). Each charted day has its own baseline (chart_baseline): by default
+    the last 7 days before it, cleaned of readings beyond 3 sigma, so the limits update every day;
+    limits="week1" uses the fixed Phase I days instead. Inventory is offered with sigma from the
+    residual spread and test 1 only, because inventory accumulates."""
     if measure not in ("inventory", "net_flow"):
         raise ValueError("measure must be 'inventory' or 'net_flow'")
     s = ds.settings
+    limits = limits or s.limits_mode
+    if limits not in ("rolling", "week1"):
+        raise ValueError("limits must be 'rolling' or 'week1'")
     kind = kind or s.kind(end)
     chart_days = [d for d in _days_in(ds, start, end, station) if s.kind(d) == kind]
     if not chart_days:
         raise ValueError(f"no {kind} readings for {station} between {start} and {end}")
     pick = (lambda d: inventory_day(ds, station, d)) if measure == "inventory" \
         else (lambda d: net_flow_day(ds, station, d)[0])
-    warnings = []
     first = ds.series(station, chart_days[0])
     cap0 = first[min(first)].capacity if first else s.capacity
-    if s.phase1_through:
-        # Phase I / Phase II: limits come only from the Phase I days (Yash's van-free week 1)
-        cut = date.fromisoformat(s.phase1_through)
-        base_days = [d for d in ds.days(station) if d <= cut and s.kind(d) == kind]
-    else:
-        base_days = comparable_days(ds, station, chart_days[0], before=chart_days[0])
-    if len(base_days) < 2:
-        base_days = chart_days
-        warnings.append(f"fewer than 2 {kind}s before {chart_days[0]}: limits are estimated from "
-                        f"the charted days themselves, so a lasting change may be partly absorbed")
-    if measure == "inventory":
-        res = imr_slot_adjusted([pick(d) for d in base_days], [pick(d) for d in chart_days],
-                                sigma="sd", rules=("rule1",))
-    else:
-        res = imr_slot_adjusted([pick(d) for d in base_days], [pick(d) for d in chart_days])
-    lim = res["limits"]
-    points = []
-    for p in res["points"]:
-        d = chart_days[p["day"]]
-        cap = ds.series(station, d).get(p["slot"])
-        cap = cap.capacity if cap else s.capacity
-        lo = hi = None
-        if lim and p["expected"] is not None:
-            m = res["slot_means"][p["slot"]]
-            lo, hi = m + lim["lcl"], m + lim["ucl"]
-        reasons = []
-        for code in p["signals"]:
-            if code == "rule1":
-                reasons.append(f"{RULE_TEXT[code]}: {p['x']} vs usual {p['expected']:.1f} at "
-                               f"{s.slot_time(p['slot'])} ({p['z']:+.1f} sigma)")
-            elif code == "mr":
-                reasons.append(f"{RULE_TEXT[code]}: moved {p['mr']:.1f} vs MR limit {lim['mr_ucl']:.1f}")
-            else:
-                reasons.append(RULE_TEXT[code])
-        state = status(int(p["x"]), cap, s) if measure == "inventory" else None
-        points.append({"t": f"{d.isoformat()}T{s.slot_time(p['slot'])}", "x": p["x"],
-                       "expected": p["expected"], "lcl": lo, "ucl": hi, "residual": p["residual"],
-                       "z": p["z"], "mr": p["mr"], "signals": p["signals"], "reasons": reasons,
-                       "status": state})
-    return {"station_id": station, "measure": measure, "day_type": kind,
-            "baseline_days": [d.isoformat() for d in base_days], "limits": lim, "points": points,
-            "warnings": warnings + res["warnings"], "rules": RULE_TEXT,
+    warnings, points, lim, basis, base_days, removed_total = [], [], None, "", [], 0
+    for d in chart_days:
+        base, basis, warn = chart_baseline(ds, station, d, kind, limits)
+        if warn:
+            warnings.append(warn)
+        series = [pick(b) for b in base]
+        removed = 0
+        if limits == "rolling" and basis.startswith("last") and measure == "net_flow":
+            series, removed = clean_baseline(series)
+        removed_total += removed
+        if measure == "inventory":
+            res = imr_slot_adjusted(series, [pick(d)], sigma="sd", rules=("rule1",))
+        else:
+            res = imr_slot_adjusted(series, [pick(d)])
+        warnings += [w for w in res["warnings"] if w not in warnings]
+        lim, base_days = res["limits"], base
+        for p in res["points"]:
+            cap = ds.series(station, d).get(p["slot"])
+            cap = cap.capacity if cap else s.capacity
+            lo = hi = None
+            if lim and p["expected"] is not None:
+                m = res["slot_means"][p["slot"]]
+                lo, hi = m + lim["lcl"], m + lim["ucl"]
+            reasons = []
+            for code in p["signals"]:
+                if code == "rule1":
+                    reasons.append(f"{RULE_TEXT[code]}: {p['x']} vs usual {p['expected']:.1f} at "
+                                   f"{s.slot_time(p['slot'])} ({p['z']:+.1f} sigma)")
+                elif code == "mr":
+                    reasons.append(f"{RULE_TEXT[code]}: moved {p['mr']:.1f} vs MR limit {lim['mr_ucl']:.1f}")
+                else:
+                    reasons.append(RULE_TEXT[code])
+            state = status(int(p["x"]), cap, s) if measure == "inventory" else None
+            points.append({"t": f"{d.isoformat()}T{s.slot_time(p['slot'])}", "x": p["x"],
+                           "expected": p["expected"], "lcl": lo, "ucl": hi, "residual": p["residual"],
+                           "z": p["z"], "mr": p["mr"], "signals": p["signals"], "reasons": reasons,
+                           "status": state})
+    if lim is not None:
+        lim = {**lim, "basis": basis, "removed": removed_total}
+    return {"station_id": station, "measure": measure, "day_type": kind, "limits_mode": limits,
+            "baseline_days": [d.isoformat() for d in base_days], "basis": basis, "limits": lim,
+            "points": points, "warnings": warnings, "rules": RULE_TEXT,
             "phase": ("Phase I" if s.phase1_through and chart_days[-1] <= date.fromisoformat(s.phase1_through)
                       else "Phase II" if s.phase1_through else None),
             "target_band": list(s.band(cap0)) if measure == "inventory" else None,
@@ -240,12 +267,15 @@ def spc_view(ds: Dataset, station: str, start: date, end: date, measure: str = "
                        "inventory accumulates and runs are normal"
                        if measure == "inventory" else
                        "course I-MR: sigma = MR-bar / 1.128, limits = centre +/- 3 sigma, "
-                       "MR UCL = 3.267 x MR-bar; the eight tests with zones C (1 sigma), B (2), A (3)"),
-            "note": "the chart plots each reading minus what is usual for that 15-minute slot on "
-                    "earlier days, so the normal rush-hour swing is not a signal."}
+                       "MR UCL = 3.267 x MR-bar; the eight tests with zones C (1 sigma), B (2), A (3). "
+                       + ("Limits: the last 7 days before each charted day, with readings beyond 3 sigma "
+                          "removed and recomputed (they update every day)" if limits == "rolling"
+                          else "Limits: week 1, fixed (comparison mode)")),
+            "note": "the chart plots each reading minus what is usual for that time slot on the "
+                    "baseline days, so the normal rush-hour swing is not a signal."}
 
 
-def scorecard(ds: Dataset, events: Sequence[dict]) -> dict:
+def scorecard(ds: Dataset, events: Sequence[dict], limits: Optional[str] = None) -> dict:
     """Did the control chart catch each planted problem? For each event (station, day, from, to):
     the first flagged reading at or after its start, the tests that fired there, and how many
     readings inside the window were flagged. Also each station's false-alarm rate over the
@@ -255,7 +285,7 @@ def scorecard(ds: Dataset, events: Sequence[dict]) -> dict:
     for ev in events:
         day = date.fromisoformat(ev["day"])
         try:
-            v = spc_view(ds, ev["station"], day, day, "net_flow")
+            v = spc_view(ds, ev["station"], day, day, "net_flow", limits=limits)
         except ValueError as e:
             rows.append({**ev, "first_flag": None, "tests": [], "flagged_in_window": 0, "error": str(e)})
             continue
@@ -276,7 +306,7 @@ def scorecard(ds: Dataset, events: Sequence[dict]) -> dict:
         n = a = t = 0
         for d in quiet:
             try:
-                pts = spc_view(ds, sid, d, d, "net_flow")["points"]
+                pts = spc_view(ds, sid, d, d, "net_flow", limits=limits)["points"]
             except ValueError:
                 continue
             n += len(pts)

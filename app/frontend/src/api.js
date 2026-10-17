@@ -62,8 +62,9 @@ export function fetchDatasets() {
 }
 
 /** GET /frames/{scenario}?day=d&dataset=id: {"frames": [Frame per reading], "chart": {station_id: {xbar, sigma, lsl, usl}}}. */
-export function fetchFrames(scenario, day = 0, dataset = 'collegetown') {
-  return getJson(`/frames/${encodeURIComponent(scenario)}?day=${day}&dataset=${encodeURIComponent(dataset)}`)
+// limits: 'rolling' (the charts use the last 7 clean days before this day) or 'week1' (fixed).
+export function fetchFrames(scenario, day = 0, dataset = 'collegetown', limits = 'rolling') {
+  return getJson(`/frames/${encodeURIComponent(scenario)}?day=${day}&dataset=${encodeURIComponent(dataset)}&limits=${encodeURIComponent(limits)}`)
 }
 
 /** GET /summary?dataset=id: night plan, rush slots, weekly p-charts and before/after counts. */
