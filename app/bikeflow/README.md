@@ -11,13 +11,15 @@ every 15 min, 08:00-22:45). `cities.py` reads each city's `about.json`, so every
 interval, hours and fleet; the spec range is 20-80% of each station's docks (as his `qc.spec_limits`).
 Every API route takes `?dataset=<city>`; `GET /api/bikeflow/datasets` lists them.
 
-**Phase I / Phase II.** Control limits come from week 1 (`week1_baseline.csv`, van-free) only; week 2
-and the event day are charted against them, exactly as his console does: on all four stations
-checked, his charted values and sigma equal ours (UCL differs in the 4th decimal: 2.66 MR-bar vs
-3 MR-bar / 1.128). `GET /api/bikeflow/scorecard?dataset=` checks the chart against the problems his
-simulation planted on the event day (`about.json`): every one is caught inside its window
-(collegetown drain 11:15, crowd 18:15; downtown 11:20, 17:00; waterfront 09:00, 16:00), and it reports
-the false-alarm rate on the ordinary week-2 days (eight tests: 5.8-8.7%; with the MR chart: 8.1-12.6%).
+**Control-chart limits.** By default each day is charted against the **last 7 days before it**,
+cleaned: readings beyond 3σ are removed and the limits recomputed until none remain (the course's
+revised limits), so the limits update every day. **Week 1** (the van-free `week1_baseline.csv`) is
+the comparison mode (`?limits=week1`, or the switch on the page). Days with fewer than 2 earlier days
+use week 1. Yash's console uses the same method (`app/qc.py: clean_baseline`, `engine.rolling_history`)
+and a test checks both give the same limits. `GET /api/bikeflow/scorecard?dataset=&limits=` checks the
+chart against the planted problems: every one is caught inside its window in both modes (rolling:
+collegetown drain 11:00, crowd 18:15; downtown 11:20, 17:00; waterfront 09:00, 16:00). Rolling limits
+are tighter, so ordinary week-2 days flag more: 8.8-12.4% by the eight tests (week 1: 5.8-8.7%).
 
 Run it (one command, from the repo root): `bash app/bikeflow/testme.sh` runs the tests, then serves
 the dashboard on http://localhost:8000. The page replays the latest day at 5 s per 15-minute reading;

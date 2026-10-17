@@ -68,6 +68,8 @@ rule above still holds, and v1 frames (like `sampleFrames.js`) still pass. A sta
 | `trigger` | `"rule 1"`-`"rule 4"`, `"out of spec"` or `null` | why the van should go: a Western Electric rule on the station's chart, or a reading outside 4-16 bikes (the safety net) |
 | `expected_bikes` | number, 0 to `capacity` | where the night plan expects the station now; `target_occupancy` = this / capacity |
 | `x` | number or `null` | the control-chart point: rider net flow minus the usual for this 15-minute slot |
+| `chart_x` | number or `null` | the point the **chart** draws: as `x`, but with the usual flow from the chart's limits (see `limits` below) |
+| `chart_rule` | `"rule 1"`-`"rule 4"` or `null` | the rule that fired on the **chart's** limits (red point). The van's own `trigger` keeps the week-1 limits |
 | `van_moved` | whole number | bikes the van dropped (+) or took (−) right after this reading |
 | `bikes_after_van` | whole number | `bikes + van_moved` |
 
@@ -85,6 +87,16 @@ to) `partner` and the depot.
 Routes: `GET /frames/{week1|week2|event}?day=0..6` (64 frames and the chart's x-bar and sigma per
 station), `GET /latest`, `POST /replay`, `GET /summary` (night plan, rush slots, weekly p-charts).
 All 960 frames the simulation produces pass `validateFrame()`.
+
+## Chart limits (`GET /frames/{scenario}?limits=`, Oct 17)
+
+- `limits=rolling` (default): each day's charts use the **last 7 days before it**, cleaned with
+  `qc.clean_baseline` (readings beyond 3σ removed and the limits recomputed until none remain), so
+  the limits update every day. With fewer than 2 earlier days, a station keeps the week-1 history.
+- `limits=week1`: the fixed week-1 limits, for comparison (then `chart_x` = `x`).
+- The reply carries `"limits"` and, per station in `chart`, `basis`, `basis_days` and `removed`.
+- The van's decisions (`x`, `severity`, `trigger`, `bikes_to_move`, `van`) always use week 1, so the
+  simulated data and van log stay valid; only the drawn chart changes.
 
 ## Still to decide (back end)
 - Decided: the chart is on rider net flow minus the station's usual for that 15-minute slot, and the

@@ -76,6 +76,34 @@ def moving_ranges(res: Sequence[Optional[float]]) -> List[Optional[float]]:
     return [None] + [None if a is None or b is None else abs(b - a) for a, b in zip(res, res[1:])]
 
 
+def clean_baseline(baseline: Sequence[Day], max_passes: int = 10) -> tuple:
+    """The course's revised limits: compute slot means, CL and sigma = MR-bar / d2 from the baseline,
+    remove readings beyond 3 sigma, and repeat until none remain. Returns (the baseline with the
+    removed readings set to None, how many were removed). Same method as app/qc.py clean_baseline."""
+    days = [list(d) for d in baseline]
+    if not days:
+        return days, 0
+    width = max(len(d) for d in days)
+    removed = 0
+    for _ in range(max_passes):
+        means = slot_means(days, width)
+        res = [residuals(d, means) for d in days]
+        vals = [e for r in res for e in r if e is not None]
+        mrs = [m for r in res for m in moving_ranges(r) if m is not None]
+        if len(vals) < 2 or not mrs:
+            break
+        cl, sig = mean(vals), mean(mrs) / D2
+        if sig == 0:
+            break
+        drop = [(i, k) for i, r in enumerate(res) for k, e in enumerate(r) if e is not None and abs(e - cl) > 3 * sig]
+        if not drop:
+            break
+        for i, k in drop:
+            days[i][k] = None
+        removed += len(drop)
+    return days, removed
+
+
 def tests_fired(z: Sequence[float]) -> List[str]:
     """Which of tests 1-8 the LAST point of a run completes. z: the run so far in sigma units from
     the centre line (no gaps), oldest first."""

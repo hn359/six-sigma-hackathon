@@ -39,35 +39,81 @@ def test_spec_range_is_20_to_80_percent_of_each_stations_docks():
     assert Settings().band(20) == (5, 15) and Settings().target_for(20) == 10
 
 
-def test_event_day_limits_come_from_week_1_only():
-    # Phase I/II: the limits on the event day equal the limits computed from the 7 van-free days
+def test_week1_comparison_mode_uses_week_1_only():
+    # limits="week1": the event day is judged against the 7 van-free days, unchanged
     c = CITIES["collegetown"]
     ds = c["dataset"]
     w1 = [date.fromisoformat(d) for d in c["phase1_days"]]
     ev = date(2026, 10, 19)
-    v = spc_view(ds, "S03", ev, ev)
+    v = spc_view(ds, "S03", ev, ev, limits="week1")
     direct = imr_slot_adjusted([net_flow_day(ds, "S03", d)[0] for d in w1], [net_flow_day(ds, "S03", ev)[0]])
-    assert v["baseline_days"] == c["phase1_days"] and v["phase"] == "Phase II"
+    assert v["baseline_days"] == c["phase1_days"] and v["phase"] == "Phase II" and v["limits_mode"] == "week1"
     assert v["limits"]["sigma"] == pytest.approx(direct["limits"]["sigma"])
     assert v["limits"]["cl"] == pytest.approx(direct["limits"]["cl"])
-    # a week-1 day is a Phase I chart on the same 7 days
-    assert spc_view(ds, "S03", w1[2], w1[2])["phase"] == "Phase I"
 
 
-@pytest.mark.parametrize("key,drain_first,crowd_first", [
-    ("collegetown", "11:15", "18:15"),
-    ("downtown", "11:20", "17:00"),
-    ("waterfront", "09:00", "16:00"),
+def test_rolling_mode_uses_the_last_7_clean_days_and_updates_daily():
+    from app.bikeflow.qc import clean_baseline
+    c = CITIES["collegetown"]
+    ds = c["dataset"]
+    ev = date(2026, 10, 19)
+    v = spc_view(ds, "S03", ev, ev)                       # rolling is the default
+    assert v["limits_mode"] == "rolling" and v["baseline_days"] == [f"2026-10-{d}" for d in range(12, 19)]
+    days = [date.fromisoformat(d) for d in v["baseline_days"]]
+    cleaned, removed = clean_baseline([net_flow_day(ds, "S03", d)[0] for d in days])
+    direct = imr_slot_adjusted(cleaned, [net_flow_day(ds, "S03", ev)[0]])
+    assert v["limits"]["sigma"] == pytest.approx(direct["limits"]["sigma"]) and v["limits"]["removed"] == removed
+    # the next day's limits come from a window one day later
+    v2 = spc_view(ds, "S03", date(2026, 10, 18), date(2026, 10, 18))
+    assert v2["baseline_days"][0] == "2026-10-11" and v2["limits"]["sigma"] != pytest.approx(v["limits"]["sigma"])
+    # too few earlier days: falls back to week 1, uncleaned
+    early = spc_view(ds, "S03", date(2026, 10, 6), date(2026, 10, 6))
+    assert early["baseline_days"] == c["phase1_days"] and early["limits"]["removed"] == 0
+
+
+def test_clean_baseline_known_answer():
+    # Three days that wobble 0/1 between readings, and one wild reading (9 at the last slot of day 3).
+    # Pass 1: its residual (9 minus that slot's mean 11/3, about +5.3) is far beyond 3 sigma of the
+    # small reading-to-reading spread, so it is removed. Pass 2, without it, removes nothing.
+    from app.bikeflow.qc import clean_baseline
+    base = [[None, 0, 1, 0, 1, 0, 1], [None, 1, 0, 1, 0, 1, 1], [None, 0, 1, 0, 1, 0, 9]]
+    cleaned, removed = clean_baseline(base)
+    assert removed == 1 and cleaned[2][6] is None and cleaned[0] == base[0]
+    from app import qc as yqc                              # Yash's version of the same method agrees
+    y = yqc.clean_baseline(base)
+    assert y["removed"] == 1
+    flat, gone = clean_baseline([[None, 2, 2, 2], [None, 2, 2, 2]])   # no variation: nothing removed
+    assert gone == 0 and flat == [[None, 2, 2, 2], [None, 2, 2, 2]]
+
+
+def test_console_and_bikeflow_rolling_limits_agree():
+    from app.app import DATASETS, _chart_hist
+    for key in ("collegetown", "downtown", "waterfront"):
+        ds, c = DATASETS[key], CITIES[key]
+        for d in (date(2026, 10, 13), date(2026, 10, 19)):
+            ch = _chart_hist(ds, d, "rolling")
+            for sid in sorted(ds["stations"]):
+                v = spc_view(c["dataset"], sid, d, d, limits="rolling")["limits"]
+                assert v["sigma"] == pytest.approx(ch[sid]["imr"]["sigma"], abs=1e-12)
+                assert v["cl"] == pytest.approx(ch[sid]["imr"]["xbar"], abs=1e-12)
+
+
+@pytest.mark.parametrize("key,limits,drain_first,crowd_first", [
+    ("collegetown", "rolling", "11:00", "18:15"), ("collegetown", "week1", "11:15", "18:15"),
+    ("downtown", "rolling", "11:20", "17:00"), ("downtown", "week1", "11:20", "17:00"),
+    ("waterfront", "rolling", "09:00", "16:00"), ("waterfront", "week1", "09:00", "16:00"),
 ])
-def test_every_planted_problem_is_caught_inside_its_window(key, drain_first, crowd_first):
+def test_every_planted_problem_is_caught_inside_its_window(key, limits, drain_first, crowd_first):
     c = CITIES[key]
-    sc = scorecard(c["dataset"], c["events"])
+    sc = scorecard(c["dataset"], c["events"], limits)
     by = {e["kind"]: e for e in sc["events"]}
     assert by["slow_drain"]["first_flag"] == drain_first
     assert by["crowd"]["first_flag"] == crowd_first
     for e in sc["events"]:
         assert e["from"] <= e["first_flag"] <= e["to"] and e["flagged_in_window"] >= 1
-    assert 0 < sc["false_alarm_rate_tests_only"] <= sc["false_alarm_rate"] < 0.15
+    # ordinary days: rolling (cleaned, so tighter) flags more than week 1; both stay bounded
+    assert 0 < sc["false_alarm_rate_tests_only"] <= sc["false_alarm_rate"] < 0.2
+    assert sc["false_alarm_rate_tests_only"] < 0.13
     assert sc["quiet_days"][0] == "2026-10-12" and len(sc["quiet_days"]) == 7
 
 

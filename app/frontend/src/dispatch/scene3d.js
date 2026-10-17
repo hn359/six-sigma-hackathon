@@ -8,6 +8,7 @@ import maplibregl from 'maplibre-gl'
 
 const SCALE = 14                      // models are drawn 14x life size so they read at map zoom
 const DOCK_GAP = 0.85                 // metres between docks (life size)
+const RIDER_SCALE = 26                // cyclists are drawn larger still, so a single rider is easy to follow
 const STATUS = { ok: 0x3ddc84, back: 0x3ddc84, sig: 0xff4d4d, oos: 0xffb020, fix: 0x4da3ff }
 
 // shared materials and geometries (one copy, many meshes)
@@ -105,6 +106,35 @@ function station(capacity) {
   return g
 }
 
+// a cyclist: a bike with a rider (jersey, helmet), life size, facing +X
+const JERSEYS = [0xe53935, 0x1e88e5, 0xfdd835, 0x8e24aa, 0x43a047, 0xfb8c00, 0x00acc1]
+const skin = new THREE.MeshStandardMaterial({ color: 0xc68b59, roughness: 0.8 })
+const pants = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.8 })
+function cyclist(n) {
+  const g = new THREE.Group()
+  const b = bike()
+  b.rotation.y = Math.PI / 2            // bike faces +Z; turn it to face +X
+  g.add(b)
+  const jersey = new THREE.MeshStandardMaterial({ color: JERSEYS[n % JERSEYS.length], roughness: 0.6 })
+  const helmet = new THREE.MeshStandardMaterial({ color: JERSEYS[(n + 3) % JERSEYS.length], roughness: 0.4 })
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.62, 0.32), jersey)
+  torso.position.set(0.02, 1.38, 0)
+  torso.rotation.z = -0.45             // leaning forward over the bars
+  g.add(torso)
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), skin)
+  head.position.set(0.22, 1.78, 0)
+  g.add(head)
+  const lid = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), helmet)
+  lid.position.set(0.22, 1.8, 0)
+  g.add(lid)
+  for (const z of [-0.11, 0.11]) {
+    g.add(tube([-0.12, 1.1, z], [0.05, 0.62, z], pants))      // thighs
+    g.add(tube([0.05, 0.62, z], [0, 0.35, z], pants))          // shins
+    g.add(tube([0.12, 1.55, z * 1.6], [0.42, 1.08, z * 2.2], jersey))  // arms to the bars
+  }
+  return g
+}
+
 // a delivery van, life size (about 5.6 m long), facing +X
 function van() {
   const g = new THREE.Group()
@@ -147,6 +177,9 @@ function enu(lon, lat, lon0, lat0) {
 
 export function makeModelLayer() {
   const state = { origin: null, key: '', stations: [], van: null }
+  const riders = []          // active trips: {model, a: [e, n], b: [e, n], t0, dur, side}
+  const pool = []            // cyclist models ready for reuse
+  let made = 0
   let scene, camera, renderer, map, vanModel, sun, ambient
   const groups = {}
 
@@ -189,9 +222,29 @@ export function makeModelLayer() {
         g.userData.beaconMat.emissiveIntensity = sig ? 0.6 + 1.4 * Math.abs(Math.sin(t * 4)) : 1.2
         pulsing = pulsing || sig
       }
+      // cyclists: ride from start to end station over their time window, turning to face the way
+      const now = performance.now()
+      for (let j = riders.length - 1; j >= 0; j--) {
+        const r = riders[j]
+        const u = (now - r.t0) / r.dur
+        if (u >= 1) { r.model.visible = false; pool.push(r.model); riders.splice(j, 1); continue }
+        if (u < 0) { r.model.visible = false; continue }
+        const ease = u * u * (3 - 2 * u)
+        const [ae, an] = r.a
+        const [be, bn] = r.b
+        const de = be - ae
+        const dn = bn - an
+        const len = Math.hypot(de, dn) || 1
+        // ride slightly to one side of the straight line, so two-way traffic does not overlap
+        const oe = (-dn / len) * r.side
+        const on = (de / len) * r.side
+        r.model.position.set(ae + de * ease + oe, Math.abs(Math.sin(now / 120)) * 0.04 * RIDER_SCALE, -(an + dn * ease + on))
+        r.model.rotation.y = Math.atan2(dn, de)
+        r.model.visible = true
+      }
       renderer.resetState()
       renderer.render(scene, camera)
-      if (pulsing) map.triggerRepaint()
+      if (pulsing || riders.length) map.triggerRepaint()
     },
   }
 
@@ -245,5 +298,39 @@ export function makeModelLayer() {
     map?.triggerRepaint()
   }
 
-  return { layer, update, setLight }
+  // start the cyclists of one reading interval: trips [{from, to}], stations by id {lon, lat},
+  // spread over `windowMs` from now. Old riders still on the road finish their ride.
+  function ride(trips, stationsById, windowMs) {
+    if (!scene || !state.origin || !trips.length) return
+    const now = performance.now()
+    trips.forEach((t, j) => {
+      const a = stationsById[t.from]
+      const b = stationsById[t.to]
+      if (!a || !b) return
+      let model = pool.pop()
+      if (!model) {
+        model = cyclist(made++)
+        model.scale.setScalar(RIDER_SCALE)
+        scene.add(model)
+      }
+      model.visible = false
+      const start = now + ((j + 0.5) / trips.length) * windowMs * 0.35
+      riders.push({
+        model, t0: start, dur: windowMs * 0.6,
+        a: enu(a.lon, a.lat, state.origin.lon, state.origin.lat),
+        b: enu(b.lon, b.lat, state.origin.lon, state.origin.lat),
+        side: (j % 2 ? 1 : -1) * 1.6 * RIDER_SCALE,
+      })
+    })
+    map?.triggerRepaint()
+  }
+
+  // stop every cyclist at once (paused, scrubbed, or a new day loaded)
+  function clearRiders() {
+    for (const r of riders) { r.model.visible = false; pool.push(r.model) }
+    riders.length = 0
+    map?.triggerRepaint()
+  }
+
+  return { layer, update, setLight, ride, clearRiders }
 }

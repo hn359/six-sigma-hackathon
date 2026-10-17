@@ -135,11 +135,11 @@ async def summary(dataset: Optional[str] = None):
 
 
 @router.get("/scorecard")
-async def scorecard(dataset: Optional[str] = None):
+async def scorecard(dataset: Optional[str] = None, limits: Optional[str] = None):
     """Did the control chart catch each planted problem (about.json), and the false-alarm rate on
     the Phase II days without one."""
     e = _entry(dataset)
-    return _guard(analyze.scorecard, e["dataset"], e.get("events", []))
+    return _guard(analyze.scorecard, e["dataset"], e.get("events", []), limits)
 
 
 @router.get("/trips")
@@ -191,13 +191,14 @@ async def flow(station: Optional[List[str]] = Query(None), start: Optional[str] 
 
 @router.get("/spc")
 async def spc(station: str, start: str, end: str, measure: str = "net_flow",
-              day_type: Optional[str] = None, dataset: Optional[str] = None):
+              day_type: Optional[str] = None, dataset: Optional[str] = None, limits: Optional[str] = None):
+    """limits: rolling (default: the last 7 clean days before each day) or week1 (fixed)."""
     ds = _ds(dataset)
     if station not in ds.stations():
         raise HTTPException(400, f"unknown station {station!r}; known: {ds.stations()}")
     if day_type not in (None, "weekday", "weekend", "day"):
         raise HTTPException(400, "day_type must be weekday, weekend or day")
-    return _guard(analyze.spc_view, ds, station, _day(start), _day(end), measure, day_type)
+    return _guard(analyze.spc_view, ds, station, _day(start), _day(end), measure, day_type, limits)
 
 
 @router.get("/plan")

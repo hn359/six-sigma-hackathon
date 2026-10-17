@@ -65,6 +65,51 @@ def imr_limits_days(days):
     return out
 
 
+def clean_baseline(flows, max_passes=10):
+    """Slot means and I-MR limits from several days of rider net flow, with the course's revised
+    limits: readings beyond 3 sigma are removed and everything is recomputed until none remain.
+
+    flows: one list per day, one value per slot (index 0 may be None: no flow into the first reading).
+    mu_k = mean of the kept flows at slot k (all of them if none is kept there); x = f - mu;
+    x-bar, MR-bar and sigma = MR-bar / d2 come from the kept x, with moving ranges only between
+    consecutive kept readings of the same day. Returns {"mu", "imr", "removed", "passes"}.
+    """
+    S = max(len(f) for f in flows)
+    keep = [[f[k] is not None for k in range(len(f))] for f in flows]
+    removed = 0
+    for passes in range(1, max_passes + 1):
+        mu = []
+        for k in range(S):
+            kept = [f[k] for f, m in zip(flows, keep) if k < len(f) and m[k]]
+            every = [f[k] for f in flows if k < len(f) and f[k] is not None]
+            vals = kept or every
+            mu.append(sum(vals) / len(vals) if vals else 0.0)
+        runs = []                                    # unbroken runs of kept x, so MR never jumps a gap
+        for f, m in zip(flows, keep):
+            cur = []
+            for k, v in enumerate(f):
+                if m[k]:
+                    cur.append(v - mu[k])
+                elif cur:
+                    runs.append(cur)
+                    cur = []
+            if cur:
+                runs.append(cur)
+        imr = imr_limits_days(runs)
+        if not imr["sigma"]:
+            break
+        drop = 0
+        for f, m in zip(flows, keep):
+            for k, v in enumerate(f):
+                if m[k] and abs(v - mu[k] - imr["xbar"]) > 3 * imr["sigma"]:
+                    m[k] = False
+                    drop += 1
+        removed += drop
+        if not drop:
+            break
+    return {"mu": mu, "imr": imr, "removed": removed, "passes": passes}
+
+
 def run_rules(x, xbar, sigma):
     """Western Electric rules 1-4 on the latest point of x (all on the same side of x-bar).
 
