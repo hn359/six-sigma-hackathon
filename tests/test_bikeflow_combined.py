@@ -71,11 +71,16 @@ def test_every_scenario_has_an_exact_matching_station_snapshot(city, scenario):
     assert actual == expected
 
 
-def test_home_page_has_documentation_and_tool_tabs():
+def test_home_page_has_four_tabs_over_one_tool_page():
     r = client.get("/")
     assert r.status_code == 200
-    assert 'id="tab-docs"' in r.text and 'id="tab-tool"' in r.text
-    assert '"side-by-side"' in r.text                 # the Tool tab opens the combined page
+    for name in ("about", "map", "night", "spc"):
+        assert f'id="tab-{name}"' in r.text
+    assert '"bikeflow/?follow=console#"' in r.text      # tabs 2-4 share one tool page and one clock
+    page = client.get("/bikeflow/").text
+    views = re.findall(r'<section data-view="(\w+)">', page)
+    assert views.count("map") == 3 and views.count("night") == 1 and views.count("spc") == 2
+    assert views.count("none") == 1                    # Validation: on the full page only, in no tab
     assert client.get("/home/images/how-the-van-decides.png").status_code == 200
     assert client.get("/home/images/banner.png").status_code == 404     # only the docs' own images
 

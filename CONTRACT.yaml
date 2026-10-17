@@ -254,6 +254,26 @@ tasks:
       the BikeFlow page shows 1-7 and the docs tab refers to sections as 1-7.
     result: "Sections read 1-7 on the BikeFlow page and in the docs tab; tests/test_section_numbers.py (13 checks) fails on a zero-padded number; rule added to CLAUDE.md and AGENTS.md."
 
+  - id: H-15
+    title: Home page in four tabs - About, Map and dispatch, End-of-day redistribution, SPC charts
+    points: "supports 10 - Tool Documentation and 10 - demo (each part of the tool next to its explanation)"
+    status: done
+    owner: "Jim + Claude"
+    started_at: "2026-10-17"
+    owns: ["app/bikeflow/home.html", "app/bikeflow/dashboard/index.html", "tests/test_bikeflow_combined.py"]
+    notes: >
+      One tool page and one clock behind tabs 2-4: the home page shows the BikeFlow page in a view
+      (#map, #night, #spc) that hides the other sections; the console (and its time bar, the only
+      draggable one) is visible in Map and keeps running off screen in the others. Sections are
+      numbered 1, 2, 3 within each tab (no leading zero, H-14). Each tab carries its own docs text.
+      Without a view the BikeFlow page shows everything as before.
+    definition_of_done: >
+      pytest tests/test_bikeflow_combined.py tests/test_section_numbers.py passes, including a new
+      test that the four tabs and the three views exist; in a browser every tab shows its sections
+      numbered from 1, the time in the SPC and end-of-day tabs equals the console's after dragging it
+      in the Map tab, and there are no new console errors.
+    result: "Four tabs (About, Map and dispatch, End-of-day redistribution, SPC charts) over one tool page and one clock; sections numbered from 1 per tab; Validation in no tab; dragging the map to 08:15 showed 08:15 in the other tabs; 30 tests passed."
+
   - id: H-08
     title: Reproducible public repo, submitted on Devpost
     points: "5 - Tool Documentation: fully reproducible code, posted publicly to GitHub"

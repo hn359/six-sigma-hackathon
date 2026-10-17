@@ -74,6 +74,15 @@
   #console-wrap { max-width:1400px; margin:0 auto; padding:18px 16px 0; }
   #console { width:100%; height:82vh; min-height:560px; max-height:1750px; resize:vertical; border:1px solid var(--line); border-radius:8px; background:#fff; }
   body.follow .own { display:none; }
+  /* tab views from the home page (#map, #night, #spc); with no view the page shows everything.
+     Off the Map tab the console keeps running off screen, so its clock still drives every tab. */
+  body[data-view] main > section:not(.in-view) { display:none; }
+  body[data-view] .appbar, body[data-view] #console-wrap > h1, body[data-view] #console-wrap > .sub,
+  body[data-view] #subtitle { display:none; }
+  body[data-view] #console { height:760px; max-height:none; resize:none; }
+  body[data-view]:not([data-view="map"]) #console-wrap { position:absolute; left:-300vw; top:0; width:100%; visibility:hidden; }
+  body[data-view]:not([data-view="map"]) #kpis, body[data-view]:not([data-view="map"]) #sync-state,
+  body[data-view]:not([data-view="map"]) #status { display:none; }
   .three { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:2px 0 6px; }
   .seg button { background:var(--card); color:var(--ink); border:0; border-radius:0; min-width:0; padding:6px 14px; }
@@ -191,23 +200,23 @@
   <div class="kpis" id="kpis"></div>
 </header>
 <main>
-  <section>
-    <div class="eyebrow">1 &middot; Station status</div><h2>Which stations need attention right now?</h2>
+  <section data-view="map">
+    <div class="eyebrow"><span class="secno">1</span> &middot; Station status</div><h2>Which stations need attention right now?</h2>
     <p class="how">Each bar is one station: how full it is right now. The <b style="color:#0a7d0a">green zone</b> is the healthy range
       (not too empty, not too full). The <b>black tick</b> is where the station should be at this time on a normal day.</p>
     <div class="board" id="board"></div>
   </section>
 
-  <section>
-    <div class="eyebrow">2 &middot; Today at each station</div><h2>How each station's day is going</h2>
+  <section data-view="spc">
+    <div class="eyebrow"><span class="secno">2</span> &middot; Today at each station</div><h2>How each station's day is going</h2>
     <p class="how"><b>Solid line</b> = bikes at the station so far today. <b>Dashed line</b> = a normal day.
       <b style="color:#0a7d0a">Green band</b> = healthy range. <b style="color:#d03b3b">Red dot</b> = something unusual happened (hover to see what).
       &#9650; / &#9660; = the van dropped off / picked up bikes.</p>
     <div class="days" id="days"></div>
   </section>
 
-  <section>
-    <div class="eyebrow">3 &middot; Rider flow</div><h2>Where are riders going?</h2>
+  <section data-view="map">
+    <div class="eyebrow"><span class="secno">3</span> &middot; Rider flow</div><h2>Where are riders going?</h2>
     <p class="how">Each box counts the trips from one station (row) to another (column). <b>The darker the box, the more riders made that trip.</b>
       Totals: how many rides left each station, and how many arrived at each.</p>
     <div class="seg" id="odwin"><button type="button" data-win="hour">Last hour</button><button type="button" data-win="day" class="on">Today so far</button></div>
@@ -222,8 +231,8 @@
     <p class="how" id="flownote"></p>
   </section>
 
-  <section>
-    <div class="eyebrow">4 &middot; Redistribution</div><h2>What the van should do now</h2>
+  <section data-view="map">
+    <div class="eyebrow"><span class="secno">4</span> &middot; Redistribution</div><h2>What the van should do now</h2>
     <p class="how" id="planhow">The moves for the time on the clock, most urgent first.</p>
     <div class="moves" id="planmoves"></div>
     <h3>Bikes at each station: now and after these moves</h3>
@@ -232,8 +241,8 @@
     <details><summary>Table: every station, its action and why</summary><div class="scroll"><table id="plan"></table></div></details>
   </section>
 
-  <section>
-    <div class="eyebrow">5 &middot; Tomorrow's bike plan</div><h2>Use Week 1's pattern to set bikes tonight</h2>
+  <section data-view="night">
+    <div class="eyebrow"><span class="secno">5</span> &middot; Tomorrow's bike plan</div><h2>Use Week 1's pattern to set bikes tonight</h2>
     <p class="how">Week 1 teaches us where morning rides start and end. After Week 1, each night the van uses that pattern to set tomorrow's bikes by 10 PM. Stations are ready for riders at 6 AM.</p>
     <div class="night-steps" aria-label="How the overnight plan works">
       <div class="night-step"><b>Week 1</b> learn the pattern</div><div class="night-step"><b>10 PM</b> move the bikes</div><div class="night-step"><b>6 AM</b> stations are ready</div>
@@ -248,8 +257,8 @@
       <h3>Full recommendation details</h3><div class="scroll"><table id="night"></table></div></details>
   </section>
 
-  <section>
-    <div class="eyebrow">6 &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
+  <section data-view="spc">
+    <div class="eyebrow"><span class="secno">6</span> &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
     <div class="seg" id="limwin"><button type="button" data-lim="rolling" class="on">Limits: last 7 clean days (updates daily)</button><button type="button" data-lim="week1">Week 1 (fixed, for comparison)</button></div>
     <p class="how"><b id="limbasis"></b></p>
     <p class="how">Each point is the station's rider net flow in one reading minus what is usual at that time of day on the days the limits come from.
@@ -268,8 +277,8 @@
     <p class="how" id="rulelist"></p>
   </section>
 
-  <section>
-    <div class="eyebrow">7 &middot; Validation</div><h2>Does the warning system catch real problems?</h2>
+  <section data-view="none">
+    <div class="eyebrow"><span class="secno">7</span> &middot; Validation</div><h2>Does the warning system catch real problems?</h2>
     <div id="scorewrap" hidden>
       <p class="how" id="scorehow"></p>
       <div class="moves" id="scorecards"></div>
@@ -1194,6 +1203,25 @@ if (FOLLOW) {
   window.addEventListener("message", onSimulationMessage);
   setInterval(checkSyncFreshness, 2000);
 }
+
+/* ---- tab views: #map, #night or #spc shows only that tab's sections, numbered 1, 2, 3 within it ---- */
+const VIEWS = ["map", "night", "spc"];
+function applyView() {
+  const v = location.hash.slice(1), tabbed = VIEWS.includes(v);
+  if (tabbed) document.body.dataset.view = v; else delete document.body.dataset.view;
+  let n = 0;
+  document.querySelectorAll("main > section").forEach(sec => {
+    const on = !tabbed || sec.dataset.view === v;
+    sec.classList.toggle("in-view", on);
+    const num = sec.querySelector(".secno");
+    if (!num) return;
+    num.dataset.all ??= num.textContent;              // the number on the full page
+    num.textContent = tabbed && on ? ++n : num.dataset.all;
+  });
+  requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));   // charts drawn while hidden re-fit
+}
+window.addEventListener("hashchange", applyView);
+applyView();
 
 if (typeof Plotly === "undefined") {
   $("status").className = "msg err";
