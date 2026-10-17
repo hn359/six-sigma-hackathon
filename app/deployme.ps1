@@ -1,4 +1,4 @@
-# deployme.ps1 - Deploy FastAPI to Posit Connect on Windows PowerShell
+# deployme.ps1 - Deploy FastAPI to Posit Connect on Windows PowerShell using manifest.json
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
@@ -19,11 +19,16 @@ if ($EnvFile) {
 
 $Server = [System.Environment]::GetEnvironmentVariable("CONNECT_SERVER")
 $ApiKey = [System.Environment]::GetEnvironmentVariable("CONNECT_API_KEY")
+$AppId = [System.Environment]::GetEnvironmentVariable("CONNECT_APP_ID")
+if (-not $AppId) {
+    $AppId = "17ab3147-debc-48ae-8548-2d63bbba623d"
+}
 
-$ArgsList = @("deploy", "fastapi", "--entrypoint", "app:app")
+$ArgsList = @("deploy", "manifest")
 if ($Server) { $ArgsList += @("--server", $Server) }
 if ($ApiKey) { $ArgsList += @("--api-key", $ApiKey) }
-$ArgsList += "."
+if ($AppId) { $ArgsList += @("--app-id", $AppId) }
+$ArgsList += "manifest.json"
 
-Write-Host "Deploying to Posit Connect ($Server)..."
+Write-Host "Deploying app via manifest to Posit Connect ($Server) [App ID: $AppId]..."
 & python -m rsconnect @ArgsList

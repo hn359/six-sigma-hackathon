@@ -22,17 +22,38 @@
     "requirements.txt": {
       "checksum": "72f2a8e039a566353e0ce2b715d0d34c"
     },
+    ".env.example": {
+      "checksum": "d14e2b4af7bec2eb81fa0cbb87037659"
+    },
     ".python-version": {
       "checksum": "c3052f53ccf07991da5591cab5ee1274"
     },
     "app.py": {
-      "checksum": "1003f1608b2de6115f8723a7eb942cb6"
+      "checksum": "c3da61fd5e131d01dd94831a38f98652"
     },
     "bikeflow/README.md": {
       "checksum": "e390b1b9bb0ff98747e3f018c7edc75e"
     },
     "bikeflow/__init__.py": {
       "checksum": "4b0ddf5e0343017d95a92d19f6d3a6b5"
+    },
+    "bikeflow/__pycache__/__init__.cpython-314.pyc": {
+      "checksum": "202b16725bb6140a5d1a8802c8194569"
+    },
+    "bikeflow/__pycache__/analyze.cpython-314.pyc": {
+      "checksum": "004a9971fb11679e1ce74ef46c05e2cc"
+    },
+    "bikeflow/__pycache__/config.cpython-314.pyc": {
+      "checksum": "94c7750e7c346b9a4c68d8d93496d630"
+    },
+    "bikeflow/__pycache__/data.cpython-314.pyc": {
+      "checksum": "d8c5892f4c58ff9130764746a00596b0"
+    },
+    "bikeflow/__pycache__/plan.cpython-314.pyc": {
+      "checksum": "0fd34e134c5878afeba01fe01c81dfb1"
+    },
+    "bikeflow/__pycache__/qc.cpython-314.pyc": {
+      "checksum": "8c75cbc9704d9927a9c88c427fbbc742"
     },
     "bikeflow/analyze.py": {
       "checksum": "55d4522f6ff657ecb92409660a3d5a7d"
@@ -139,14 +160,17 @@
     "data/waterfront/week2_policy.csv": {
       "checksum": "28f6c1fae36b4558425535dbe6093d59"
     },
+    "deployme.ps1": {
+      "checksum": "3dc8d07b3924bb80ead8532bed22fcbc"
+    },
     "deployme.sh": {
-      "checksum": "870e894f03e12728afae12fb7f6fd3f4"
+      "checksum": "ac4ea14a0ab6825a129f99c4183eabc3"
     },
     "engine.py": {
       "checksum": "9105f495e82bbfaccd1283f070ad7ef2"
     },
     "frontend/.gitignore": {
-      "checksum": "cf3b6ca120922c83aef612c54119f8c6"
+      "checksum": "8901a54efdd08ed080501d9b8eebf9ff"
     },
     "frontend/README.md": {
       "checksum": "02a9c2bffebc287ac5220df5db921033"
