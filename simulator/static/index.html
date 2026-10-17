@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ithaca Bikeshare Fleet Command — I-MR & Attribute SPC Dashboard</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #111827;
+      --card-border: #1f2937;
+      --card-border-subtle: #374151;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --primary: #38bdf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #a855f7;
+    }
+    .light {
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --card-border: #e5e7eb;
+      --card-border-subtle: #d1d5db;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --primary: #0284c7;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --purple: #7c3aed;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .card-surface {
+      background-color: var(--card);
+      border: 1px solid var(--card-border);
+    }
+    .dock-slot {
+      width: 13px;
+      height: 18px;
+      border-radius: 3px;
+      transition: all 0.25s ease;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.9; }
+      50% { transform: scale(1.3); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.9; }
+    }
+    .pulse-special-cause {
+      animation: pulse-ring 1.8s infinite;
+    }
+    /* 3D Map Perspective Container */
+    .map-3d-viewport {
+      perspective: 1000px;
+      transform-style: preserve-3d;
+      overflow: hidden;
+    }
+    .map-3d-stage {
+      transform: rotateX(28deg) rotateZ(-4deg);
+      transform-origin: center center;
+      transition: transform 0.4s ease;
+    }
+    /* Van Animation Marker */
+    .dispatch-van {
+      position: absolute;
+      font-size: 24px;
+      z-index: 50;
+      pointer-events: none;
+      filter: drop-shadow(0 4px 10px rgba(56, 189, 248, 0.7));
+      transition: transform 0.05s linear;
+    }
+    /* Billboard text facing camera */
+    .billboard-text {
+      transform: rotateZ(4deg) rotateX(-28deg);
+      transform-origin: center center;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6 transition-colors duration-200">
+
+  <!-- Persistent Special Cause Alarm Banner (Continuous Running — Does NOT Pause) -->
+  <div id="special-cause-banner" class="hidden mb-4 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/50 text-rose-300 text-xs font-semibold shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <span class="text-xl animate-pulse">🚨</span>
+      <div>
+        <div class="font-bold text-sm text-rose-200 flex items-center gap-2">
+          <span>SPECIAL CAUSE CRISIS ACTIVE</span>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-rose-500/30 text-rose-300 font-mono">Process Biased</span>
+        </div>
+        <p class="text-xs text-rose-300/90 mt-0.5" id="special-cause-banner-text">
+          Station is locked in a deficit/surplus crisis. Normal trips cannot self-correct. Simulator continues running while defects accumulate until you dispatch a van remedy!
+        </p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 self-end md:self-auto">
+      <button onclick="scrollToDispatch()" class="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5">
+        <span>🚐</span> Resolve via Van Dispatch
+      </button>
+      <button onclick="dismissBanner()" class="px-2.5 py-1.5 rounded-xl card-surface hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold">
+        Dismiss Alert
+      </button>
+    </div>
+  </div>
+
+  <!-- Top Navigation & Control Header -->
+  <header class="card-surface rounded-2xl p-4 md:p-6 mb-6 shadow-lg">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-600 to-cyan-400 text-white flex items-center justify-center font-bold text-2xl shadow-md">
+            🚲
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl md:text-2xl font-bold tracking-tight">Ithaca Bikeshare Fleet Command</h1>
+              <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                Six Sigma SPC
+              </span>
+            </div>
+            <p class="text-xs md:text-sm text-[var(--text-muted)] mt-0.5">
+              I-MR &bull; Attribute p-Chart (Cornell SYSEN 5300 Lesson 5) &bull; UCL = 18, LCL = 2 &bull; Continuous Real-Time Biasing
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Clock & Status Badge -->
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="px-3.5 py-1.5 rounded-xl card-surface border flex items-center gap-2.5 shadow-inner">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" id="live-pulse"></span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Time:</span>
+          <span class="text-sm font-mono font-bold text-sky-400" id="sim-clock">Mon 00:00</span>
+          <span class="text-xs text-[var(--text-muted)] font-mono" id="sim-tick">(Tick 0)</span>
+        </div>
+
+        <div class="px-3.5 py-1.5 rounded-xl card-surface border flex items-center gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Engine:</span>
+          <span class="text-xs font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300" id="connection-badge">Detecting...</span>
+        </div>
+
+        <button onclick="toggleTheme()" class="p-2 rounded-xl card-surface hover:bg-slate-700/40 text-sm transition" title="Toggle theme">
+          🌓
+        </button>
+      </div>
+
+      <!-- Execution Controls (Continuous Run Policy: No Auto-Pause) -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btn-play-pause" onclick="togglePlayPause()" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-semibold text-sm flex items-center gap-2 shadow-sm transition">
+          <span id="play-icon">▶</span> <span id="play-text">Start (10s)</span>
+        </button>
+        <button onclick="manualStep()" class="px-3.5 py-2 rounded-xl card-surface hover:bg-slate-700/40 text-sm font-semibold flex items-center gap-1.5 transition">
+          ⏭ Step (+15m)
+        </button>
+        <button onclick="resetSimulation()" class="px-3.5 py-2 rounded-xl card-surface hover:bg-rose-500/20 text-rose-400 text-sm font-semibold flex items-center gap-1.5 transition">
+          🔄 Reset Monday
+        </button>
+
+        <!-- Speed Dropdown -->
+        <select id="speed-select" onchange="changeSpeed(this.value)" class="card-surface px-3 py-2 rounded-xl text-xs font-medium border text-[var(--text-main)] outline-none cursor-pointer" title="Simulation pacing">
+          <option value="10000" selected>10s / Tick (Standard Reaction)</option>
+          <option value="30000">30s / Tick (Deliberate)</option>
+          <option value="60000">60s / Tick (Real-Time 1m)</option>
+          <option value="3000">3s / Tick (Fast Demo)</option>
+          <option value="1000">1s / Tick (Stress Test)</option>
+        </select>
+
+        <button onclick="toggleDmaicModal()" class="px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center gap-1 transition">
+          <span>📊</span> DMAIC Report
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Network KPI Row -->
+  <section class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <div class="card-surface rounded-2xl p-4 shadow-sm">
+      <div class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1">Fleet Conservation</div>
+      <div class="text-2xl font-bold text-sky-400 font-mono" id="kpi-accounted">100 / 100</div>
+      <div class="text-xs text-emerald-400 mt-1 flex items-center gap-1 font-medium">
+        <span>✓</span> 100 Bikes Conserved
+      </div>
+    </div>
+
+    <div class="card-surface rounded-2xl p-4 shadow-sm">
+      <div class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1">Central Reserve</div>
+      <div class="text-2xl font-bold text-amber-400 font-mono" id="kpi-reserve">50 Bikes</div>
+      <div class="text-xs text-[var(--text-muted)] mt-1 font-mono" id="kpi-transit">0 in transit</div>
+    </div>
+
+    <div class="card-surface rounded-2xl p-4 shadow-sm">
+      <div class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1">Control Limits</div>
+      <div class="text-2xl font-bold font-mono text-purple-400">UCL 18 / LCL 2</div>
+      <div class="text-xs text-[var(--text-muted)] mt-1">Target: 10 Nominal</div>
+    </div>
+
+    <div class="card-surface rounded-2xl p-4 shadow-sm">
+      <div class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1">Process Capability (Cpk)</div>
+      <div class="text-2xl font-bold font-mono" id="kpi-cpk">--</div>
+      <div class="text-xs mt-1" id="kpi-cpk-sub">Target &ge; 1.33</div>
+    </div>
+
+    <div class="card-surface rounded-2xl p-4 shadow-sm col-span-2 md:col-span-1">
+      <div class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1">Special Cause Crises</div>
+      <div class="text-2xl font-bold font-mono" id="kpi-special-cause">0 Active</div>
+      <div class="text-xs text-[var(--text-muted)] mt-1" id="kpi-special-sub">Continuous Run (Requires Remedy)</div>
+    </div>
+  </section>
+
+  <!-- Stations Grid + 3D Google Maps & Van Dispatch -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+    <!-- Left: 5 Named Stations Operational Cards -->
+    <div class="lg:col-span-6 flex flex-col gap-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-bold flex items-center gap-2">
+          <span>📍</span> Stations Status & Racks (20 Docks Capacity Each)
+        </h2>
+        <span class="text-xs text-[var(--text-muted)]">Lansing, North Campus, Maplewood, Central Campus, Downtown</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="stations-grid">
+        <!-- 5 Station Cards populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Right: 3D Google Maps Styled Network & Van Dispatch Console -->
+    <div class="lg:col-span-6 flex flex-col gap-4" id="dispatch-section">
+      <!-- Van Dispatch Center -->
+      <div class="card-surface rounded-2xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-base font-bold flex items-center gap-2">
+            <span>🚐</span> Maintenance Van Dispatch Console
+          </h2>
+          <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">
+            Steady Speed Active
+          </span>
+        </div>
+
+        <p class="text-xs text-[var(--text-muted)] mb-3 leading-relaxed">
+          Stations locked in <span class="text-rose-400 font-semibold">Special Cause</span> will continue running under crisis bias (lost trips accumulate) until you dispatch a van remedy. Common cause variations revert naturally.
+        </p>
+
+        <!-- AI & Operator Remedy Recommendations -->
+        <div class="mb-4">
+          <div class="text-xs font-semibold uppercase text-[var(--text-muted)] mb-2 flex items-center justify-between">
+            <span>Priority Remedy Recommendations</span>
+            <span class="text-[10px] text-sky-400 cursor-pointer hover:underline" onclick="fetchRecommendations()">Refresh</span>
+          </div>
+          <div id="recommendations-container" class="space-y-2">
+            <!-- Recommendations injected here -->
+          </div>
+        </div>
+
+        <!-- Manual Van Dispatch Command -->
+        <div class="border-t border-[var(--card-border)] pt-3">
+          <div class="text-xs font-semibold uppercase text-[var(--text-muted)] mb-2">Manual Dispatch Command</div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-xs text-[var(--text-muted)] block mb-1">Source Origin</label>
+              <select id="dispatch-source" class="w-full card-surface p-2 rounded-xl text-xs border text-[var(--text-main)] outline-none">
+                <option value="RESERVE">Central Reserve Depot (50)</option>
+                <option value="Lansing">Lansing (Residential)</option>
+                <option value="North Campus">North Campus (Employment)</option>
+                <option value="Maplewood">Maplewood (Residential)</option>
+                <option value="Central Campus">Central Campus (Employment)</option>
+                <option value="Downtown">Downtown (Commons)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-[var(--text-muted)] block mb-1">Destination Target</label>
+              <select id="dispatch-dest" class="w-full card-surface p-2 rounded-xl text-xs border text-[var(--text-main)] outline-none">
+                <option value="Lansing">Lansing (Residential)</option>
+                <option value="North Campus">North Campus (Employment)</option>
+                <option value="Maplewood">Maplewood (Residential)</option>
+                <option value="Central Campus">Central Campus (Employment)</option>
+                <option value="Downtown">Downtown (Commons)</option>
+                <option value="RESERVE">Central Reserve Depot</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex-1">
+              <label class="text-xs text-[var(--text-muted)] flex justify-between mb-1">
+                <span>Bikes to Rebalance:</span>
+                <span class="font-bold text-sky-400 font-mono" id="dispatch-qty-display">5</span>
+              </label>
+              <input type="range" id="dispatch-qty" min="1" max="15" value="5" oninput="document.getElementById('dispatch-qty-display').innerText=this.value" class="w-full accent-sky-400 cursor-pointer">
+            </div>
+            <button onclick="executeManualDispatch()" class="px-5 py-2.5 mt-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-md flex items-center gap-2">
+              <span>🚐</span> Dispatch Van
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Google Maps 3D Styled Network Map Viewport -->
+      <div class="card-surface rounded-2xl p-4 shadow-sm flex-1 flex flex-col relative overflow-hidden">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🗺️</span>
+            <h3 class="text-sm font-bold text-white">Ithaca 3D Vector Map</h3>
+            <span class="text-[10px] text-sky-400 font-mono bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">Google Maps 3D Style &bull; 60 FPS</span>
+          </div>
+          <span class="text-xs text-sky-400 font-mono font-semibold" id="van-status-text">Van standing by at Central Depot</span>
+        </div>
+
+        <!-- 3D Viewport container -->
+        <div id="map-container" class="map-3d-viewport relative flex-1 w-full min-h-[300px] rounded-xl bg-[#0b101d] border border-[var(--card-border)] p-2">
+          
+          <!-- Moving 3D Van Element -->
+          <div id="animated-van" class="dispatch-van hidden">🚐</div>
+
+          <!-- 3D Perspective Stage -->
+          <div class="map-3d-stage w-full h-full relative">
+            <svg id="network-svg" viewBox="0 0 500 320" class="w-full h-full overflow-visible">
+              <defs>
+                <!-- Water Gradient for Cayuga Lake Inlet -->
+                <linearGradient id="lakeWater" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0284c7" stop-opacity="0.85" />
+                  <stop offset="100%" stop-color="#0369a1" stop-opacity="0.6" />
+                </linearGradient>
+
+                <!-- 3D Road Glow Filter -->
+                <filter id="roadGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+
+                <!-- Radial Shadow for 3D Pedestals -->
+                <radialGradient id="pedestalShadow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#000000" stop-opacity="0.7" />
+                  <stop offset="100%" stop-color="#000000" stop-opacity="0.0" />
+                </radialGradient>
+              </defs>
+
+              <!-- Base 3D Land Terrain & Contour Zones -->
+              <rect x="0" y="0" width="500" height="320" fill="#0d1424" rx="12" />
+
+              <!-- Elevation contour lines (East Hill & South Hill) -->
+              <path d="M 0,220 Q 180,240 320,180 T 500,120" stroke="#1e293b" stroke-width="3" fill="none" />
+              <path d="M 0,160 Q 220,170 380,100 T 500,60" stroke="#1e293b" stroke-width="2.5" fill="none" stroke-dasharray="8, 4" />
+              <path d="M 40,290 Q 260,300 420,210 T 500,170" stroke="#1e293b" stroke-width="2" fill="none" />
+
+              <!-- Cayuga Lake Inlet (West Ithaca) -->
+              <path d="M 0,20 C 60,35 85,75 80,140 C 75,190 50,220 0,250 Z" fill="url(#lakeWater)" />
+              <text x="18" y="90" fill="#38bdf8" font-size="9" font-weight="bold" letter-spacing="1.5" opacity="0.65" transform="rotate(35, 18, 90)">CAYUGA LAKE INLET</text>
+
+              <!-- Cascadilla & Fall Creek Gorges -->
+              <path d="M 80,140 Q 200,155 350,110 T 500,90" stroke="#0ea5e9" stroke-width="1.5" fill="none" opacity="0.4" stroke-dasharray="3, 3" />
+              <path d="M 75,190 Q 180,210 320,200 T 500,210" stroke="#0ea5e9" stroke-width="1.2" fill="none" opacity="0.3" stroke-dasharray="3, 3" />
+
+              <!-- 3D Isometric Buildings Footprints (Google Maps 3D Blocks) -->
+              <!-- Cornell Academic Buildings (Central Campus) -->
+              <g transform="translate(305, 140)">
+                <polygon points="0,0 28,-14 56,0 28,14" fill="#334155" />
+                <polygon points="0,0 28,14 28,24 0,10" fill="#1e293b" />
+                <polygon points="28,14 56,0 56,10 28,24" fill="#0f172a" />
+              </g>
+              <g transform="translate(345, 120)">
+                <polygon points="0,0 20,-10 40,0 20,10" fill="#334155" />
+                <polygon points="0,0 20,10 20,18 0,8" fill="#1e293b" />
+                <polygon points="20,10 40,0 40,8 20,18" fill="#0f172a" />
+              </g>
+
+              <!-- North Campus Student Halls -->
+              <g transform="translate(360, 50)">
+                <polygon points="0,0 24,-12 48,0 24,12" fill="#334155" />
+                <polygon points="0,0 24,12 24,20 0,8" fill="#1e293b" />
+                <polygon points="24,12 48,0 48,8 24,20" fill="#0f172a" />
+              </g>
+
+              <!-- Downtown Commons City Blocks -->
+              <g transform="translate(130, 130)">
+                <polygon points="0,0 30,-15 60,0 30,15" fill="#334155" />
+                <polygon points="0,0 30,15 30,22 0,7" fill="#1e293b" />
+                <polygon points="30,15 60,0 60,7 30,22" fill="#0f172a" />
+              </g>
+
+              <!-- 3D Road Network Arterials (Google Maps Style) -->
+              <!-- Route 13 North-South Corridor -->
+              <path id="road-rt13" d="M 90,20 L 115,80 L 135,160 L 120,270" stroke="#334155" stroke-width="6" fill="none" stroke-linecap="round" />
+              <path d="M 90,20 L 115,80 L 135,160 L 120,270" stroke="#475569" stroke-width="4" fill="none" stroke-linecap="round" />
+              <path d="M 90,20 L 115,80 L 135,160 L 120,270" stroke="#facc15" stroke-width="0.8" stroke-dasharray="4, 3" fill="none" opacity="0.6" />
+
+              <!-- University Ave / Campus Hill Connector -->
+              <path id="road-univ" d="M 135,160 Q 230,165 310,165" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round" />
+              <path d="M 135,160 Q 230,165 310,165" stroke="#475569" stroke-width="3.5" fill="none" stroke-linecap="round" />
+
+              <!-- North Campus - Lansing Route -->
+              <path id="road-north" d="M 115,80 Q 240,65 365,65" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round" />
+              <path d="M 115,80 Q 240,65 365,65" stroke="#475569" stroke-width="3.5" fill="none" stroke-linecap="round" />
+
+              <!-- Campus Road (North Campus to Central Campus) -->
+              <path id="road-campus" d="M 365,65 Q 350,115 310,165" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round" />
+              <path d="M 365,65 Q 350,115 310,165" stroke="#475569" stroke-width="3.5" fill="none" stroke-linecap="round" />
+
+              <!-- East Hill - Maplewood Connector -->
+              <path id="road-maple" d="M 310,165 Q 340,215 385,255" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round" />
+              <path d="M 310,165 Q 340,215 385,255" stroke="#475569" stroke-width="3.5" fill="none" stroke-linecap="round" />
+
+              <!-- Downtown - Depot - Maplewood Southern Arterial -->
+              <path id="road-depot" d="M 135,160 Q 110,215 110,265" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round" />
+              <path d="M 135,160 Q 110,215 110,265" stroke="#475569" stroke-width="3.5" fill="none" stroke-linecap="round" />
+
+              <path id="road-south" d="M 110,265 Q 250,280 385,255" stroke="#334155" stroke-width="4.5" fill="none" stroke-linecap="round" />
+              <path d="M 110,265 Q 250,280 385,255" stroke="#475569" stroke-width="3" fill="none" stroke-linecap="round" />
+
+              <!-- Glowing Active Transit Path (Lit during van transit) -->
+              <path id="active-transit-path" d="" stroke="#38bdf8" stroke-width="4" fill="none" filter="url(#roadGlow)" opacity="0" stroke-linecap="round" />
+
+              <!-- Road Name Labels -->
+              <text x="100" y="55" fill="#64748b" font-size="8" font-family="monospace" transform="rotate(22, 100, 55)">Route 13 North</text>
+              <text x="210" y="152" fill="#64748b" font-size="8" font-family="monospace">University Ave</text>
+              <text x="350" y="125" fill="#64748b" font-size="8" font-family="monospace" transform="rotate(-50, 350, 125)">Campus Rd</text>
+              <text x="220" y="280" fill="#64748b" font-size="8" font-family="monospace">Pine Tree Rd</text>
+
+              <!-- 3D STATION PEDESTALS (With Dynamic Elevation Pillars Based on Bike Occupancy) -->
+
+              <!-- 0. CENTRAL RESERVE DEPOT -->
+              <g transform="translate(110, 265)" class="cursor-pointer" onclick="selectStationForChart('RESERVE')" id="node-RESERVE">
+                <!-- Drop shadow -->
+                <ellipse cx="0" cy="8" rx="26" ry="14" fill="url(#pedestalShadow)" />
+                <!-- 3D Base -->
+                <ellipse cx="0" cy="4" rx="22" ry="11" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5" />
+                <ellipse cx="0" cy="0" rx="22" ry="11" fill="#334155" />
+                <!-- Depot Marker Billboard -->
+                <g class="billboard-text">
+                  <rect x="-24" y="-24" width="48" height="24" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="2" />
+                  <text text-anchor="middle" y="-12" fill="#fbbf24" font-bold font-size="9" letter-spacing="0.5">DEPOT</text>
+                  <text text-anchor="middle" y="-2" fill="#94a3b8" font-size="8" font-mono id="map-bikes-RESERVE">50</text>
+                </g>
+              </g>
+
+              <!-- 1. LANSING (North Residential) -->
+              <g transform="translate(115, 80)" class="cursor-pointer" onclick="selectStationForChart('Lansing')" id="node-Lansing">
+                <ellipse cx="0" cy="10" rx="28" ry="15" fill="url(#pedestalShadow)" />
+                <!-- 3D Extruded Cylinder Platform -->
+                <path d="M -22,0 L -22,12 A 22 11 0 0 0 22,12 L 22,0 Z" fill="#1e293b" />
+                <ellipse cx="0" cy="12" rx="22" ry="11" fill="#0f172a" />
+                <!-- Top Glowing Ring -->
+                <ellipse cx="0" cy="0" rx="22" ry="11" class="fill-slate-800 stroke-emerald-500" stroke-width="2.5" id="circle-Lansing" />
+                <!-- Dynamic Elevation Pillar (Z-height corresponds to bikes count) -->
+                <rect x="-6" y="-30" width="12" height="30" rx="3" fill="#10b981" opacity="0.85" id="pillar-Lansing" />
+                <!-- Billboard Head-Up Tag -->
+                <g class="billboard-text">
+                  <rect x="-22" y="-52" width="44" height="20" rx="5" fill="#0f172a" stroke="#10b981" stroke-width="1.5" id="tag-Lansing" />
+                  <text text-anchor="middle" y="-42" fill="#ffffff" font-bold font-size="8">LANSING</text>
+                  <text text-anchor="middle" y="-34" fill="#34d399" font-bold font-mono font-size="8" id="map-bikes-Lansing">10</text>
+                </g>
+              </g>
+
+              <!-- 2. NORTH CAMPUS (Campus Working / Employment District) -->
+              <g transform="translate(365, 65)" class="cursor-pointer" onclick="selectStationForChart('North Campus')" id="node-North-Campus">
+                <ellipse cx="0" cy="10" rx="28" ry="15" fill="url(#pedestalShadow)" />
+                <path d="M -22,0 L -22,12 A 22 11 0 0 0 22,12 L 22,0 Z" fill="#1e293b" />
+                <ellipse cx="0" cy="12" rx="22" ry="11" fill="#0f172a" />
+                <ellipse cx="0" cy="0" rx="22" ry="11" class="fill-slate-800 stroke-purple-500" stroke-width="2.5" id="circle-North-Campus" />
+                <rect x="-6" y="-30" width="12" height="30" rx="3" fill="#a855f7" opacity="0.85" id="pillar-North-Campus" />
+                <g class="billboard-text">
+                  <rect x="-26" y="-52" width="52" height="20" rx="5" fill="#0f172a" stroke="#a855f7" stroke-width="1.5" id="tag-North-Campus" />
+                  <text text-anchor="middle" y="-42" fill="#ffffff" font-bold font-size="8">N. CAMPUS</text>
+                  <text text-anchor="middle" y="-34" fill="#c084fc" font-bold font-mono font-size="8" id="map-bikes-North-Campus">10</text>
+                </g>
+              </g>
+
+              <!-- 3. DOWNTOWN COMMONS (Mixed Transit Core) -->
+              <g transform="translate(135, 160)" class="cursor-pointer" onclick="selectStationForChart('Downtown')" id="node-Downtown">
+                <ellipse cx="0" cy="12" rx="30" ry="16" fill="url(#pedestalShadow)" />
+                <path d="M -24,0 L -24,14 A 24 12 0 0 0 24,14 L 24,0 Z" fill="#1e293b" />
+                <ellipse cx="0" cy="14" rx="24" ry="12" fill="#0f172a" />
+                <ellipse cx="0" cy="0" rx="24" ry="12" class="fill-slate-800 stroke-sky-400" stroke-width="3" id="circle-Downtown" />
+                <rect x="-7" y="-30" width="14" height="30" rx="3" fill="#38bdf8" opacity="0.85" id="pillar-Downtown" />
+                <g class="billboard-text">
+                  <rect x="-26" y="-54" width="52" height="21" rx="5" fill="#0f172a" stroke="#38bdf8" stroke-width="1.8" id="tag-Downtown" />
+                  <text text-anchor="middle" y="-43" fill="#ffffff" font-bold font-size="8">DOWNTOWN</text>
+                  <text text-anchor="middle" y="-35" fill="#38bdf8" font-bold font-mono font-size="8" id="map-bikes-Downtown">10</text>
+                </g>
+              </g>
+
+              <!-- 4. CENTRAL CAMPUS (Core Working & Employment District) -->
+              <g transform="translate(310, 165)" class="cursor-pointer" onclick="selectStationForChart('Central Campus')" id="node-Central-Campus">
+                <ellipse cx="0" cy="12" rx="30" ry="16" fill="url(#pedestalShadow)" />
+                <path d="M -24,0 L -24,14 A 24 12 0 0 0 24,14 L 24,0 Z" fill="#1e293b" />
+                <ellipse cx="0" cy="14" rx="24" ry="12" fill="#0f172a" />
+                <ellipse cx="0" cy="0" rx="24" ry="12" class="fill-slate-800 stroke-purple-500" stroke-width="3" id="circle-Central-Campus" />
+                <rect x="-7" y="-30" width="14" height="30" rx="3" fill="#8b5cf6" opacity="0.85" id="pillar-Central-Campus" />
+                <g class="billboard-text">
+                  <rect x="-26" y="-54" width="52" height="21" rx="5" fill="#0f172a" stroke="#8b5cf6" stroke-width="1.8" id="tag-Central-Campus" />
+                  <text text-anchor="middle" y="-43" fill="#ffffff" font-bold font-size="8">C. CAMPUS</text>
+                  <text text-anchor="middle" y="-35" fill="#a78bfa" font-bold font-mono font-size="8" id="map-bikes-Central-Campus">10</text>
+                </g>
+              </g>
+
+              <!-- 5. MAPLEWOOD (East Residential Suburb) -->
+              <g transform="translate(385, 255)" class="cursor-pointer" onclick="selectStationForChart('Maplewood')" id="node-Maplewood">
+                <ellipse cx="0" cy="10" rx="28" ry="15" fill="url(#pedestalShadow)" />
+                <path d="M -22,0 L -22,12 A 22 11 0 0 0 22,12 L 22,0 Z" fill="#1e293b" />
+                <ellipse cx="0" cy="12" rx="22" ry="11" fill="#0f172a" />
+                <ellipse cx="0" cy="0" rx="22" ry="11" class="fill-slate-800 stroke-emerald-500" stroke-width="2.5" id="circle-Maplewood" />
+                <rect x="-6" y="-30" width="12" height="30" rx="3" fill="#10b981" opacity="0.85" id="pillar-Maplewood" />
+                <g class="billboard-text">
+                  <rect x="-25" y="-52" width="50" height="20" rx="5" fill="#0f172a" stroke="#10b981" stroke-width="1.5" id="tag-Maplewood" />
+                  <text text-anchor="middle" y="-42" fill="#ffffff" font-bold font-size="8">MAPLEWOOD</text>
+                  <text text-anchor="middle" y="-34" fill="#34d399" font-bold font-mono font-size="8" id="map-bikes-Maplewood">10</text>
+                </g>
+              </g>
+
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Six Sigma (SPC) Studio: 3 Real-Time Live Control Charts -->
+  <section class="card-surface rounded-2xl p-5 shadow-lg mb-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h2 class="text-lg font-bold flex items-center gap-2">
+            <span>📈</span> Statistical Process Control Studio
+          </h2>
+          <span class="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 font-semibold border border-sky-500/30">
+            Real-Time Telemetry
+          </span>
+        </div>
+        <p class="text-xs text-[var(--text-muted)] mt-0.5">
+          Variable I-MR Charts &bull; Attribute p-Chart non-conformance rate (Cornell SYSEN 5300 Lesson 5 Slide 25/41-46) &bull; UCL=18, LCL=2
+        </p>
+      </div>
+
+      <!-- Station Selector for Variable Charts -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-[var(--text-muted)]">Station:</span>
+        <div class="flex flex-wrap rounded-xl p-1 card-surface border" id="chart-station-toggles">
+          <button onclick="selectStationForChart('ALL')" class="px-2.5 py-1 text-xs rounded-lg font-semibold bg-sky-500 text-white" id="toggle-ALL">All Stations</button>
+          <button onclick="selectStationForChart('Lansing')" class="px-2.5 py-1 text-xs rounded-lg font-semibold text-[var(--text-muted)] hover:text-white" id="toggle-Lansing">Lansing</button>
+          <button onclick="selectStationForChart('North Campus')" class="px-2.5 py-1 text-xs rounded-lg font-semibold text-[var(--text-muted)] hover:text-white" id="toggle-North Campus">North Campus</button>
+          <button onclick="selectStationForChart('Maplewood')" class="px-2.5 py-1 text-xs rounded-lg font-semibold text-[var(--text-muted)] hover:text-white" id="toggle-Maplewood">Maplewood</button>
+          <button onclick="selectStationForChart('Central Campus')" class="px-2.5 py-1 text-xs rounded-lg font-semibold text-[var(--text-muted)] hover:text-white" id="toggle-Central Campus">Central Campus</button>
+          <button onclick="selectStationForChart('Downtown')" class="px-2.5 py-1 text-xs rounded-lg font-semibold text-[var(--text-muted)] hover:text-white" id="toggle-Downtown">Downtown</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart 1: Individual Values Chart (I-Chart) with Moving Average -->
+    <div class="mb-5">
+      <div class="flex items-center justify-between text-xs font-semibold text-[var(--text-muted)] mb-1.5 px-1">
+        <span class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-sm bg-sky-400"></span>
+          <span>1. Individual Values Chart (X<sub>t</sub>) &bull; 5-pt Moving Average Trend</span>
+        </span>
+        <span class="text-rose-400 font-mono">UCL = 18 | Target = 10 | LCL = 2</span>
+      </div>
+      <div class="relative w-full h-[210px] rounded-xl bg-slate-900/90 border border-[var(--card-border)] p-2">
+        <canvas id="iCanvas" class="w-full h-full"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 2: Moving Range Chart (MR-Chart) -->
+    <div class="mb-5">
+      <div class="flex items-center justify-between text-xs font-semibold text-[var(--text-muted)] mb-1.5 px-1">
+        <span class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>
+          <span>2. Moving Range Chart (MR<sub>t</sub> = |X<sub>t</sub> - X<sub>t-1</sub>|) Volatility</span>
+        </span>
+        <span class="text-amber-400 font-mono" id="mr-ucl-label">UCL_MR = 3.267 * MR_bar</span>
+      </div>
+      <div class="relative w-full h-[150px] rounded-xl bg-slate-900/90 border border-[var(--card-border)] p-2">
+        <canvas id="mrCanvas" class="w-full h-full"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 3: Attribute Control Chart (Fraction Defective p-Chart & np-Chart) -->
+    <div class="mb-4">
+      <div class="flex items-center justify-between text-xs font-semibold text-[var(--text-muted)] mb-1.5 px-1">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-sm bg-purple-400"></span>
+          <span>3. Attribute Control Chart (Fraction Defective / Non-Conforming Stations)</span>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">
+            Lesson 5 Slide 25 &amp; 41-46
+          </span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex rounded-lg card-surface border p-0.5 text-[11px]">
+            <button id="btn-view-p" onclick="setAttributeChartMode('p')" class="px-2 py-0.5 rounded bg-purple-600 text-white font-semibold">p (Fraction)</button>
+            <button id="btn-view-np" onclick="setAttributeChartMode('np')" class="px-2 py-0.5 rounded text-[var(--text-muted)] hover:text-white">np (Count)</button>
+          </div>
+          <span class="text-purple-400 font-mono" id="p-ucl-label">UCL_p = p_bar + 3*sqrt(p(1-p)/n)</span>
+        </div>
+      </div>
+      <div class="relative w-full h-[170px] rounded-xl bg-slate-900/90 border border-[var(--card-border)] p-2">
+        <canvas id="pCanvas" class="w-full h-full"></canvas>
+      </div>
+      <p class="text-[11px] text-[var(--text-muted)] mt-1 px-1">
+        <strong>Binomial Model ($n=5$ stations per tick):</strong> A station is classified non-conforming if $bikes \le 2$ (deficit) or $bikes \ge 18$ (surplus / dockout). Exceeding $\text{UCL}_p$ signals an out-of-control fleet-wide unserviceability event.
+      </p>
+    </div>
+
+    <!-- Process Capability & SPC Diagnostics Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs pt-2">
+      <div class="p-3.5 rounded-xl bg-slate-800/40 border border-[var(--card-border)]">
+        <div class="text-[var(--text-muted)] font-semibold mb-1 uppercase tracking-wider text-[10px]">Specification Limits</div>
+        <div class="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
+          <div>UCL (Surplus): <span class="text-rose-400 font-bold">18</span></div>
+          <div>LCL (Deficit): <span class="text-rose-400 font-bold">2</span></div>
+          <div>Target: <span class="text-sky-300 font-bold">10</span></div>
+          <div>Capacity: <span class="text-slate-300">20</span></div>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-slate-800/40 border border-[var(--card-border)]">
+        <div class="text-[var(--text-muted)] font-semibold mb-1 uppercase tracking-wider text-[10px]">Six Sigma Capability</div>
+        <div class="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
+          <div>Cp: <span class="text-sky-300 font-bold" id="stat-cp">--</span></div>
+          <div>Cpk: <span class="text-sky-300 font-bold" id="stat-cpk">--</span></div>
+          <div>MR Mean: <span class="text-amber-300 font-bold" id="stat-mr-mean">--</span></div>
+          <div>Sigma: <span class="text-emerald-400 font-bold" id="stat-sigma">--</span></div>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-slate-800/40 border border-[var(--card-border)]">
+        <div class="text-[var(--text-muted)] font-semibold mb-1 uppercase tracking-wider text-[10px]">Defect &amp; Loss Counters</div>
+        <div class="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
+          <div>Stockouts (&le;2): <span class="text-rose-300 font-bold" id="stat-stockouts">0</span></div>
+          <div>Dockouts (&ge;18): <span class="text-purple-300 font-bold" id="stat-dockouts">0</span></div>
+          <div>Lost Rentals: <span class="text-rose-400 font-semibold" id="stat-rentals-fail">0</span></div>
+          <div>Lost Returns: <span class="text-purple-400 font-semibold" id="stat-returns-fail">0</span></div>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-slate-800/40 border border-[var(--card-border)]">
+        <div class="text-[var(--text-muted)] font-semibold mb-1 uppercase tracking-wider text-[10px]">Variation Diagnostic</div>
+        <div id="stat-variation-diag" class="text-[11px] text-emerald-400 font-medium leading-relaxed">
+          ✓ Common Cause In Control: Minor natural fluctuations will self-correct naturally.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DMAIC Modal / Expandable View -->
+  <div id="dmaic-modal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="card-surface rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-[var(--card-border-subtle)]">
+      <div class="flex items-center justify-between pb-4 border-b border-[var(--card-border)] mb-4">
+        <div>
+          <h2 class="text-xl font-bold flex items-center gap-2">
+            <span>📋</span> DMAIC Six Sigma Process Improvement Framework
+          </h2>
+          <p class="text-xs text-[var(--text-muted)]">Ithaca Bikeshare Fleet Reliability &amp; Dock Crisis Mitigation</p>
+        </div>
+        <button onclick="toggleDmaicModal()" class="w-8 h-8 rounded-full card-surface hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white font-bold">
+          ✕
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6" id="dmaic-tabs-content">
+        <!-- Define -->
+        <div class="p-3.5 rounded-2xl bg-slate-800/40 border border-[var(--card-border)]">
+          <div class="font-bold text-sky-400 text-xs mb-1">1. DEFINE</div>
+          <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            Eliminate morning residential stockouts and evening working dockouts. Target Cpk &ge; 1.33.
+          </p>
+        </div>
+        <!-- Measure -->
+        <div class="p-3.5 rounded-2xl bg-slate-800/40 border border-[var(--card-border)]">
+          <div class="font-bold text-emerald-400 text-xs mb-1">2. MEASURE</div>
+          <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            I-MR individual telemetry and Attribute p-Chart non-conformance rate with Shewhart limits UCL=18, LCL=2.
+          </p>
+        </div>
+        <!-- Analyze -->
+        <div class="p-3.5 rounded-2xl bg-slate-800/40 border border-[var(--card-border)]">
+          <div class="font-bold text-amber-400 text-xs mb-1">3. ANALYZE</div>
+          <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            Commuter flow asymmetry: morning exodus from Lansing/Maplewood to Cornell campus, evening return flood.
+          </p>
+        </div>
+        <!-- Improve -->
+        <div class="p-3.5 rounded-2xl bg-slate-800/40 border border-[var(--card-border)]">
+          <div class="font-bold text-purple-400 text-xs mb-1">4. IMPROVE</div>
+          <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            Targeted maintenance van rebalancing resolving special cause locks, plus midnight proportional rebalance.
+          </p>
+        </div>
+        <!-- Control -->
+        <div class="p-3.5 rounded-2xl bg-slate-800/40 border border-[var(--card-border)]">
+          <div class="font-bold text-rose-400 text-xs mb-1">5. CONTROL</div>
+          <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            Green zone (5-15) auto-corrects; Yellow (2-5, 15-18) warns; Red (&le;2, &ge;18) locks until operator dispatch.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900/60 border border-[var(--card-border)]">
+        <h3 class="text-sm font-bold text-white mb-2">DMAIC Pareto Defect Analysis</h3>
+        <div id="dmaic-pareto-table" class="text-xs space-y-2">
+          <!-- Dynamic Pareto breakdown injected here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Client-Side Simulation & Graphics Engine -->
+  <script>
+    let isRunning = false;
+    let timer = null;
+    let tickSpeed = 10000; // 10s default reaction pacing
+    let selectedStationForChart = 'ALL';
+    let attributeChartMode = 'p'; // 'p' (proportion) or 'np' (count)
+    let isBackendConnected = false;
+    let historyData = [];
+
+    // Ithaca Stations Metadata & 3D Vector Anchors
+    const STATION_META = {
+      "Lansing": { name: "Lansing", zone: "residential", color: "#10b981", mapX: 115, mapY: 80, alias: "A" },
+      "North Campus": { name: "North Campus", zone: "employment", color: "#a855f7", mapX: 365, mapY: 65, alias: "E" },
+      "Maplewood": { name: "Maplewood", zone: "residential", color: "#06b6d4", mapX: 385, mapY: 255, alias: "B" },
+      "Central Campus": { name: "Central Campus", zone: "employment", color: "#8b5cf6", mapX: 310, mapY: 165, alias: "D" },
+      "Downtown": { name: "Downtown", zone: "mixed", color: "#38bdf8", mapX: 135, mapY: 160, alias: "C" },
+      "RESERVE": { name: "Central Reserve Depot", zone: "reserve", color: "#f59e0b", mapX: 110, mapY: 265, alias: "DEPOT" }
+    };
+
+    // Client state model
+    let simState = {
+      tick: 0,
+      timestamp: "2026-10-19T00:00:00",
+      reserve: 50,
+      in_transit: 0,
+      fleet_size: 100,
+      fleet_accounted: 100,
+      ucl: 18,
+      lcl: 2,
+      running: false,
+      active_special_causes: [],
+      stations: [
+        { station_id: "Lansing", name: "Lansing", zone: "residential", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+        { station_id: "North Campus", name: "North Campus", zone: "employment", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+        { station_id: "Maplewood", name: "Maplewood", zone: "residential", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+        { station_id: "Central Campus", name: "Central Campus", zone: "employment", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+        { station_id: "Downtown", name: "Downtown", zone: "mixed", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+      ]
+    };
+
+    // Initialize application
+    window.addEventListener('DOMContentLoaded', () => {
+      initCanvases();
+      detectBackend();
+      updateFromSnapshot(simState);
+    });
+
+    async function detectBackend() {
+      const badge = document.getElementById('connection-badge');
+      try {
+        const res = await fetch('/health', { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+          isBackendConnected = true;
+          badge.textContent = "Live Backend (FastAPI)";
+          badge.className = "text-xs font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400";
+          fetchLiveState();
+          connectSSE();
+          return;
+        }
+      } catch (e) {}
+      isBackendConnected = false;
+      badge.textContent = "Client Simulator";
+      badge.className = "text-xs font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-400";
+    }
+
+    function connectSSE() {
+      try {
+        const evtSource = new EventSource('/api/v1/stream');
+        evtSource.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          updateFromSnapshot(data);
+          fetchRecommendations();
+          fetchSpcMetrics();
+        };
+      } catch (e) {}
+    }
+
+    async function fetchLiveState() {
+      try {
+        const res = await fetch('/api/v1/state');
+        if (res.ok) {
+          const data = await res.json();
+          updateFromSnapshot(data);
+          fetchRecommendations();
+          fetchSpcMetrics();
+        }
+      } catch (e) {}
+    }
+
+    async function fetchRecommendations() {
+      if (!isBackendConnected) {
+        renderClientRecommendations();
+        return;
+      }
+      try {
+        const res = await fetch('/api/v1/recommendations');
+        if (res.ok) {
+          const recs = await res.json();
+          renderRecommendations(recs);
+        }
+      } catch (e) {
+        renderClientRecommendations();
+      }
+    }
+
+    async function fetchSpcMetrics() {
+      if (!isBackendConnected) return;
+      try {
+        const res = await fetch('/api/v1/spc');
+        if (res.ok) {
+          const spc = await res.json();
+          updateSpcDisplays(spc);
+        }
+      } catch (e) {}
+    }
+
+    // UPDATE DISPLAY FROM SNAPSHOT
+    function updateFromSnapshot(data) {
+      simState = data;
+      renderStationsGrid(data.stations);
+      updateKpis(data);
+      updateMap(data.stations);
+      recordHistory(data);
+      drawCharts();
+
+      // CONTINUOUS RUNNING POLICY:
+      // When special cause strikes, simulator NEVER pauses automatically!
+      // Stations remain biased under special cause until remedy is dispatched.
+      const specialCauses = data.stations.filter(s => s.special_cause_active || s.bikes <= 2 || s.bikes >= 18);
+      const banner = document.getElementById('special-cause-banner');
+      const bannerText = document.getElementById('special-cause-banner-text');
+
+      if (specialCauses.length > 0) {
+        const names = specialCauses.map(s => {
+          const crisis = s.bikes <= 2 ? `DEFICIT (${s.bikes} bikes)` : `SURPLUS (${s.bikes} bikes)`;
+          return `${s.station_id}: ${crisis}`;
+        }).join(' &bull; ');
+
+        banner.classList.remove('hidden');
+        bannerText.innerHTML = `<strong>Active Special Cause Bias:</strong> ${names}. Stations will not self-correct and continue losing trips until operator dispatches a van remedy!`;
+        document.getElementById('van-status-text').innerText = `⚠️ SPECIAL CAUSE ACTIVE: Dispatch van to resolve!`;
+      } else {
+        banner.classList.add('hidden');
+        if (document.getElementById('van-status-text').innerText.includes('SPECIAL CAUSE')) {
+          document.getElementById('van-status-text').innerText = "Van standing by at Central Depot";
+        }
+      }
+    }
+
+    function dismissBanner() {
+      document.getElementById('special-cause-banner').classList.add('hidden');
+    }
+
+    function scrollToDispatch() {
+      document.getElementById('dispatch-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function recordHistory(data) {
+      const record = {
+        tick: data.tick,
+        timestamp: data.timestamp,
+        stations: {},
+        defective_count: 0
+      };
+      data.stations.forEach(s => {
+        record.stations[s.station_id] = s.bikes;
+        if (s.bikes <= 2 || s.bikes >= 18 || s.special_cause_active) {
+          record.defective_count += 1;
+        }
+      });
+      historyData.push(record);
+      if (historyData.length > 96) historyData.shift();
+    }
+
+    // RENDER 5 STATIONS OPERATION CARDS
+    function renderStationsGrid(stations) {
+      const container = document.getElementById('stations-grid');
+      container.innerHTML = stations.map(s => {
+        const meta = STATION_META[s.station_id] || { zone: 'mixed', name: s.station_id };
+        const isDeficit = s.bikes <= 2;
+        const isSurplus = s.bikes >= 18;
+        const isSpecialCause = s.special_cause_active || isDeficit || isSurplus;
+
+        const badgeClass = isDeficit ? 'bg-rose-500/20 text-rose-400 border-rose-500/60 font-bold animate-pulse' :
+                           isSurplus ? 'bg-purple-500/20 text-purple-400 border-purple-500/60 font-bold animate-pulse' :
+                           s.bikes < 5 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' :
+                           s.bikes > 15 ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40' :
+                           'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+
+        // 20 Discrete dock slot visualizer
+        let dockSlots = '';
+        for (let i = 0; i < 20; i++) {
+          const occupied = i < s.bikes;
+          const slotClass = occupied 
+            ? (s.bikes >= 18 ? 'bg-purple-500 shadow-sm' : s.bikes <= 2 ? 'bg-rose-500 shadow-sm' : s.bikes < 5 ? 'bg-amber-400' : 'bg-emerald-400')
+            : 'bg-slate-800/80 border border-slate-700/50';
+          dockSlots += `<div class="dock-slot ${slotClass}" title="Dock #${i+1}: ${occupied ? 'Bike Docked' : 'Empty'}"></div>`;
+        }
+
+        return `
+          <div class="card-surface rounded-2xl p-4 shadow-sm border transition hover:border-sky-500/40 ${isSpecialCause ? 'ring-2 ring-rose-500/80 bg-rose-950/10' : ''}">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h3 class="font-bold text-sm leading-tight text-white flex items-center gap-1.5">
+                  <span>${meta.alias === 'A' || meta.alias === 'B' ? '🏡' : meta.alias === 'C' ? '🏛️' : '🎓'}</span>
+                  <span>${s.station_id}</span>
+                </h3>
+                <span class="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">${meta.zone}</span>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-[10px] border ${badgeClass}">
+                ${isDeficit ? '🚨 DEFICIT (SPECIAL CAUSE)' : isSurplus ? '🚨 SURPLUS (SPECIAL CAUSE)' : s.status}
+              </span>
+            </div>
+
+            <div class="flex items-baseline justify-between mb-2">
+              <div>
+                <span class="text-2xl font-bold font-mono text-white">${s.bikes}</span>
+                <span class="text-xs text-[var(--text-muted)]">/ 20 bikes</span>
+              </div>
+              <div class="text-xs font-mono ${s.docks <= 2 ? 'text-purple-400 font-bold' : 'text-slate-400'}">
+                ${s.docks} docks free
+              </div>
+            </div>
+
+            <!-- 20-Slot Rack Visualizer -->
+            <div class="flex flex-wrap gap-1 p-2 rounded-xl bg-slate-900/80 border border-[var(--card-border)] mb-3">
+              ${dockSlots}
+            </div>
+
+            <!-- Telemetry & Failure Accounting -->
+            <div class="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-[var(--card-border)]">
+              <div class="text-[var(--text-muted)]">Rentals: <span class="font-bold text-sky-400">${s.rentals}</span></div>
+              <div class="text-[var(--text-muted)]">Returns: <span class="font-bold text-emerald-400">${s.returns}</span></div>
+              <div class="text-rose-400 font-semibold">Stockouts (&le;2): <span class="font-bold">${s.failed_rentals}</span></div>
+              <div class="text-purple-400 font-semibold">Dockouts (&ge;18): <span class="font-bold">${s.failed_returns}</span></div>
+            </div>
+
+            <!-- 1-Click Van Quick Actions -->
+            <div class="mt-3 flex gap-2">
+              <button onclick="quickDispatchTo('${s.station_id}')" class="flex-1 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 font-semibold text-xs transition border border-sky-500/30 flex items-center justify-center gap-1 shadow-sm">
+                <span>🚐</span> Restock 5
+              </button>
+              <button onclick="quickDispatchFrom('${s.station_id}')" class="flex-1 py-1.5 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 font-semibold text-xs transition border border-slate-600/30 flex items-center justify-center gap-1 shadow-sm">
+                <span>🚐</span> Drain 5
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateKpis(data) {
+      document.getElementById('sim-tick').innerText = `(Tick ${data.tick})`;
+      const ts = new Date(data.timestamp);
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dayName = days[ts.getUTCDay()] || "Mon";
+      const hours = String(ts.getUTCHours()).padStart(2, '0');
+      const mins = String(ts.getUTCMinutes()).padStart(2, '0');
+      document.getElementById('sim-clock').innerText = `${dayName} ${hours}:${mins}`;
+
+      document.getElementById('kpi-accounted').innerText = `${data.fleet_accounted || 100} / 100`;
+      document.getElementById('kpi-reserve').innerText = `${data.reserve} Bikes`;
+      document.getElementById('kpi-transit').innerText = `${data.in_transit} in transit`;
+
+      const specialCauses = data.stations.filter(s => s.special_cause_active || s.bikes <= 2 || s.bikes >= 18);
+      const scKpi = document.getElementById('kpi-special-cause');
+      scKpi.innerText = `${specialCauses.length} Active`;
+      scKpi.className = `text-2xl font-bold font-mono ${specialCauses.length > 0 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`;
+
+      updateCapabilityKpi(data.stations);
+    }
+
+    function updateCapabilityKpi(stations) {
+      const bikeCounts = stations.map(s => s.bikes);
+      const mean = bikeCounts.reduce((a,b)=>a+b, 0) / bikeCounts.length;
+      const variance = bikeCounts.reduce((a,b)=>a + Math.pow(b-mean, 2), 0) / Math.max(1, bikeCounts.length - 1);
+      const std = Math.sqrt(variance);
+
+      if (std > 0.001) {
+        const cpu = (20 - mean) / (3 * std);
+        const cpl = (mean - 0) / (3 * std);
+        const cpk = Math.min(cpu, cpl).toFixed(2);
+        document.getElementById('kpi-cpk').innerText = cpk;
+        document.getElementById('kpi-cpk').className = `text-2xl font-bold font-mono ${cpk >= 1.33 ? 'text-emerald-400' : cpk >= 1.0 ? 'text-amber-400' : 'text-rose-400'}`;
+        document.getElementById('stat-cpk').innerText = cpk;
+        document.getElementById('stat-cp').innerText = ((20 - 0) / (6 * std)).toFixed(2);
+        document.getElementById('stat-sigma').innerText = (Math.max(0, 3 * cpk)).toFixed(1);
+      }
+    }
+
+    // UPDATE 3D MAP NODES & ELEVATION PILLARS
+    function updateMap(stations) {
+      document.getElementById('map-bikes-RESERVE').innerText = simState.reserve;
+      stations.forEach(s => {
+        const idClean = s.station_id.replace(/\s+/g, '-');
+        const bikeEl = document.getElementById(`map-bikes-${idClean}`);
+        const circle = document.getElementById(`circle-${idClean}`);
+        const pillar = document.getElementById(`pillar-${idClean}`);
+
+        if (bikeEl) bikeEl.textContent = s.bikes;
+
+        // Dynamic 3D elevation pillar height: taller = more bikes
+        if (pillar) {
+          const pillarHeight = Math.max(4, s.bikes * 2.2);
+          pillar.setAttribute('height', pillarHeight);
+          pillar.setAttribute('y', -pillarHeight);
+        }
+
+        if (circle) {
+          if (s.bikes <= 2) {
+            circle.setAttribute('class', 'fill-slate-800 stroke-rose-500 stroke-[3.5] pulse-special-cause');
+          } else if (s.bikes >= 18) {
+            circle.setAttribute('class', 'fill-slate-800 stroke-purple-500 stroke-[3.5] pulse-special-cause');
+          } else {
+            circle.setAttribute('class', 'fill-slate-800 stroke-emerald-500 stroke-[2.5]');
+          }
+        }
+      });
+    }
+
+    function renderRecommendations(recs) {
+      const container = document.getElementById('recommendations-container');
+      if (!recs || recs.length === 0) {
+        container.innerHTML = `
+          <div class="text-xs text-[var(--text-muted)] italic p-2.5 rounded-xl bg-slate-800/40 border border-[var(--card-border)]">
+            ✓ Normal operations. Common cause variation within standard bounds.
+          </div>
+        `;
+        return;
+      }
+      container.innerHTML = recs.map(r => `
+        <div class="p-2.5 rounded-xl border ${r.priority === 'critical' ? 'bg-rose-500/10 border-rose-500/50 shadow-sm' : 'bg-amber-500/10 border-amber-500/40'} flex items-center justify-between gap-2">
+          <div class="text-xs">
+            <span class="font-bold ${r.priority === 'critical' ? 'text-rose-400' : 'text-amber-400'} uppercase text-[10px] tracking-wider">[${r.priority}]</span>
+            <span class="font-semibold text-slate-200">Rebalance ${r.quantity} bikes &bull; ${r.source} &rarr; ${r.destination}</span>
+            <div class="text-[10px] text-[var(--text-muted)] mt-0.5">${r.reason}</div>
+          </div>
+          <button onclick="dispatchVan('${r.source}', '${r.destination}', ${r.quantity})" class="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-sm transition">
+            Dispatch
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function renderClientRecommendations() {
+      const actions = [];
+      simState.stations.forEach(s => {
+        if (s.special_cause_active || s.bikes <= 2) {
+          actions.push({
+            source: 'RESERVE',
+            destination: s.station_id,
+            quantity: Math.max(5, 10 - s.bikes),
+            priority: 'critical',
+            reason: `SPECIAL CAUSE DEFICIT: Station locked at ${s.bikes} bikes (&le; 2). Cannot self-correct.`
+          });
+        } else if (s.special_cause_active || s.bikes >= 18) {
+          actions.push({
+            source: s.station_id,
+            destination: 'RESERVE',
+            quantity: Math.max(5, s.bikes - 10),
+            priority: 'critical',
+            reason: `SPECIAL CAUSE SURPLUS: Station locked at ${s.bikes} bikes (&ge; 18). Cannot self-correct.`
+          });
+        } else if (s.bikes < 5) {
+          actions.push({
+            source: 'RESERVE',
+            destination: s.station_id,
+            quantity: 5 - s.bikes,
+            priority: 'warning',
+            reason: `Common cause buffer warning at ${s.station_id} (${s.bikes} bikes).`
+          });
+        } else if (s.bikes > 15) {
+          actions.push({
+            source: s.station_id,
+            destination: 'RESERVE',
+            quantity: s.bikes - 15,
+            priority: 'warning',
+            reason: `Common cause buffer warning at ${s.station_id} (${s.bikes} bikes).`
+          });
+        }
+      });
+      renderRecommendations(actions);
+    }
+
+    // STEADY SPEED VAN ANIMATION: Calibrated steady speed (~2.6s) across 3D vector map
+    function animateVanMovement(source, destination, onComplete) {
+      const srcMeta = STATION_META[source] || { mapX: 110, mapY: 265 };
+      const dstMeta = STATION_META[destination] || { mapX: 135, mapY: 160 };
+
+      const mapContainer = document.getElementById('map-container');
+      const van = document.getElementById('animated-van');
+      const statusText = document.getElementById('van-status-text');
+      const activePath = document.getElementById('active-transit-path');
+
+      statusText.innerText = `🚐 Van traveling: ${source} ➔ ${destination} (Steady speed)`;
+
+      const rect = mapContainer.getBoundingClientRect();
+      const scaleX = rect.width / 500;
+      const scaleY = rect.height / 320;
+
+      const startX = srcMeta.mapX * scaleX;
+      const startY = srcMeta.mapY * scaleY;
+      const endX = dstMeta.mapX * scaleX;
+      const endY = dstMeta.mapY * scaleY;
+
+      // Draw glowing active path on SVG
+      activePath.setAttribute('d', `M ${srcMeta.mapX},${srcMeta.mapY} Q ${(srcMeta.mapX + dstMeta.mapX)/2 + 20},${(srcMeta.mapY + dstMeta.mapY)/2 - 15} ${dstMeta.mapX},${dstMeta.mapY}`);
+      activePath.setAttribute('opacity', '0.85');
+
+      van.style.left = `${startX - 12}px`;
+      van.style.top = `${startY - 12}px`;
+      van.classList.remove('hidden');
+
+      // Calibrated steady travel duration: 2600ms
+      const duration = 2600;
+      const startTime = performance.now();
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(1.0, elapsed / duration);
+
+        // Steady linear interpolation for calibrated uniform speed
+        const curX = startX + (endX - startX) * progress;
+        const curY = startY + (endY - startY) * progress;
+
+        van.style.left = `${curX - 12}px`;
+        van.style.top = `${curY - 12}px`;
+
+        if (progress < 1.0) {
+          requestAnimationFrame(step);
+        } else {
+          van.classList.add('hidden');
+          activePath.setAttribute('opacity', '0');
+          statusText.innerText = `✓ Van arrived at ${destination}. Remedy delivered!`;
+          if (onComplete) onComplete();
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Van Dispatch Execution
+    async function dispatchVan(source, destination, quantity) {
+      animateVanMovement(source, destination, async () => {
+        if (isBackendConnected) {
+          try {
+            const res = await fetch('/api/v1/dispatch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ source, destination, quantity, reason: 'operator' })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              updateFromSnapshot(data.state);
+              fetchRecommendations();
+              return;
+            }
+          } catch (e) {}
+        }
+        executeClientDispatch(source, destination, quantity);
+      });
+    }
+
+    function executeManualDispatch() {
+      const source = document.getElementById('dispatch-source').value;
+      const dest = document.getElementById('dispatch-dest').value;
+      const qty = parseInt(document.getElementById('dispatch-qty').value, 10);
+      if (source === dest) {
+        alert("Source and Destination must be different.");
+        return;
+      }
+      dispatchVan(source, dest, qty);
+    }
+
+    function quickDispatchTo(stationId) {
+      dispatchVan('RESERVE', stationId, 5);
+    }
+
+    function quickDispatchFrom(stationId) {
+      dispatchVan(stationId, 'RESERVE', 5);
+    }
+
+    function executeClientDispatch(source, destination, quantity) {
+      let moved = 0;
+      if (source === 'RESERVE') {
+        const destStation = simState.stations.find(s => s.station_id === destination);
+        if (!destStation) return;
+        moved = Math.min(quantity, simState.reserve, destStation.capacity - destStation.bikes);
+        simState.reserve -= moved;
+        destStation.bikes += moved;
+        if (destStation.bikes > 2) {
+          destStation.special_cause_active = false;
+          destStation.special_cause_type = "NONE";
+        }
+      } else if (destination === 'RESERVE') {
+        const srcStation = simState.stations.find(s => s.station_id === source);
+        if (!srcStation) return;
+        moved = Math.min(quantity, srcStation.bikes);
+        srcStation.bikes -= moved;
+        simState.reserve += moved;
+        if (srcStation.bikes < 18) {
+          srcStation.special_cause_active = false;
+          srcStation.special_cause_type = "NONE";
+        }
+      } else {
+        const src = simState.stations.find(s => s.station_id === source);
+        const dest = simState.stations.find(s => s.station_id === destination);
+        if (!src || !dest) return;
+        moved = Math.min(quantity, src.bikes, dest.capacity - dest.bikes);
+        src.bikes -= moved;
+        dest.bikes += moved;
+        if (src.bikes < 18) { src.special_cause_active = false; src.special_cause_type = "NONE"; }
+        if (dest.bikes > 2) { dest.special_cause_active = false; dest.special_cause_type = "NONE"; }
+      }
+      updateFromSnapshot(simState);
+      renderClientRecommendations();
+    }
+
+    // SIMULATION EXECUTION (Continuous Running — No Auto-Pause)
+    async function manualStep() {
+      if (isBackendConnected) {
+        try {
+          const res = await fetch('/api/v1/step', { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            updateFromSnapshot(data);
+            fetchRecommendations();
+            fetchSpcMetrics();
+            return;
+          }
+        } catch (e) {}
+      }
+      clientMonteCarloStep();
+    }
+
+    function togglePlayPause() {
+      isRunning = !isRunning;
+      const playIcon = document.getElementById('play-icon');
+      const playText = document.getElementById('play-text');
+      const pulse = document.getElementById('live-pulse');
+
+      if (isRunning) {
+        playIcon.innerText = '⏸';
+        playText.innerText = 'Pause';
+        pulse.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping';
+        if (isBackendConnected) {
+          fetch('/api/v1/start', { method: 'POST' });
+        }
+        timer = setInterval(manualStep, tickSpeed);
+      } else {
+        playIcon.innerText = '▶';
+        playText.innerText = 'Start';
+        pulse.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+        if (isBackendConnected) {
+          fetch('/api/v1/stop', { method: 'POST' });
+        }
+        clearInterval(timer);
+      }
+    }
+
+    function changeSpeed(val) {
+      tickSpeed = parseInt(val, 10);
+      if (isRunning) {
+        clearInterval(timer);
+        timer = setInterval(manualStep, tickSpeed);
+      }
+    }
+
+    async function resetSimulation() {
+      if (isRunning) togglePlayPause();
+      if (isBackendConnected) {
+        try {
+          const res = await fetch('/api/v1/reset', { method: 'POST' });
+          if (res.ok) {
+            fetchLiveState();
+            return;
+          }
+        } catch (e) {}
+      }
+      simState = {
+        tick: 0,
+        timestamp: "2026-10-19T00:00:00",
+        reserve: 50,
+        in_transit: 0,
+        fleet_size: 100,
+        fleet_accounted: 100,
+        ucl: 18,
+        lcl: 2,
+        running: false,
+        active_special_causes: [],
+        stations: [
+          { station_id: "Lansing", name: "Lansing", zone: "residential", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+          { station_id: "North Campus", name: "North Campus", zone: "employment", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+          { station_id: "Maplewood", name: "Maplewood", zone: "residential", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+          { station_id: "Central Campus", name: "Central Campus", zone: "employment", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+          { station_id: "Downtown", name: "Downtown", zone: "mixed", bikes: 10, capacity: 20, rentals: 0, returns: 0, failed_rentals: 0, failed_returns: 0, special_cause_active: false, special_cause_type: "NONE", status: "OK" },
+        ]
+      };
+      historyData = [];
+      updateFromSnapshot(simState);
+    }
+
+    // Client-side Monte Carlo step enforcing SPECIAL CAUSE BIASING (Cannot self-correct)
+    function clientMonteCarloStep() {
+      simState.tick += 1;
+      const current = new Date(simState.timestamp);
+      current.setUTCMinutes(current.getUTCMinutes() + 15);
+      simState.timestamp = current.toISOString().split('.')[0];
+
+      const hour = current.getUTCHours() + current.getUTCMinutes() / 60.0;
+      const morning = Math.exp(-0.5 * Math.pow((hour - 8.0) / 1.25, 2));
+      const evening = Math.exp(-0.5 * Math.pow((hour - 17.5) / 1.45, 2));
+      const midday = Math.exp(-0.5 * Math.pow((hour - 13.0) / 3.2, 2));
+      const late = (hour >= 22.0 || hour < 5.5) ? 0.04 : 1.0;
+      const activity = late * (0.20 + 2.05 * morning + 1.85 * evening + 0.45 * midday);
+
+      simState.stations.forEach(s => {
+        let originWeight = 1.0;
+        if (s.zone === "residential") originWeight = 0.65 + 3.2 * morning + 0.35 * evening;
+        else if (s.zone === "employment") originWeight = 0.65 + 0.35 * morning + 3.2 * evening;
+
+        // SPECIAL CAUSE CHECK ON DEPARTURES:
+        // Surplus stations locked in special cause cannot drain below 18 without van dispatch
+        let allowedDrain = s.bikes;
+        if (s.special_cause_active && s.special_cause_type === "SURPLUS") {
+          allowedDrain = Math.max(0, s.bikes - 18);
+        }
+
+        const lam = 1.35 * activity * originWeight;
+        const requested = poissonRandom(lam);
+        const completed = Math.min(requested, allowedDrain);
+        s.bikes -= completed;
+        s.rentals += completed;
+        s.failed_rentals += (requested - completed);
+
+        if (s.bikes <= 2) {
+          s.special_cause_active = true;
+          s.special_cause_type = "DEFICIT";
+        }
+
+        // Arrivals at destination stations
+        for (let i = 0; i < completed; i++) {
+          const others = simState.stations.filter(o => o.station_id !== s.station_id);
+          const target = others[Math.floor(Math.random() * others.length)];
+
+          // SPECIAL CAUSE CHECK ON ARRIVALS:
+          // Deficit stations locked in special cause cannot receive normal arrival bikes above 2
+          let allowedSpace = target.capacity - target.bikes;
+          if (target.special_cause_active && target.special_cause_type === "DEFICIT") {
+            allowedSpace = Math.max(0, 2 - target.bikes);
+          }
+
+          if (allowedSpace > 0 && target.bikes < target.capacity) {
+            target.bikes += 1;
+            target.returns += 1;
+            if (target.bikes >= 18) {
+              target.special_cause_active = true;
+              target.special_cause_type = "SURPLUS";
+            }
+          } else {
+            target.failed_returns += 1;
+            simState.reserve += 1; // Divert overflow to reserve
+          }
+        }
+      });
+
+      // Daily overnight proportional rebalance after 96 ticks
+      if (current.getUTCHours() === 0 && current.getUTCMinutes() === 0 && simState.tick >= 96) {
+        simState.reserve += simState.stations.reduce((a, b) => a + b.bikes, 0);
+        simState.stations.forEach(s => {
+          s.bikes = 10;
+          s.special_cause_active = false;
+          s.special_cause_type = "NONE";
+          simState.reserve -= 10;
+        });
+      }
+
+      updateFromSnapshot(simState);
+      renderClientRecommendations();
+    }
+
+    function poissonRandom(lambda) {
+      if (lambda <= 0) return 0;
+      let l = Math.exp(-lambda), k = 0, p = 1;
+      do { k++; p *= Math.random(); } while (p > l);
+      return k - 1;
+    }
+
+    // CANVAS GRAPHICS ENGINE: I-CHART, MR-CHART, & ATTRIBUTE P-CHART
+    let iCanvas, iCtx, mrCanvas, mrCtx, pCanvas, pCtx;
+    function initCanvases() {
+      iCanvas = document.getElementById('iCanvas');
+      iCtx = iCanvas.getContext('2d');
+      mrCanvas = document.getElementById('mrCanvas');
+      mrCtx = mrCanvas.getContext('2d');
+      pCanvas = document.getElementById('pCanvas');
+      pCtx = pCanvas.getContext('2d');
+      resizeCanvases();
+      window.addEventListener('resize', () => { resizeCanvases(); drawCharts(); });
+    }
+
+    function resizeCanvases() {
+      [iCanvas, mrCanvas, pCanvas].forEach(c => {
+        if (!c) return;
+        const rect = c.getBoundingClientRect();
+        c.width = rect.width * window.devicePixelRatio;
+        c.height = rect.height * window.devicePixelRatio;
+        const ctx = c.getContext('2d');
+        ctx.resetTransform();
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      });
+    }
+
+    function selectStationForChart(sid) {
+      selectedStationForChart = sid;
+      ['ALL', 'Lansing', 'North Campus', 'Maplewood', 'Central Campus', 'Downtown'].forEach(id => {
+        const btn = document.getElementById(`toggle-${id}`);
+        if (!btn) return;
+        if (id === sid) btn.className = "px-2.5 py-1 text-xs rounded-lg font-semibold bg-sky-500 text-white";
+        else btn.className = "px-2.5 py-1 text-xs rounded-lg font-semibold text-[var(--text-muted)] hover:text-white";
+      });
+      drawCharts();
+    }
+
+    function setAttributeChartMode(mode) {
+      attributeChartMode = mode;
+      const btnP = document.getElementById('btn-view-p');
+      const btnNP = document.getElementById('btn-view-np');
+      if (mode === 'p') {
+        btnP.className = "px-2 py-0.5 rounded bg-purple-600 text-white font-semibold";
+        btnNP.className = "px-2 py-0.5 rounded text-[var(--text-muted)] hover:text-white";
+      } else {
+        btnNP.className = "px-2 py-0.5 rounded bg-purple-600 text-white font-semibold";
+        btnP.className = "px-2 py-0.5 rounded text-[var(--text-muted)] hover:text-white";
+      }
+      drawCharts();
+    }
+
+    function drawCharts() {
+      drawIChart();
+      drawMRChart();
+      drawPChart();
+    }
+
+    // 1. DRAW I-CHART (Individual Values & 5-pt Moving Average)
+    function drawIChart() {
+      if (!iCtx || !iCanvas) return;
+      const w = iCanvas.getBoundingClientRect().width;
+      const h = iCanvas.getBoundingClientRect().height;
+      iCtx.clearRect(0, 0, w, h);
+
+      const pad = { top: 20, right: 35, bottom: 25, left: 35 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+
+      // Background grid
+      iCtx.strokeStyle = '#1e293b';
+      iCtx.lineWidth = 1;
+      iCtx.fillStyle = '#64748b';
+      iCtx.font = '10px monospace';
+
+      [0, 5, 10, 15, 20].forEach(val => {
+        const y = pad.top + plotH - (val / 20) * plotH;
+        iCtx.beginPath();
+        iCtx.moveTo(pad.left, y);
+        iCtx.lineTo(w - pad.right, y);
+        iCtx.stroke();
+        iCtx.fillText(val, pad.left - 22, y + 3);
+      });
+
+      // UCL = 18 line (Red Dashed)
+      const uclY = pad.top + plotH - (18 / 20) * plotH;
+      iCtx.strokeStyle = '#ef4444';
+      iCtx.lineWidth = 1.5;
+      iCtx.setLineDash([5, 4]);
+      iCtx.beginPath();
+      iCtx.moveTo(pad.left, uclY);
+      iCtx.lineTo(w - pad.right, uclY);
+      iCtx.stroke();
+      iCtx.fillStyle = '#ef4444';
+      iCtx.fillText('UCL 18', w - pad.right + 2, uclY + 3);
+
+      // LCL = 2 line (Red Dashed)
+      const lclY = pad.top + plotH - (2 / 20) * plotH;
+      iCtx.strokeStyle = '#ef4444';
+      iCtx.beginPath();
+      iCtx.moveTo(pad.left, lclY);
+      iCtx.lineTo(w - pad.right, lclY);
+      iCtx.stroke();
+      iCtx.fillText('LCL 2', w - pad.right + 2, lclY + 3);
+
+      // Target = 10 line (Sky Blue Dashed)
+      const targetY = pad.top + plotH - (10 / 20) * plotH;
+      iCtx.strokeStyle = '#38bdf8';
+      iCtx.setLineDash([3, 3]);
+      iCtx.beginPath();
+      iCtx.moveTo(pad.left, targetY);
+      iCtx.lineTo(w - pad.right, targetY);
+      iCtx.stroke();
+      iCtx.fillStyle = '#38bdf8';
+      iCtx.fillText('CL 10', w - pad.right + 2, targetY + 3);
+      iCtx.setLineDash([]);
+
+      if (historyData.length < 2) return;
+
+      const keys = selectedStationForChart === 'ALL'
+        ? ['Lansing', 'North Campus', 'Maplewood', 'Central Campus', 'Downtown']
+        : [selectedStationForChart];
+
+      keys.forEach(sid => {
+        const meta = STATION_META[sid];
+        if (!meta) return;
+        const color = meta.color;
+
+        // Draw Individual Values line
+        iCtx.strokeStyle = color;
+        iCtx.lineWidth = 2;
+        iCtx.beginPath();
+
+        historyData.forEach((rec, idx) => {
+          const val = rec.stations[sid] !== undefined ? rec.stations[sid] : 10;
+          const x = pad.left + (idx / Math.max(1, historyData.length - 1)) * plotW;
+          const y = pad.top + plotH - (val / 20) * plotH;
+          if (idx === 0) iCtx.moveTo(x, y);
+          else iCtx.lineTo(x, y);
+        });
+        iCtx.stroke();
+
+        // Draw 5-point Moving Average line if single station selected
+        if (selectedStationForChart !== 'ALL') {
+          iCtx.strokeStyle = '#22c55e';
+          iCtx.lineWidth = 2.5;
+          iCtx.setLineDash([4, 2]);
+          iCtx.beginPath();
+
+          historyData.forEach((rec, idx) => {
+            const start = Math.max(0, idx - 4);
+            const sub = historyData.slice(start, idx + 1).map(r => r.stations[sid] || 10);
+            const ma = sub.reduce((a,b)=>a+b, 0) / sub.length;
+
+            const x = pad.left + (idx / Math.max(1, historyData.length - 1)) * plotW;
+            const y = pad.top + plotH - (ma / 20) * plotH;
+            if (idx === 0) iCtx.moveTo(x, y);
+            else iCtx.lineTo(x, y);
+          });
+          iCtx.stroke();
+          iCtx.setLineDash([]);
+        }
+
+        // Highlight Out of Control points (<= 2 or >= 18)
+        historyData.forEach((rec, idx) => {
+          const val = rec.stations[sid] !== undefined ? rec.stations[sid] : 10;
+          if (val <= 2 || val >= 18) {
+            const x = pad.left + (idx / Math.max(1, historyData.length - 1)) * plotW;
+            const y = pad.top + plotH - (val / 20) * plotH;
+            iCtx.fillStyle = '#ef4444';
+            iCtx.beginPath();
+            iCtx.arc(x, y, 4.5, 0, Math.PI * 2);
+            iCtx.fill();
+            iCtx.strokeStyle = '#ffffff';
+            iCtx.lineWidth = 1;
+            iCtx.stroke();
+          }
+        });
+      });
+    }
+
+    // 2. DRAW MR-CHART (Moving Range Volatility)
+    function drawMRChart() {
+      if (!mrCtx || !mrCanvas) return;
+      const w = mrCanvas.getBoundingClientRect().width;
+      const h = mrCanvas.getBoundingClientRect().height;
+      mrCtx.clearRect(0, 0, w, h);
+
+      const pad = { top: 18, right: 35, bottom: 20, left: 35 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+
+      if (historyData.length < 2) return;
+
+      const sid = selectedStationForChart === 'ALL' ? 'Lansing' : selectedStationForChart;
+      const vals = historyData.map(r => r.stations[sid] !== undefined ? r.stations[sid] : 10);
+
+      const mrs = [0];
+      for (let i = 1; i < vals.length; i++) {
+        mrs.push(Math.abs(vals[i] - vals[i - 1]));
+      }
+
+      const maxMR = Math.max(8, ...mrs);
+      const mrMean = mrs.slice(1).reduce((a,b)=>a+b, 0) / Math.max(1, mrs.length - 1);
+      const mrUCL = mrMean * 3.267;
+
+      document.getElementById('stat-mr-mean').innerText = mrMean.toFixed(2);
+      document.getElementById('mr-ucl-label').innerText = `UCL_MR = ${mrUCL.toFixed(2)} | Mean MR = ${mrMean.toFixed(2)}`;
+
+      // Grid
+      mrCtx.strokeStyle = '#1e293b';
+      mrCtx.lineWidth = 1;
+      mrCtx.fillStyle = '#64748b';
+      mrCtx.font = '9px monospace';
+
+      [0, Math.round(maxMR/2), Math.round(maxMR)].forEach(val => {
+        const y = pad.top + plotH - (val / maxMR) * plotH;
+        mrCtx.beginPath();
+        mrCtx.moveTo(pad.left, y);
+        mrCtx.lineTo(w - pad.right, y);
+        mrCtx.stroke();
+        mrCtx.fillText(val, pad.left - 20, y + 3);
+      });
+
+      // MR UCL line (Red Dashed)
+      const uclY = pad.top + plotH - Math.min(1.0, mrUCL / maxMR) * plotH;
+      mrCtx.strokeStyle = '#ef4444';
+      mrCtx.lineWidth = 1.5;
+      mrCtx.setLineDash([4, 4]);
+      mrCtx.beginPath();
+      mrCtx.moveTo(pad.left, uclY);
+      mrCtx.lineTo(w - pad.right, uclY);
+      mrCtx.stroke();
+      mrCtx.fillStyle = '#ef4444';
+      mrCtx.fillText(`UCL ${mrUCL.toFixed(1)}`, w - pad.right + 2, uclY + 3);
+
+      // MR Mean line (Sky Blue)
+      const meanY = pad.top + plotH - (mrMean / maxMR) * plotH;
+      mrCtx.strokeStyle = '#38bdf8';
+      mrCtx.beginPath();
+      mrCtx.moveTo(pad.left, meanY);
+      mrCtx.lineTo(w - pad.right, meanY);
+      mrCtx.stroke();
+      mrCtx.setLineDash([]);
+
+      // MR Line
+      mrCtx.strokeStyle = '#f59e0b';
+      mrCtx.lineWidth = 2;
+      mrCtx.beginPath();
+      mrs.forEach((val, idx) => {
+        const x = pad.left + (idx / Math.max(1, mrs.length - 1)) * plotW;
+        const y = pad.top + plotH - (val / maxMR) * plotH;
+        if (idx === 0) mrCtx.moveTo(x, y);
+        else mrCtx.lineTo(x, y);
+      });
+      mrCtx.stroke();
+
+      // Highlight points beyond MR UCL
+      mrs.forEach((val, idx) => {
+        if (val > mrUCL) {
+          const x = pad.left + (idx / Math.max(1, mrs.length - 1)) * plotW;
+          const y = pad.top + plotH - (val / maxMR) * plotH;
+          mrCtx.fillStyle = '#ef4444';
+          mrCtx.beginPath();
+          mrCtx.arc(x, y, 4, 0, Math.PI * 2);
+          mrCtx.fill();
+        }
+      });
+    }
+
+    // 3. DRAW ATTRIBUTE P-CHART (Fraction Defective / Nonconforming Stations)
+    // Directly based on Cornell SYSEN 5300 Lesson 5 (Slides 25 & 41-46)
+    function drawPChart() {
+      if (!pCtx || !pCanvas) return;
+      const w = pCanvas.getBoundingClientRect().width;
+      const h = pCanvas.getBoundingClientRect().height;
+      pCtx.clearRect(0, 0, w, h);
+
+      const pad = { top: 18, right: 40, bottom: 22, left: 35 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+
+      if (historyData.length < 2) return;
+
+      const nStations = 5;
+      const isCountMode = (attributeChartMode === 'np');
+
+      // Compute fraction defective p_t or count np_t for each tick
+      const series = historyData.map(r => {
+        const x = r.defective_count || 0;
+        return isCountMode ? x : (x / nStations);
+      });
+
+      // Calculate global p_bar
+      const totalDefects = historyData.reduce((acc, r) => acc + (r.defective_count || 0), 0);
+      const totalInspected = historyData.length * nStations;
+      const pBar = totalDefects / Math.max(1, totalInspected);
+
+      // Binomial 3-sigma standard error
+      const seP = (pBar > 0 && pBar < 1) ? Math.sqrt(pBar * (1 - pBar) / nStations) : 0;
+      const uclP = Math.min(1.0, pBar + 3 * seP);
+      const lclP = Math.max(0.0, pBar - 3 * seP);
+
+      // np chart parameters
+      const npBar = nStations * pBar;
+      const seNP = (pBar > 0 && pBar < 1) ? Math.sqrt(nStations * pBar * (1 - pBar)) : 0;
+      const uclNP = Math.min(nStations, npBar + 3 * seNP);
+      const lclNP = Math.max(0.0, npBar - 3 * seNP);
+
+      const centerVal = isCountMode ? npBar : pBar;
+      const uclVal = isCountMode ? uclNP : uclP;
+      const lclVal = isCountMode ? lclNP : lclP;
+      const yMax = isCountMode ? 5.0 : 1.0;
+
+      document.getElementById('p-ucl-label').innerText = isCountMode
+        ? `UCL_np = ${uclVal.toFixed(2)} | np_bar = ${centerVal.toFixed(2)}`
+        : `UCL_p = ${(uclVal * 100).toFixed(1)}% | p_bar = ${(centerVal * 100).toFixed(1)}%`;
+
+      // Draw Grid
+      pCtx.strokeStyle = '#1e293b';
+      pCtx.lineWidth = 1;
+      pCtx.fillStyle = '#64748b';
+      pCtx.font = '9px monospace';
+
+      const gridTicks = isCountMode ? [0, 1, 2, 3, 4, 5] : [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+      gridTicks.forEach(val => {
+        const y = pad.top + plotH - (val / yMax) * plotH;
+        pCtx.beginPath();
+        pCtx.moveTo(pad.left, y);
+        pCtx.lineTo(w - pad.right, y);
+        pCtx.stroke();
+        const label = isCountMode ? val : `${Math.round(val * 100)}%`;
+        pCtx.fillText(label, pad.left - 24, y + 3);
+      });
+
+      // UCL line (Red Dashed)
+      const uclY = pad.top + plotH - (uclVal / yMax) * plotH;
+      pCtx.strokeStyle = '#ef4444';
+      pCtx.lineWidth = 1.5;
+      pCtx.setLineDash([4, 4]);
+      pCtx.beginPath();
+      pCtx.moveTo(pad.left, uclY);
+      pCtx.lineTo(w - pad.right, uclY);
+      pCtx.stroke();
+      pCtx.fillStyle = '#ef4444';
+      pCtx.fillText(`UCL ${isCountMode ? uclVal.toFixed(1) : (uclVal*100).toFixed(0)+'%' }`, w - pad.right + 2, uclY + 3);
+
+      // Centerline line (Purple)
+      const clY = pad.top + plotH - (centerVal / yMax) * plotH;
+      pCtx.strokeStyle = '#c084fc';
+      pCtx.beginPath();
+      pCtx.moveTo(pad.left, clY);
+      pCtx.lineTo(w - pad.right, clY);
+      pCtx.stroke();
+      pCtx.setLineDash([]);
+      pCtx.fillStyle = '#c084fc';
+      pCtx.fillText(`CL ${isCountMode ? centerVal.toFixed(1) : (centerVal*100).toFixed(0)+'%' }`, w - pad.right + 2, clY + 3);
+
+      // Draw Attribute Series Line
+      pCtx.strokeStyle = '#a855f7';
+      pCtx.lineWidth = 2.2;
+      pCtx.beginPath();
+      series.forEach((val, idx) => {
+        const x = pad.left + (idx / Math.max(1, series.length - 1)) * plotW;
+        const y = pad.top + plotH - (val / yMax) * plotH;
+        if (idx === 0) pCtx.moveTo(x, y);
+        else pCtx.lineTo(x, y);
+      });
+      pCtx.stroke();
+
+      // Highlight points exceeding UCL_p
+      series.forEach((val, idx) => {
+        const x = pad.left + (idx / Math.max(1, series.length - 1)) * plotW;
+        const y = pad.top + plotH - (val / yMax) * plotH;
+        if (val > uclVal) {
+          pCtx.fillStyle = '#ef4444';
+          pCtx.beginPath();
+          pCtx.arc(x, y, 5, 0, Math.PI * 2);
+          pCtx.fill();
+          pCtx.strokeStyle = '#ffffff';
+          pCtx.lineWidth = 1.2;
+          pCtx.stroke();
+        } else {
+          pCtx.fillStyle = '#a855f7';
+          pCtx.beginPath();
+          pCtx.arc(x, y, 2.5, 0, Math.PI * 2);
+          pCtx.fill();
+        }
+      });
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('light');
+      drawCharts();
+    }
+
+    function toggleDmaicModal() {
+      const modal = document.getElementById('dmaic-modal');
+      modal.classList.toggle('hidden');
+      if (!modal.classList.contains('hidden')) {
+        renderDmaicPareto();
+      }
+    }
+
+    function renderDmaicPareto() {
+      const table = document.getElementById('dmaic-pareto-table');
+      const ranked = [...simState.stations].sort((a,b) => (b.failed_rentals + b.failed_returns) - (a.failed_rentals + a.failed_returns));
+      table.innerHTML = `
+        <div class="grid grid-cols-5 font-bold text-[var(--text-muted)] border-b border-[var(--card-border)] pb-1 mb-1">
+          <div>Station</div>
+          <div>Zone</div>
+          <div>Stockouts (&le;2)</div>
+          <div>Dockouts (&ge;18)</div>
+          <div>Special Cause Status</div>
+        </div>
+        ${ranked.map(s => `
+          <div class="grid grid-cols-5 py-1 border-b border-slate-800/60 font-mono items-center">
+            <div class="font-bold text-white">${s.station_id}</div>
+            <div class="text-[var(--text-muted)]">${s.zone}</div>
+            <div class="text-rose-400 font-bold">${s.failed_rentals}</div>
+            <div class="text-purple-400 font-bold">${s.failed_returns}</div>
+            <div>
+              <span class="px-2 py-0.5 rounded text-[10px] ${s.special_cause_active ? 'bg-rose-500/20 text-rose-400 font-bold' : 'bg-emerald-500/20 text-emerald-400'}">
+                ${s.special_cause_active ? s.special_cause_type : 'IN_CONTROL'}
+              </span>
+            </div>
+          </div>
+        `).join('')}
+      `;
+    }
+  </script>
+</body>
+</html>

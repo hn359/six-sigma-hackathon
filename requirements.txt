@@ -1,0 +1,4 @@
+# Core simulator uses only the Python standard library.
+# Optional API dependencies:
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1
