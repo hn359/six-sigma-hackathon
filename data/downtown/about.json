@@ -4,6 +4,9 @@
   "interval_minutes": 10,
   "first_reading": "06:00",
   "last_reading": "21:50",
+  "project_start": "2026-10-05",
+  "project_weeks": 10,
+  "stable_week": 10,
   "readings_per_day": 96,
   "stations": 6,
   "docks": [

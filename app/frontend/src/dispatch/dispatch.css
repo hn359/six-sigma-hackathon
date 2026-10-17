@@ -145,3 +145,9 @@ body { background: var(--bg); color: var(--fg); }
 .m3-phase { font: 700 12px ui-monospace, Menlo, monospace; color: #f2f5f7; background: rgba(12, 16, 21, .92);
   border: 1px solid #2a323b; border-radius: 7px; padding: 7px 10px; text-transform: uppercase; letter-spacing: .05em; }
 .m3-map { transition: background-color .8s ease; }
+.weekly-legend { display:flex; flex-wrap:wrap; gap:12px; margin:4px 0 2px; color:var(--muted); font-size:12px; }
+.weekly-legend span { display:inline-flex; align-items:center; gap:5px; }
+.weekly-key { display:inline-block; width:16px; height:0; border-top:2px solid; }
+.weekly-key.actual { border-color:#2463a6; }
+.weekly-key.limits { border-color:#c43c35; border-top-style:dashed; }
+.weekly-key.center { border-color:#777; border-top-style:dotted; }

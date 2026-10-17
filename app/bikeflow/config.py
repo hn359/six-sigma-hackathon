@@ -31,9 +31,8 @@ class Settings:
     depot_from_fleet: bool = False  # True when every undocked bike is in the depot (as in a simulation
                                     # where trips finish inside the 15 minutes): depot = fleet - docked
     phase1_through: Optional[str] = None  # last Phase I day (ISO date): Yash's van-free week 1
-    limits_mode: str = "rolling"    # "rolling": each day is charted against the last `rolling_days`
-                                    # days before it, cleaned of readings beyond 3 sigma (updates daily);
-                                    # "week1": the fixed Phase I days (comparison mode)
+    limits_mode: str = "phase"      # "phase": previous complete project week; "week1": fixed Phase I;
+                                    # "rolling": last `rolling_days` comparable days
     rolling_days: int = 7
 
     def validate(self) -> "Settings":
@@ -47,8 +46,8 @@ class Settings:
             raise ValueError("close_time must be after open_time")
         if not 0 <= self.arrive_share <= 0.5 <= self.depart_share <= 1:
             raise ValueError("need 0 <= arrive_share <= 0.5 <= depart_share <= 1")
-        if self.limits_mode not in ("rolling", "week1"):
-            raise ValueError("limits_mode must be 'rolling' or 'week1'")
+        if self.limits_mode not in ("phase", "rolling", "week1"):
+            raise ValueError("limits_mode must be 'phase', 'rolling' or 'week1'")
         if self.horizon_slots < 1 or self.min_history_days < 1 or self.buffer < 0 or self.rolling_days < 2:
             raise ValueError("horizon_slots and min_history_days must be at least 1, buffer at least 0")
         return self

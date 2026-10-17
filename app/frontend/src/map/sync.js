@@ -1,6 +1,7 @@
 export const SIMULATION_STATE_TYPE = 'sixsigma.simulation-state'
 export const SIMULATION_STATE_VERSION = 1
-export const SIMULATION_SCENARIOS = ['week1', 'week2', 'event']
+const isSimulationScenario = (scenario) => typeof scenario === 'string' &&
+  (scenario === 'event' || /^week[1-9]\d*$/.test(scenario))
 
 export function createSimulationState({
   status = 'ready', city, scenario, dayIndex = 0, source = 'replay', intervalMinutes = 15,
@@ -8,7 +9,7 @@ export function createSimulationState({
 }) {
   if (!['ready', 'loading', 'error'].includes(status)) throw new Error('invalid simulation state status')
   if (typeof city !== 'string' || !city) throw new Error('simulation state needs a city')
-  if (!SIMULATION_SCENARIOS.includes(scenario)) throw new Error('invalid simulation scenario')
+  if (!isSimulationScenario(scenario)) throw new Error('invalid simulation scenario')
   if (!Number.isInteger(dayIndex) || dayIndex < 0) throw new Error('day index must be a non-negative integer')
   if (!['replay', 'live'].includes(source)) throw new Error('invalid simulation source')
   if (!Number.isInteger(intervalMinutes) || intervalMinutes < 1) throw new Error('invalid reading interval')
@@ -47,7 +48,7 @@ export function isSimulationState(value) {
   return Boolean(value && typeof value === 'object' &&
     value.type === SIMULATION_STATE_TYPE && value.version === SIMULATION_STATE_VERSION &&
     ['ready', 'loading', 'error'].includes(value.status) &&
-    typeof value.city === 'string' && SIMULATION_SCENARIOS.includes(value.scenario) &&
+    typeof value.city === 'string' && isSimulationScenario(value.scenario) &&
     Number.isInteger(value.day_index) && value.day_index >= 0 &&
     ['replay', 'live'].includes(value.source) && Number.isInteger(value.interval_minutes) &&
     value.interval_minutes > 0 && typeof value.playing === 'boolean' && typeof value.reason === 'string' &&

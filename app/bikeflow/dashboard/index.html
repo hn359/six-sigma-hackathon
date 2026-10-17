@@ -6,7 +6,6 @@
 <title>BikeFlow QC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css">
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <style>
   :root { --bg:#f3f4f6; --card:#ffffff; --ink:#111827; --mute:#5b6270; --line:#e3e6eb; --accent:#1f5fbf;
@@ -76,16 +75,6 @@
   .move .why { font-size:12px; color:var(--mute); }
   .move .tag { float:right; font-size:11px; font-weight:700; letter-spacing:.04em; }
   .nomoves { color:var(--mute); padding:8px 0; }
-  .night-steps { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
-  .night-step { border:1px solid var(--line); border-radius:999px; padding:6px 12px; background:var(--bg); font-size:12px; }
-  .night-step b { margin-right:4px; }
-  .night-brief { display:grid; gap:9px; grid-template-columns:repeat(auto-fit,minmax(205px,1fr)); margin:10px 0; }
-  .night-brief-card { border:1px solid var(--line); border-radius:9px; padding:10px 12px; background:var(--bg); }
-  .night-brief-card .label { color:var(--mute); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
-  .night-brief-card strong { display:block; font-size:15px; margin:2px 0; }
-  .night-brief-card small { color:var(--mute); }
-  .night-brief-card ul { list-style:none; margin:6px 0 0; padding:0; font-size:12px; }
-  .night-brief-card li { padding:2px 0; }
   .sync-panel { display:none; margin:12px 0; padding:14px 16px; border:1px solid var(--line); border-left:5px solid var(--good); border-radius:12px; background:linear-gradient(110deg,var(--card),var(--bg)); box-shadow:0 3px 12px rgba(16,24,40,.06); }
   body.follow .sync-panel { display:block; }
   .sync-panel[data-state="loading"] { border-left-color:var(--accent); }
@@ -107,28 +96,6 @@
   .sync-detail:empty { display:none; }
   .plan-targets { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:5px 10px; margin-top:6px; font-size:12px; }
   .plan-targets span { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding:2px 0; }
-  #nightmap { width:100%; height:min(68vh,620px); min-height:390px; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#dce6ee; }
-  .map-note { border:1px solid var(--line); border-radius:10px; background:var(--bg); padding:14px; margin:10px 0; }
-  .map-legend { display:flex; flex-wrap:wrap; gap:10px 18px; margin:8px 0; color:var(--mute); font-size:12px; }
-  .map-routes { margin:10px 0 0; padding:0; list-style:none; display:grid; gap:6px; }
-  .map-routes li { background:var(--bg); border-radius:7px; padding:7px 10px; }
-  .night-marker { width:76px; text-align:center; color:#15283e; font:10px/1.1 Inter,system-ui,sans-serif; cursor:pointer; }
-  .night-marker .station-name { display:block; max-width:76px; margin:0 auto 3px; padding:3px 4px; border-radius:5px; background:#fff;
-    box-shadow:0 2px 7px #14253b55; font-weight:700; white-space:nowrap; }
-  .night-cube { display:block; width:34px; margin:0 auto; padding:6px 2px; border:2px solid #42627e; border-radius:5px;
-    background:linear-gradient(145deg,#f8fbff,#b9cbdc); box-shadow:4px 4px 0 #6e8295,6px 8px 10px #182c4055; font-size:13px; font-weight:800; }
-  .night-dock { min-width:0; border-radius:2px; background:#d4dce4; border:1px solid #aab8c6; }
-  .night-dock.full { background:linear-gradient(135deg,#51a3ed,#1766ae); border-color:#10528c; box-shadow:inset -2px -1px #124b7c; }
-  .night-count { display:block; width:max-content; margin:3px auto 0; padding:3px 5px; color:#fff; background:#173b5e;
-    border-radius:4px; font-size:10px; font-weight:700; box-shadow:0 3px 6px #14253b55; }
-  .night-marker-anchor { background:none; border:0; }
-  .popup-rack { display:grid; grid-template-columns:repeat(5,12px); gap:3px; width:max-content; margin:7px 0; padding:6px;
-    border:1px solid #7890a8; border-radius:5px; background:#eef4f9; }
-  .popup-rack span { height:10px; border-radius:2px; background:#cbd5df; }
-  .popup-rack span.full { background:#2878bd; }
-  .night-route { stroke:#1378c8; stroke-width:5; opacity:.9; filter:drop-shadow(0 1px 2px #122b4666); }
-  .maplibregl-popup-content { font:13px/1.55 Inter,system-ui,sans-serif; border-radius:8px; }
-  .maplibregl-ctrl-attrib { font-size:10px; }
   .move.caught { border-left-color:#0ca30c; } .move.missed { border-left-color:#d03b3b; }
   .board { display:grid; gap:10px; }
   .row { display:grid; grid-template-columns:minmax(150px,220px) 1fr minmax(170px,240px); gap:14px; align-items:center; }
@@ -158,7 +125,7 @@
 </div>
 <div class="appbar"><div class="in"><h1>BikeFlow QC</h1><span class="tag">Station monitoring and redistribution for the bikeshare dispatcher</span></div></div>
 <header>
-  <p class="sub" id="subtitle">What is unusual at each station, and which bikes should move. Press play to watch the day unfold reading by reading.</p>
+  <p class="sub" id="subtitle">Track station availability, rider flow, and weekly bike placement. Press play to watch a day unfold reading by reading.</p>
   <div class="bar">
     <button id="play" class="own">Play</button>
     <label>Replay clock <span id="clock">-</span></label>
@@ -211,40 +178,19 @@
     <p class="how" id="flownote"></p>
   </section>
 
+
   <section>
-    <div class="eyebrow">04 &middot; Redistribution</div><h2>What the van should do now</h2>
-    <p class="how" id="planhow">The moves for the time on the clock, most urgent first.</p>
-    <div class="moves" id="planmoves"></div>
-    <h3>Bikes at each station: now and after these moves</h3>
-    <div id="planbars"></div>
-    <div id="planmsg"></div>
-    <details><summary>Table: every station, its action and why</summary><div class="scroll"><table id="plan"></table></div></details>
+    <div class="eyebrow">04 &middot; Weekly redistribution</div><h2>Each week learns from the one before</h2>
+    <p class="how">Lower availability deviation is better. The control limits update after each complete week.</p>
+    <div id="weeklydeviation" aria-label="Out-of-range station readings by week"></div>
+    <div id="nightpicture" aria-label="Next week's opening bike plan"></div>
   </section>
 
   <section>
-    <div class="eyebrow">05 &middot; Tomorrow's bike plan</div><h2>Use Week 1's pattern to set bikes tonight</h2>
-    <p class="how">Week 1 teaches us where morning rides start and end. After Week 1, each night the van uses that pattern to set tomorrow's bikes by 10 PM. Stations are ready for riders at 6 AM.</p>
-    <div class="night-steps" aria-label="How the overnight plan works">
-      <div class="night-step"><b>Week 1</b> learn the pattern</div><div class="night-step"><b>10 PM</b> move the bikes</div><div class="night-step"><b>6 AM</b> stations are ready</div>
-    </div>
-    <p class="how">Rule: the station riders most often leave gets up to <b>80% full</b>; the station they most often arrive at gets down to <b>20% full</b>, leaving room for returned bikes.</p>
-    <div class="night-brief" id="nightmoves"></div>
-    <h3>Where the bikes will be tomorrow</h3>
-    <p class="how">The number on each raised station shows planned bikes / capacity. Click a station to see its dock layout and Week 1 pattern. Blue lines show bike transfers, not driving directions.</p>
-    <div id="nightpicture" aria-live="polite"></div>
-    <div id="nightmsg"></div>
-    <details><summary>Show the exact counts</summary><h3>Station inventory before and after</h3><div id="nightbars"></div>
-      <h3>Full recommendation details</h3><div class="scroll"><table id="night"></table></div></details>
-  </section>
-
-  <section>
-    <div class="eyebrow">06 &middot; Control chart</div><h2>Is the station behaving like a normal day? (I-MR chart, eight tests)</h2>
-    <div class="seg" id="limwin"><button type="button" data-lim="rolling" class="on">Limits: last 7 clean days (updates daily)</button><button type="button" data-lim="week1">Week 1 (fixed, for comparison)</button></div>
+    <div class="eyebrow">05 &middot; Control chart</div><h2>Is the station behaving like a normal day?</h2>
+    <div class="seg" id="limwin"><button type="button" data-lim="phase" class="on">Previous complete week</button><button type="button" data-lim="week1">Week 1 reference</button></div>
     <p class="how"><b id="limbasis"></b></p>
-    <p class="how">Each point is the station's rider net flow in one reading minus what is usual at that time of day on the days the limits come from.
-      Around the centre line, <b>Zone C</b> is within 1&sigma;, <b>Zone B</b> 1&ndash;2&sigma; and <b>Zone A</b> 2&ndash;3&sigma;; the dashed red lines are the
-      3&sigma; control limits (course lesson 5: &sigma; = MR&#772; / 1.128, MR UCL = 3.267 MR&#772;). A point that completes one of the eight tests gets that
-      test's symbol and is labelled with every test it fired. Station: <b id="spcname"></b> (change it with "Control-chart station" at the top).</p>
+    <p class="how">Each point is rider flow minus what is usual at that time. In “Previous complete week” mode, red markers show the signals used by the van; “Week 1 reference” is a chart-only comparison. The active limits stay fixed during a week and update after it is complete. Station: <b id="spcname"></b>.</p>
     <div id="spcmsg"></div>
     <div id="spcI"></div>
     <h3>Moving range: the jump from one reading to the next</h3>
@@ -257,13 +203,6 @@
     <p class="how" id="rulelist"></p>
   </section>
 
-  <section>
-    <div class="eyebrow">07 &middot; Validation</div><h2>Does the warning system catch real problems?</h2>
-    <div id="scorewrap" hidden>
-      <p class="how" id="scorehow"></p>
-      <div class="moves" id="scorecards"></div>
-    </div>
-  </section>
 </main>
 <script>
 const $ = id => document.getElementById(id);
@@ -273,8 +212,8 @@ const BASE = location.pathname.includes("/bikeflow/")
   ? location.pathname.slice(0, location.pathname.indexOf("/bikeflow/") + 1) : "./";
 const API = BASE + "api/bikeflow";
 const FOLLOW = new URLSearchParams(location.search).get("follow") === "console";
-let limitsMode = "rolling";   // chart limits: the last 7 clean days before each day, or week 1 (comparison)
-let city = null, info = null, cache = {}, timer = null, autoStart = false, playing = false, planBusy = false, planAgain = false, loadId = 0;
+let limitsMode = "phase";     // previous complete week; week 1 is available as a fixed reference
+let city = null, info = null, cache = {}, timer = null, autoStart = false, playing = false, weeklyPlansBusy = false, weeklyPlansAgain = false, loadId = 0;
 
 /* ---- colour: validated categorical slots (one per station, fixed order), status, diverging ---- */
 const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
@@ -376,16 +315,16 @@ async function loadAll() {
   const st = chosen(), range = { start: $("start").value, end: $("end").value };
   if (!st.length) { $("status").textContent = "Select at least one station."; return; }
   const ok = p => p.then(v => ({ v }), e => ({ e: e.message }));
-  const [inv, flow, score, ...spcs] = await Promise.all([
+  const [inv, flow, ...spcs] = await Promise.all([
     ok(get("inventory", { station: st, ...range })),
     ok(get("flow", { station: st, ...range })),
-    (cache.scoreCity === city && cache.scoreLim === limitsMode && cache.score) ? Promise.resolve(cache.score) : ok(get("scorecard", { limits: limitsMode })),
     ...info.stations.map(x => ok(get("spc", { station: x, ...range, measure: "net_flow", limits: limitsMode })))]);
   if (id !== loadId) return;                       // a newer filter change superseded this load
   const his = await hisFrames(range.end);
   if (id !== loadId) return;
-  cache = { inv, flow, score, his, scoreCity: city, scoreLim: limitsMode, spc: Object.fromEntries(info.stations.map((x, i) => [x, spcs[i]])) };
+  cache = { inv, flow, his, spc: Object.fromEntries(info.stations.map((x, i) => [x, spcs[i]])) };
   render();
+  scheduleWeeklyPlans();
   if (autoStart) { autoStart = false; play(); }
 }
 
@@ -410,9 +349,8 @@ async function hisFrames(day) {
 function render() {
   if (!cache.inv) return;                   // the first load has not arrived yet
   showClock();
-  renderBoard(); renderDays(); renderHeat(); renderScorecard(); renderKpis(); scheduleTrips();
+  renderBoard(); renderDays(); renderHeat(); renderKpis(); scheduleTrips();
   renderSpc(); renderSignalMap();
-  schedulePlan();
 }
 
 /* 1. Control chart: reading minus usual, flat centre line, zones A/B/C, test numbers on signals */
@@ -431,7 +369,7 @@ const TESTS = [
   ["mr",    "circle-open",   "○", ["#111827", "#eef0f3"], "MR: a jump between readings above the moving-range limit"]];
 const testColor = t => t[3][dark() ? 1 : 0];
 const firstTest = signals => TESTS.find(t => signals.includes(t[0]));
-function renderSpc() {
+function renderSpcLegacy() {
   const sid = $("spcstation").value, c = cache.spc[sid];
   $("spcname").innerHTML = stName(sid);
   $("testkey").innerHTML = TESTS.map(t => `<div><span class="g" style="color:${testColor(t)}">${t[2]}</span><span>${esc(t[4])}</span></div>`).join("");
@@ -497,22 +435,81 @@ function renderSpc() {
                    { xref:"paper", x:1.006, xanchor:"left", y:lim.mr_bar, text:`MR̄ (${fmt(lim.mr_bar, 2)})`, showarrow:false, font:{ size:11, color:muted() } }] }));
 }
 
-function renderScorecard() {
-  const sc = cache.score, evs = info.events || [];
-  $("scorewrap").hidden = !(sc && sc.v && evs.length);
-  if ($("scorewrap").hidden) return;
-  const d = sc.v, pct = v => v === null || v === undefined ? "-" : `${(100 * v).toFixed(1)}%`;
-  $("scorehow").innerHTML = `The simulation hid these problems in ${esc(evs[0].day)}'s data on purpose. Did the red dots go off when they started? ` +
-    `(Normal is learned from ${limitsMode === "rolling" ? "the last 7 clean days before each day" : "week 1, when no van ran"}.) ` +
-    `On the ordinary days ${esc(d.quiet_days[0])} to ${esc(d.quiet_days[d.quiet_days.length - 1])} the same chart flags <b>${pct(d.false_alarm_rate_tests_only)}</b> of readings by the eight tests ` +
-    `(${pct(d.false_alarm_rate)} with the MR chart), so one flag on its own is a prompt to look, not proof.`;
-  $("scorecards").innerHTML = d.events.map(e => {
-    const ok = !!e.first_flag;
-    return `<div class="move ${ok ? "caught" : "missed"}"><span class="tag ${ok ? "LOW" : "HIGH"}">${ok ? "CAUGHT" : "MISSED"}</span>
-      <div class="n">${ok ? esc(e.first_flag) : "—"} <small>${ok ? (e.minutes_after_start ? `+${e.minutes_after_start} min` : "at the start") : "not flagged"}</small></div>
-      <div class="route">${esc(stName(e.station))}: <b>${esc(e.kind.replace("_", " "))}</b></div>
-      <div class="why">${esc(e.what)}, ${esc(e.from)}-${esc(e.to)}. ${ok ? `First flag by ${e.tests.map(testNo).map(t => t === "MR" ? "the MR chart" : "test " + t).join(" and ")}; ${e.flagged_in_window} of ${e.readings_in_window} readings in the window flagged.` : ""}</div></div>`;
-  }).join("");
+function renderSpc() {
+  const sid = $("spcstation").value, c = cache.spc[sid];
+  $("spcname").innerHTML = stName(sid);
+  $("testkey").innerHTML = TESTS.map(t => `<div><span class="g" style="color:${testColor(t)}">${t[2]}</span><span>${esc(t[4])}</span></div>`).join("");
+  if (!c || c.e) { emptyChart("spcI", c ? c.e : "No data"); Plotly.purge("spcMR"); $("spcMR").innerHTML = ""; return; }
+  const d = c.v, lim = d.limits;
+  if (!lim) { emptyChart("spcI", "No control limits: " + d.warnings.join(" ")); Plotly.purge("spcMR"); return; }
+  const pts = d.points.filter(p => upTo(p.t) && p.residual !== null), x = pts.map(p => p.t);
+  if (!pts.length) { emptyChart("spcI", "No readings to chart"); Plotly.purge("spcMR"); return; }
+  const at = (p, key, fallback) => p[key] == null ? fallback : p[key];
+  const cls = pts.map(p => at(p,"chart_cl",lim.cl));
+  const ucls = pts.map(p => at(p,"chart_ucl",lim.ucl));
+  const lcls = pts.map(p => at(p,"chart_lcl",lim.lcl));
+  const sigmas = pts.map(p => at(p,"chart_sigma",lim.sigma));
+  const line = dark() ? "#a5acb8" : "#4b5563", shapes = [];
+  const bases = [...new Set(pts.map(p => p.baseline).filter(Boolean))];
+  $("limbasis").textContent = bases.length > 1
+    ? `Control limits change after each complete week (${bases.join("; ")}).`
+    : `Control limits from ${bases[0] || d.basis}.`;
+  msg("spcmsg", d.warnings.join(" "));
+  $("rulelist").textContent = `${d.method}. Red markers flag special causes; the van responds to the current week's limits.`;
+  for (let i=1;i<pts.length;i++) if (pts[i].baseline !== pts[i-1].baseline) {
+    shapes.push({ type:"line", xref:"x", yref:"paper", x0:pts[i].t, x1:pts[i].t, y0:0, y1:1,
+      line:{ color:"#8b8b8b", dash:"dot", width:1 } });
+  }
+  const evs = (info.events || []).filter(e => e.station === sid && $("start").value <= e.day && e.day <= $("end").value);
+  const plus = (t, m) => { const v = hours(t) * 60 + m; return `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`; };
+  for (const e of evs) shapes.push({ type:"rect", xref:"x", yref:"paper", x0:`${e.day}T${e.from}`, x1:`${e.day}T${plus(e.to, Math.floor(info.settings.interval_min / 2))}`,
+    y0:0, y1:1, fillcolor:"rgba(98,80,214,.08)", line:{ color:"rgba(98,80,214,.55)", width:1, dash:"dot" }, layer:"below" });
+  const padding = Math.max(0.2, ...pts.map((p,i) => Math.abs(p.residual - cls[i]) + sigmas[i]));
+  const allY = [...pts.map(p=>p.residual), ...ucls, ...lcls];
+  const annotations = [
+    { xref:"paper", yref:"y", x:1.006, y:ucls.at(-1), xanchor:"left", showarrow:false, text:`UCL ${fmt(ucls.at(-1),2)}`, font:{size:11,color:"#c53030"} },
+    { xref:"paper", yref:"y", x:1.006, y:cls.at(-1), xanchor:"left", showarrow:false, text:`Center ${fmt(cls.at(-1),2)}`, font:{size:11,color:muted()} },
+    { xref:"paper", yref:"y", x:1.006, y:lcls.at(-1), xanchor:"left", showarrow:false, text:`LCL ${fmt(lcls.at(-1),2)}`, font:{size:11,color:"#c53030"} },
+    ...evs.map(e => ({ x:`${e.day}T${e.from}`, xanchor:"left", yref:"paper", y:1, yanchor:"bottom", showarrow:false,
+                       text:`planted: ${e.kind.replace("_", " ")}`, font:{ size:11, color:"#6250d6" } }))];
+  const data = [
+    { x, y:pts.map(p=>p.residual), name:"net flow vs usual", mode:"lines+markers", showlegend:false,
+      line:{color:line,width:1.5}, marker:{size:5,color:line},
+      text:pts.map((p,i)=>`${p.t.slice(11)}: ${fmt(p.x)} vs usual ${fmt(p.expected,1)} (${p.z >= 0 ? "+" : ""}${fmt(p.z,1)} sigma)`),
+      hovertemplate:"%{text}<extra></extra>" },
+    { x, y:ucls, name:"UCL (+3 sigma)", mode:"lines", line:{color:"#c53030",dash:"dash",width:1.5}, hovertemplate:"UCL %{y:.2f}<extra></extra>" },
+    { x, y:cls, name:"Center", mode:"lines", line:{color:ink(),width:1.2}, hovertemplate:"Center %{y:.2f}<extra></extra>" },
+    { x, y:lcls, name:"LCL (-3 sigma)", mode:"lines", line:{color:"#c53030",dash:"dash",width:1.5}, hovertemplate:"LCL %{y:.2f}<extra></extra>" }
+  ];
+  for (const t of TESTS) {
+    const mine = pts.map((p,i)=>({p,i})).filter(({p})=>p.signals.length && firstTest(p.signals)===t);
+    if (!mine.length) continue;
+    data.push({ x:mine.map(({p})=>p.t), y:mine.map(({p})=>p.residual), name:t[4].split(":")[0], mode:"markers+text",
+      marker:{symbol:t[1],size:13,color:testColor(t),line:{color:dark()?"#171a21":"#fff",width:1.5}},
+      text:mine.map(({p})=>p.signals.map(testNo).join(",")),
+      textposition:mine.map(({i,p})=>p.residual>=cls[i]?"top center":"bottom center"),
+      textfont:{size:11,color:ink()},cliponaxis:false,
+      customdata:mine.map(({p})=>`<b>${p.t.slice(11)}</b>: ${fmt(p.x)} vs usual ${fmt(p.expected,1)}<br>`+p.reasons.join("<br>")),
+      hovertemplate:"%{customdata}<extra></extra>"});
+  }
+  plot("spcI", data, theme({ height:340, shapes, annotations, margin:{t:22,r:118,b:44,l:56}, xaxis:xaxis(),
+    legend:{orientation:"h",y:-0.16,font:{size:11}},
+    yaxis:{title:`bikes per ${info.settings.interval_min} min vs usual`,range:[Math.min(...allY)-padding,Math.max(...allY)+padding],zeroline:false,gridcolor:grid()} }));
+  const mp = pts.map((p,i)=>({p,i})).filter(({p})=>p.mr!==null), mf=mp.filter(({p})=>p.signals.includes("mr")), mrT=TESTS[8];
+  const mrU=mp.map(({p})=>at(p,"chart_mr_ucl",lim.mr_ucl)), mrC=mp.map(({p})=>at(p,"chart_mr_bar",lim.mr_bar));
+  const mrUpper=mrU.at(-1) ?? lim.mr_ucl, mrCenter=mrC.at(-1) ?? lim.mr_bar;
+  plot("spcMR", [
+    {x:mp.map(({p})=>p.t),y:mp.map(({p})=>p.mr),name:"moving range",mode:"lines+markers",line:{color:line,width:1.4},marker:{size:4,color:line},hovertemplate:"MR %{y:.2f}<extra></extra>"},
+    {x:mp.map(({p})=>p.t),y:mrU,name:"MR upper limit",mode:"lines",line:{color:"#c53030",dash:"dash",width:1.4}},
+    {x:mp.map(({p})=>p.t),y:mrC,name:"MR center",mode:"lines",line:{color:ink(),width:1.1}},
+    {x:mp.map(({p})=>p.t),y:mp.map(()=>0),name:"MR lower limit",mode:"lines",line:{color:"#c53030",dash:"dash",width:1.2}},
+    {x:mf.map(({p})=>p.t),y:mf.map(({p})=>p.mr),name:"MR signal",mode:"markers",marker:{symbol:mrT[1],size:13,color:testColor(mrT),line:{color:testColor(mrT),width:2.5}},hoverinfo:"skip"}
+  ], theme({height:180,showlegend:false,margin:{t:8,r:92,b:34,l:56},xaxis:xaxis(),yaxis:{title:"MR",rangemode:"tozero",gridcolor:grid()},
+    annotations:[
+      {xref:"paper",yref:"y",x:1.02,y:mrUpper,xanchor:"left",yanchor:"middle",showarrow:false,text:`UCL ${fmt(mrUpper,2)}`,font:{size:11,color:"#c53030"}},
+      {xref:"paper",yref:"y",x:1.02,y:mrCenter,xanchor:"left",yanchor:"middle",showarrow:false,text:`Center ${fmt(mrCenter,2)}`,font:{size:11,color:ink()}},
+      {xref:"paper",yref:"y",x:1.02,y:0,xanchor:"left",yanchor:"bottom",yshift:2,showarrow:false,text:"LCL 0",font:{size:11,color:"#c53030"}}
+    ]}));
 }
 
 function renderSignalMap() {
@@ -735,200 +732,108 @@ function renderHeat() {
   $("flownote").textContent = `Counts riders only: ${c.v.source}. Only station totals are known, not who rode where.`;
 }
 
-/* 4 and 5. Plans: the moves as plain cards, and bikes now vs after as simple bars */
-const RANK = ["HIGH", "MEDIUM", "LOW"];
-function moveCards(id, p, empty) {
-  const moves = p.transfers.filter(t => t.bikes > 0).slice()
-    .sort((a, b) => RANK.indexOf(a.priority) - RANK.indexOf(b.priority) || b.bikes - a.bikes);
-  const total = moves.reduce((a, t) => a + t.bikes, 0), f = p.fleet;
-  const head = `<div class="how" style="grid-column:1/-1">${moves.length ? `<b>${total} bikes in ${moves.length} move${moves.length === 1 ? "" : "s"}.</b> ` : ""}` +
-    `Depot: ${f.reserve_before} → ${f.reserve_after} bikes. Docked: ${f.docked} → ${f.docked_after} of the ${f.fleet}-bike fleet.</div>`;
-  const name = x => x === "DEPOT" ? "Depot" : stName(x);
-  const row = x => p.rows.find(r => r.station_id === x);
-  const plain = t => {
-    const to = row(t.to), from = row(t.from);
-    if (p.kind === "overnight") {
-      const r = to || from, leave = r.role === "mostly departures";
-      return to ? `${stName(to.station_id)}: riders ${leave ? "leave" : "arrive"} in the morning, so it starts with ${to.target} bikes (${Math.round(to.target_share * 100)}%).`
-                : `${stName(from.station_id)}: riders arrive in the morning, so it starts with only ${from.target} bikes (${Math.round(from.target_share * 100)}%), leaving room to park.`;
-    }
-    if (!to) return `${stName(from.station_id)} has ${from.bikes} bikes, more than it needs: take ${t.bikes} back to the depot.`;
-    const soon = to.projected !== null && Math.round(to.projected) !== to.bikes ? ` and about ${Math.round(to.projected)} in an hour` : "";
-    const src = from ? `${stName(from.station_id)} has ${from.bikes}, more than it needs.` : "Taken from the depot.";
-    return `${stName(to.station_id)} has ${to.bikes} bikes now${soon}. ${src}`;
-  };
-  const cards = moves.map(t => {
-    const why = plain(t);
-    return `<div class="move ${t.priority}"><span class="tag ${t.priority}">${t.priority}</span>
-      <div class="n">${t.bikes} <small>bike${t.bikes === 1 ? "" : "s"}</small></div>
-      <div class="route">${name(t.from)} &rarr; <b>${name(t.to)}</b></div>
-      <div class="why">${esc(why)}</div></div>`;
-  }).join("");
-  const short = p.rows.filter(r => r.short).map(r => `${stName(r.station_id)} is still ${r.short} short`);
-  $(id).innerHTML = head + (cards || `<div class="nomoves">&#10003; ${esc(empty)}</div>`) +
-    (short.length ? `<div class="msg err" style="grid-column:1/-1">${short.join("; ")}: no donor station or depot bikes left.</div>` : "");
+let nightPlanSignature = null, weeklyReviewSignature = null;
+function renderWeeklyDeviationLegacy(review) {
+  const weeks = review.weeks || [];
+  if (!weeks.length) return emptyChart("weeklydeviation", "Complete weeks will appear here");
+  const best = review.best_week;
+  const stable = review.stable_week;
+  const colors = weeks.map(w => w.week === best ? "#168553" : w.status === "worse" ? "#c43c35" : "#3478c7");
+  plot("weeklydeviation", [{
+    type:"bar", x:weeks.map(w => w.label), y:weeks.map(w => w.rate * 100),
+    marker:{ color:colors },
+    text:weeks.map(w => `${(w.rate * 100).toFixed(1)}%`), textposition:"outside",
+    hovertemplate:"%{x}<br>%{y:.1f}% outside the 20–80% range<extra></extra>"
+  }], theme({
+    title:{ text:`Weekly deviation · lowest: Week ${best ?? "—"} · ${stable ? `stable from Week ${stable}` : "not stable yet"}`,
+      x:0.02, xanchor:"left", font:{ size:15, color:ink() } },
+    height:290, margin:{ t:66, r:24, b:50, l:58 },
+    xaxis:{ title:"observed complete week", gridcolor:grid() },
+    yaxis:{ title:"readings outside range (%)", ticksuffix:"%", rangemode:"tozero", gridcolor:grid() },
+    showlegend:false
+  }));
 }
-function planBars(id, p, overnight) {
-  const rows = info.stations.map(x => p.rows.find(r => r.station_id === x)).filter(Boolean).reverse();
-  const role = r => r.role === "mostly departures" ? "riders leave" : r.role === "mostly arrivals" ? "riders arrive" : r.role;
-  const ticks = rows.map(r => overnight
-    ? `${stName(r.station_id)}<br><span style="font-size:11px;color:${muted()}">${role(r)}: start ${Math.round(r.target_share * 100)}%</span>`
-    : stName(r.station_id));
-  const S = info.settings, capMax = Math.max(...rows.map(r => r.capacity));
-  const shapes = rows.flatMap((r, i) => [
-    ...(overnight
-      ? [S.arrive_share, S.depart_share].map(sh => ({ type:"line", x0: sh * r.capacity, x1: sh * r.capacity, y0:i - 0.45, y1:i + 0.45, line:{ color: muted(), dash:"dot", width:1.5 } }))
-      : [{ type:"rect", x0:r.band[0], x1:r.band[1], y0:i - 0.45, y1:i + 0.45, fillcolor:"rgba(12,163,12,.10)", line:{ width:0 }, layer:"below" }]),
-    { type:"line", x0:r.capacity, x1:r.capacity, y0:i - 0.45, y1:i + 0.45, line:{ color: ink(), width:1.5 } }]);
-  const notes = [{ xref:"paper", x:1, xanchor:"right", yref:"paper", y:1.02, yanchor:"bottom", showarrow:false, font:{ size:11, color: muted() },
-    text: overnight ? `dotted marks: ${Math.round(S.arrive_share * 100)}% (room to park) and ${Math.round(S.depart_share * 100)}% (bikes to take) of each station's docks; solid tick = docks`
-                    : `green = in spec (${Math.round(S.band_low_share * 100)}-${Math.round(S.band_high_share * 100)}% of docks); solid tick = docks` }];
-  plot(id, [
-    { type:"bar", orientation:"h", name: overnight ? "6 AM readiness target" : "after these moves", y: ticks, x: rows.map(r => r.after),
-      marker:{ color: rows.map(r => stationColor(r.station_id)) }, text: rows.map(r => `<b>${r.after}</b>`), textposition:"outside", cliponaxis:false,
-      textfont:{ color: ink() }, hovertemplate:"%{x} bikes<extra></extra>" },
-    { type:"bar", orientation:"h", name: overnight ? "latest station snapshot" : "now", y: ticks, x: rows.map(r => r.bikes),
-      marker:{ color: dark() ? "#6f6e69" : "#c9c8c2" }, text: rows.map(r => r.bikes), textposition:"outside", cliponaxis:false,
-      textfont:{ color: muted() }, hovertemplate:"%{x} bikes<extra></extra>" } ],
-    theme({ barmode:"group", bargap:0.3, bargroupgap:0.08, height: 90 + 62 * rows.length, margin:{ t:28, r:30, b:56, l:10 },
-      xaxis:{ range:[0, capMax + 1], title:"bikes", gridcolor: grid() }, yaxis:{ automargin:true },
-      legend:{ orientation:"h", y:-0.18, traceorder:"reversed" }, shapes, annotations: notes }));
+function weeklySignature(review) {
+  return JSON.stringify({ city, through:$ ("end").value,
+    weeks:(review.weeks || []).map(w => [w.week,w.rate,w.status,w.ucl,w.lcl,w.center]), best:review.best_week, stable:review.stable_week });
 }
-let nightMap = null, nightMarkers = [], maplibrePromise = null, nightPlanSignature = null;
-async function getMapLibre() {
-  if (!maplibrePromise) maplibrePromise = import("https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs");
-  return maplibrePromise;
+function renderWeeklyDeviation(review) {
+  const weeks = review.weeks || [];
+  if (!weeks.length) return emptyChart("weeklydeviation", "Complete weeks will appear here");
+  const x = weeks.map(w => w.label), colors = weeks.map(w =>
+    w.status === "worse" ? "#c43c35" : w.week === review.best_week ? "#168553" : "#3478c7");
+  const traces = [{ type:"scatter", mode:"lines+markers", name:"Observed deviation", x,
+    y:weeks.map(w => w.rate * 100), line:{ color:"#3478c7", width:2.5 },
+    marker:{ color:colors, size:8 }, customdata:weeks.map(w => [w.status,w.defects,w.readings,w.baseline_week]),
+    hovertemplate:"%{x}<br>%{y:.2f}% outside 20-80%<br>%{customdata[1]}/%{customdata[2]} readings<br>%{customdata[0]} vs Week %{customdata[3]} limits<extra></extra>" }];
+  for (const [key,name,color,dash] of [["ucl","UCL (+3 sigma)","#c43c35","dash"],
+    ["center","Center","#595959","dot"],["lcl","LCL (-3 sigma)","#c43c35","dash"]]) {
+    traces.push({ type:"scatter", mode:"lines+markers", name, x,
+      y:weeks.map(w => w[key] == null ? null : w[key] * 100),
+      line:{ color, dash, width:1.4 }, marker:{ size:3, color }, connectgaps:false,
+      hovertemplate:`%{x}<br>${name}: %{y:.2f}%<extra></extra>` });
+  }
+  plot("weeklydeviation", traces, theme({
+    title:{ text:`Lowest deviation: Week ${review.best_week ?? "-"} | ${review.stable_week ? `stable from Week ${review.stable_week}` : "still learning"}`,
+      x:0.02, xanchor:"left", font:{ size:15, color:ink() } },
+    height:300, margin:{ t:58, r:22, b:48, l:58 },
+    xaxis:{ title:"complete week", gridcolor:grid() },
+    yaxis:{ title:"readings outside range (%)", ticksuffix:"%", rangemode:"tozero", gridcolor:grid() },
+    legend:{ orientation:"h", y:-0.22 }
+  }));
 }
-function clockText(value) {
-  if (!value) return "10 PM";
-  const h = Number(value.slice(11, 13)), m = value.slice(14, 16);
-  return `${h % 12 || 12}:${m} ${h < 12 ? "AM" : "PM"}`;
-}
-function clearNightMap(message = "") {
-  if (nightMap) { nightMap.remove(); nightMap = null; }
-  nightMarkers = [];
-  nightPlanSignature = null;
-  $("nightpicture").innerHTML = message ? `<div class="map-note" role="status">${esc(message)}</div>` : "";
+function renderNightPicture(p) {
+  const rows = info.stations.map(sid => p.rows.find(r => r.station_id === sid)).filter(Boolean);
+  if (!rows.length) return emptyChart("nightpicture", "The next plan appears after a complete week");
+  const b = p.baseline || {};
+  const targetWeek = b.target_week || "next";
+  const sourceWeek = b.week_number || "previous";
+  const names = rows.map(r => label(r.station_id));
+  plot("nightpicture", [
+    { type:"bar", orientation:"h", name:"10 PM count", y:names, x:rows.map(r => r.bikes),
+      marker:{ color:dark() ? "#77766f" : "#c9c8c2" }, text:rows.map(r => r.bikes), textposition:"outside", cliponaxis:false,
+      hovertemplate:"%{y}<br>10 PM: %{x} bikes<extra></extra>" },
+    { type:"bar", orientation:"h", name:"6 AM plan", y:names, x:rows.map(r => r.after),
+      marker:{ color:"#168553" }, text:rows.map(r => r.after), textposition:"outside", cliponaxis:false,
+      hovertemplate:"%{y}<br>6 AM plan: %{x} bikes<extra></extra>" }
+  ], theme({
+    title:{ text:`Week ${targetWeek} plan · learned from Week ${sourceWeek}${p.feasible ? "" : " · closest possible"}`,
+      x:0.02, xanchor:"left", font:{ size:15, color:ink() } },
+    barmode:"group", bargap:0.27, height:Math.max(280, 90 + rows.length * 48),
+    margin:{ t:64, r:40, b:54, l:150 },
+    xaxis:{ title:"bikes at each station", rangemode:"tozero", gridcolor:grid() },
+    yaxis:{ automargin:true }, legend:{ orientation:"h", y:-0.24 }
+  }));
 }
 function nightSignature(p) {
   return JSON.stringify({ city, day:$ ("end").value, depot:$ ("depot").value, baseline:p.baseline,
-    rows:p.rows.map(r => [r.station_id,r.bikes,r.after,r.capacity,r.target_share,r.morning_net]),
-    transfers:p.transfers.map(t => [t.from,t.to,t.bikes]) });
+    rows:p.rows.map(r => [r.station_id,r.bikes,r.after,r.capacity,r.target_share,r.morning_net]) });
 }
-function renderNightBrief(p) {
-  const usable = p.rows.filter(r => Number.isFinite(r.morning_net));
-  const departures = usable.filter(r => r.morning_net < 0).sort((a,b) => a.morning_net-b.morning_net)[0];
-  const arrivals = usable.filter(r => r.morning_net > 0).sort((a,b) => b.morning_net-a.morning_net)[0];
-  const transfers = p.transfers.filter(t => t.bikes > 0);
-  const moved = transfers.reduce((n,t) => n+t.bikes,0);
-  const pattern = usable.length
-    ? `<div class="night-brief-card"><span class="label">Most morning rides start</span><strong>${departures ? esc(label(departures.station_id)) : "No clear departure station"}</strong><small>${departures ? `${Math.abs(departures.morning_net).toFixed(1)} more bikes leave than arrive on an average morning` : "Week 1 shows no net departures"}</small></div>
-       <div class="night-brief-card"><span class="label">Most morning rides end</span><strong>${arrivals ? esc(label(arrivals.station_id)) : "No clear arrival station"}</strong><small>${arrivals ? `${arrivals.morning_net.toFixed(1)} more bikes arrive than leave on an average morning` : "Week 1 shows no net arrivals"}</small></div>`
-    : `<div class="night-brief-card"><span class="label">Week 1 pattern</span><strong>Still learning</strong><small>Not enough morning readings yet to identify the busiest start and end stations.</small></div>`;
-  const moveText = transfers.length
-    ? transfers.map(t => `<li>${esc(short(t.from))} &rarr; ${esc(short(t.to))}: <b>${t.bikes}</b></li>`).join("")
-    : "No moves needed: stations are already at their target.";
-  const b = p.baseline || {}, from = b.from || b.through || "unknown", through = b.through || "unknown";
-  const targets = p.rows.map(r => `<span><b>${esc(label(r.station_id))}</b><span>${r.after} / ${r.capacity} bikes</span></span>`).join("");
-  const evidence = `<div class="night-brief-card"><span class="label">Evidence used</span><strong>${esc(from)} to ${esc(through)}</strong><small>${b.complete_days ?? "?"} of ${b.required_days ?? "?"} complete days &middot; ${esc(b.window || "morning window")} &middot; per-station sample counts below</small><div class="plan-targets">${p.rows.map(r => `<span><b>${esc(label(r.station_id))}</b><span>${r.history_days ?? "?"} days &rarr; ${r.after} / ${r.capacity}</span></span>`).join("")}</div></div>`;
-  $("nightmoves").innerHTML = evidence + pattern + `<div class="night-brief-card"><span class="label">Tomorrow's opening counts</span><strong>${p.rows.length} stations planned</strong><div class="plan-targets">${targets}</div></div><div class="night-brief-card"><span class="label">Tonight by 10 PM</span><strong>${moved} bike${moved === 1 ? "" : "s"} moved</strong>${transfers.length ? `<ul>${moveText}</ul>` : `<small>${esc(moveText)}</small>`}</div>`;
-}
-async function renderNightMap(p) {
-  const rows = info.stations.map(sid => p.rows.find(r => r.station_id === sid)).filter(Boolean);
-  const located = rows.map(r => {
-    const place = info.places?.[r.station_id];
-    return place && Number.isFinite(Number(place.lat)) && Number.isFinite(Number(place.lon))
-      ? { ...r, lat:Number(place.lat), lon:Number(place.lon) } : null;
-  }).filter(Boolean);
-  if (!located.length) { clearNightMap("This dataset has no station coordinates, so the stations cannot be placed on a map. Use a city dataset with mapped locations."); return false; }
-  const panel = document.createElement("div");
-  panel.innerHTML = `<div class="night-picture-head"><b>Week 1 measured through ${esc(p.baseline.through)}</b>
-    <span>Complete van moves by ${esc(clockText(p.redistribute_by))} on ${esc(p.redistribute_by.slice(0,10))} &rarr; ready at 6 AM ${esc(p.ready_at.slice(0,10))}</span></div>
-    <div class="map-legend"><span>Number = bikes planned for 6 AM</span><span>Blue dock = planned bike</span>
-    <span>Grey dock = empty space</span><span>Blue line = bike transfer</span><span>Drag to rotate; scroll to zoom</span></div>
-    <div id="nightmap" aria-label="Tilted three-dimensional OpenStreetMap with planned station inventories"></div>
-    `;
-  $("nightpicture").replaceChildren(panel);
-  const center = [located.reduce((n,r)=>n+r.lon,0)/located.length, located.reduce((n,r)=>n+r.lat,0)/located.length];
-  let lib;
-  try {
-    lib = await getMapLibre();
-    nightMap = new lib.Map({ container:"nightmap", style:"https://tiles.openfreemap.org/styles/liberty",
-      center, zoom:15.5, pitch:62, bearing:-17, maxPitch:82, attributionControl:{ compact:false } });
-  } catch (e) { clearNightMap(e.message || "The 3D map could not start. Try a browser with WebGL enabled."); return false; }
-  nightMap.addControl(new lib.NavigationControl({ visualizePitch:true }), "top-right");
-  const bounds = located.reduce((b,r)=>b.extend([r.lon,r.lat]), new lib.LngLatBounds());
-  if (located.length > 1) nightMap.fitBounds(bounds, { padding:90, maxZoom:16.5, pitch:62, bearing:-17, duration:0 });
-  for (const r of located) {
-    const docks = Array.from({length:r.capacity}, (_,i) => `<span class="night-dock ${i < r.after ? "full" : ""}" aria-hidden="true"></span>`).join("");
-    const markerEl = document.createElement("div");
-    markerEl.className = "night-marker";
-    markerEl.innerHTML = `<span class="station-name">${stName(r.station_id)}</span><span class="night-cube">${r.after}</span><span class="night-count">${r.after} / ${r.capacity}</span>`;
-    const flow = r.morning_net == null ? "Week 1 flow unavailable"
-      : r.morning_net < 0 ? `${Math.abs(r.morning_net).toFixed(1)} net bikes leave during 6\u201310 AM`
-      : r.morning_net > 0 ? `${r.morning_net.toFixed(1)} net bikes arrive during 6\u201310 AM` : "Morning arrivals and departures balance";
-    const popup = new lib.Popup({ offset:26, maxWidth:"280px" }).setHTML(`<b>${stName(r.station_id)}</b><br>${esc(flow)}<div class="popup-rack" aria-label="${r.after} planned bikes out of ${r.capacity} docks">${docks}</div>Week 1: ${esc(r.role)}<br>Latest: ${r.bikes} / ${r.capacity}<br>At 6 AM: <b>${r.after} / ${r.capacity}</b> (${Math.round(r.target_share*100)}% full)`);
-    const marker = new lib.Marker({ element:markerEl, anchor:"bottom" }).setLngLat([r.lon,r.lat]).setPopup(popup).addTo(nightMap);
-    nightMarkers.push(marker);
-  }
-  const features = [];
-  for (const t of p.transfers.filter(x => x.bikes > 0)) {
-    const from = located.find(r => r.station_id === t.from), to = located.find(r => r.station_id === t.to);
-    if (from && to) features.push({ type:"Feature", properties:{ bikes:t.bikes }, geometry:{ type:"LineString", coordinates:[[from.lon,from.lat],[to.lon,to.lat]] } });
-  }
-  nightMap.on("load", () => {
-    if (!features.length || nightMap.getSource("overnight-transfers")) return;
-    nightMap.addSource("overnight-transfers", { type:"geojson", data:{ type:"FeatureCollection", features } });
-    nightMap.addLayer({ id:"overnight-transfer-lines", type:"line", source:"overnight-transfers",
-      paint:{ "line-color":"#1378c8", "line-width":["interpolate",["linear"],["zoom"],12,3,17,7], "line-opacity":0.9 } });
-  });
-  nightMap.on("error", () => {
-    if (!nightMap || !document.getElementById("nightmap")) return;
-    if (!document.getElementById("nightmap-error")) {
-      const note = document.createElement("div"); note.id="nightmap-error"; note.className="map-note";
-      note.textContent="Some 3D map tiles could not load. Check your connection; station plan details remain below.";
-      $("nightpicture").insertBefore(note, $("nightmap"));
-    }
-  });
-  return true;
-}
-function planTable(id, p) {
-  $(id).innerHTML = `<tr><th>Station</th><th>Bikes / cap</th><th>Target</th><th>Projected</th><th>Surplus (+) / shortage (−)</th>
-    <th>Action</th><th>After</th><th>Priority and why</th></tr>` +
-    p.rows.map(r => `<tr><td>${esc(label(r.station_id))}</td><td>${r.bikes} / ${r.capacity}</td><td>${fmt(r.target)}</td>
-      <td>${r.projected === null ? "n/a" : fmt(r.projected)}</td><td>${r.gap > 0 ? "+" : ""}${fmt(r.gap)}</td>
-      <td>${esc(r.action)}</td><td>${r.after}</td>
-      <td><span class="pill ${r.priority}">${r.priority}</span> ${esc(r.reason)}<div class="how">${esc(r.projection_basis)}</div></td></tr>`).join("");
-}
-function schedulePlan() { if (planBusy) { planAgain = true; return; } loadPlans(); }
-async function loadPlans() {
-  planBusy = true;
+function scheduleWeeklyPlans() { if (weeklyPlansBusy) { weeklyPlansAgain = true; return; } loadWeeklyPlans(); }
+async function loadWeeklyPlans() {
+  weeklyPlansBusy = true;
   const depot = $("depot").value;
   try {
-    const p = await get("plan", { at: cutoff(), depot_bikes: depot });
-    moveCards("planmoves", p, "No moves needed right now: every station is where it should be.");
-    planBars("planbars", p, false); planTable("plan", p); msg("planmsg", p.notes.join(" "));
-  } catch (e) { $("planmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; emptyChart("planbars", ""); $("plan").innerHTML = ""; }
-  try {
-    const p = await get("plan/overnight", { day: $("end").value, depot_bikes: depot });
-    if (p.baseline?.complete === false) {
-      const b = p.baseline;
-      $("nightmoves").innerHTML = `<div class="night-brief-card"><span class="label">Week 1 baseline</span><strong>Learning the pattern: ${b.complete_days} of ${b.required_days} complete days</strong><small>Available period: ${esc(b.from || "not started")} to ${esc(b.through)}; morning window ${esc(b.window)}. A complete day needs every station's readings across the full window. No targets or moves are published until the baseline is complete.</small></div>`;
-      clearNightMap("Learning the average 6\u201310 AM rider flow from Week 1. No map markers or redistribution targets are shown until Week 1 is complete.");
-      emptyChart("nightbars", "The full Week 1 pattern is not ready yet."); $("night").innerHTML = "";
-      msg("nightmsg", p.notes.join(" "));
-    } else {
-      const signature = nightSignature(p);
-      if (signature !== nightPlanSignature) {
-        renderNightBrief(p);
-        await renderNightMap(p);
-        nightPlanSignature = signature;
-        planBars("nightbars", p, true); planTable("night", p); msg("nightmsg", p.notes.join(" "));
-      }
+    const review = await get("plan/weekly", { through:$ ("end").value });
+    const signature = weeklySignature(review);
+    if (signature !== weeklyReviewSignature) {
+      renderWeeklyDeviation(review);
+      weeklyReviewSignature = signature;
     }
-  } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; $("nightpicture").innerHTML = ""; emptyChart("nightbars", ""); $("night").innerHTML = ""; }
-  planBusy = false;
-  if (planAgain) { planAgain = false; loadPlans(); }
+  } catch (e) { emptyChart("weeklydeviation", e.message); weeklyReviewSignature = null; }
+  try {
+    const p = await get("plan/overnight", { day:$ ("end").value, depot_bikes:depot });
+    const signature = nightSignature(p);
+    if (p.baseline?.complete === false) {
+      emptyChart("nightpicture", "Waiting for a complete previous week");
+      nightPlanSignature = null;
+    } else if (signature !== nightPlanSignature) {
+      renderNightPicture(p);
+      nightPlanSignature = signature;
+    }
+  } catch (e) { emptyChart("nightpicture", e.message); nightPlanSignature = null; }
+  weeklyPlansBusy = false;
+  if (weeklyPlansAgain) { weeklyPlansAgain = false; loadWeeklyPlans(); }
 }
 
 /* ---- play / pause ---- */
@@ -954,7 +859,7 @@ $("speed").addEventListener("change", () => { if (playing) play(); });
 $("file").addEventListener("change", e => e.target.files[0] && upload(e.target.files[0]));
 ["stations","start","end"].forEach(id => $(id).addEventListener("change", () => { stop(); loadAll(); }));
 $("spcstation").addEventListener("change", () => { if (info && cache.inv) renderSpc(); });
-$("depot").addEventListener("change", schedulePlan);
+$("depot").addEventListener("change", scheduleWeeklyPlans);
 document.querySelectorAll("#limwin button").forEach(b => b.addEventListener("click", () => {
   limitsMode = b.dataset.lim;
   document.querySelectorAll("#limwin button").forEach(x => x.classList.toggle("on", x === b));
@@ -989,7 +894,7 @@ function paintSync(state, status, detail = "") {
 function validSimulationState(s) {
   return !!s && s.type === "sixsigma.simulation-state" && s.version === 1 &&
     ["ready", "loading", "error"].includes(s.status) && typeof s.city === "string" &&
-    ["week1", "week2", "event"].includes(s.scenario) && Number.isInteger(s.day_index) && s.day_index >= 0 &&
+    (s.scenario === "event" || /^week[1-9]\d*$/.test(s.scenario)) && Number.isInteger(s.day_index) && s.day_index >= 0 &&
     ["replay", "live"].includes(s.source) && Number.isInteger(s.interval_minutes) && s.interval_minutes > 0 &&
     typeof s.playing === "boolean" && typeof s.reason === "string" && Array.isArray(s.stations) &&
     (s.status === "ready" ? (/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(s.as_of || "") &&

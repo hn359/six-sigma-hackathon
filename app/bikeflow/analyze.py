@@ -14,7 +14,7 @@ Projection (only when reliable):
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from statistics import mean
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -176,8 +176,8 @@ def flow_view(ds: Dataset, stations: Sequence[str], start=None, end=None, period
 
 def chart_baseline(ds: Dataset, station: str, day: date, kind: str, limits: str) -> tuple:
     """The days a chart of `day` is judged against, and how they were chosen.
-    rolling: the last Settings.rolling_days days before it (same day type); week1: the Phase I days.
-    With fewer than 2 such days: the Phase I days if any, else the charted day itself (warned)."""
+    phase: the previous complete project week (same day type); rolling: last rolling_days comparable
+    days; week1: fixed Phase I. Incomplete previous weeks do not become new reference limits."""
     s = ds.settings
     cut = date.fromisoformat(s.phase1_through) if s.phase1_through else None
     phase1 = [d for d in ds.days(station) if cut and d <= cut and s.kind(d) == kind]
@@ -185,9 +185,29 @@ def chart_baseline(ds: Dataset, station: str, day: date, kind: str, limits: str)
         base = [d for d in ds.days(station) if d < day and s.kind(d) == kind][-s.rolling_days:]
         if len(base) >= 2:
             return base, f"last {len(base)} days before {day}, cleaned", None
+    elif limits == "phase" and cut:
+        project_start = cut - timedelta(days=6)
+        week_index = (day - project_start).days // 7
+        if week_index > 0:
+            start = project_start + timedelta(days=(week_index - 1) * 7)
+            end = start + timedelta(days=6)
+            week_days = [start + timedelta(days=i) for i in range(7)]
+            complete = [d for d in week_days if all(slot in ds.series(station, d)
+                                                     for slot in range(s.n_slots))]
+            base = [d for d in complete if s.kind(d) == kind]
+            needed = 7 if not s.weekends_differ else (5 if kind == "weekday" else 2)
+            if len(complete) == 7 and len(base) == needed:
+                return base, f"Week {week_index} baseline ({start} to {end})", None
+    elif limits == "phase" and not cut:
+        # Uploaded datasets may not declare project-week boundaries. Use only prior
+        # comparable days as the phase reference instead of estimating limits from
+        # the day currently being judged.
+        base = comparable_days(ds, station, day, before=day)
+        if len(base) >= 2:
+            return base, f"{len(base)} earlier comparable days (no project week declared)", None
     elif phase1:
         return phase1, f"week 1 ({len(phase1)} days, fixed)", None
-    else:
+    if limits not in ("phase", "week1"):
         base = comparable_days(ds, station, day, before=day)
         if len(base) >= 2:
             return base, f"{len(base)} earlier days", None
@@ -200,16 +220,16 @@ def chart_baseline(ds: Dataset, station: str, day: date, kind: str, limits: str)
 def spc_view(ds: Dataset, station: str, start: date, end: date, measure: str = "net_flow",
              kind: Optional[str] = None, limits: Optional[str] = None) -> dict:
     """Slot-adjusted I-MR chart for one station over [start, end], one day type at a time, with the
-    course's eight tests (qc.py). Each charted day has its own baseline (chart_baseline): by default
-    the last 7 days before it, cleaned of readings beyond 3 sigma, so the limits update every day;
-    limits="week1" uses the fixed Phase I days instead. Inventory is offered with sigma from the
-    residual spread and test 1 only, because inventory accumulates."""
+    course's eight tests (qc.py). In phase mode, every complete project week uses the preceding
+    complete week's same-day-type baseline, frozen for that week. limits="rolling" is a diagnostic
+    that updates daily; limits="week1" keeps the original Phase I days fixed. Inventory is offered
+    with sigma from the residual spread and test 1 only, because inventory accumulates."""
     if measure not in ("inventory", "net_flow"):
         raise ValueError("measure must be 'inventory' or 'net_flow'")
     s = ds.settings
     limits = limits or s.limits_mode
-    if limits not in ("rolling", "week1"):
-        raise ValueError("limits must be 'rolling' or 'week1'")
+    if limits not in ("phase", "rolling", "week1"):
+        raise ValueError("limits must be 'phase', 'rolling' or 'week1'")
     kind = kind or s.kind(end)
     chart_days = [d for d in _days_in(ds, start, end, station) if s.kind(d) == kind]
     if not chart_days:
@@ -253,6 +273,13 @@ def spc_view(ds: Dataset, station: str, start: date, end: date, measure: str = "
             state = status(int(p["x"]), cap, s) if measure == "inventory" else None
             points.append({"t": f"{d.isoformat()}T{s.slot_time(p['slot'])}", "x": p["x"],
                            "expected": p["expected"], "lcl": lo, "ucl": hi, "residual": p["residual"],
+                           "chart_cl": lim["cl"] if lim else None,
+                           "chart_ucl": lim["ucl"] if lim else None,
+                           "chart_lcl": lim["lcl"] if lim else None,
+                           "chart_sigma": lim["sigma"] if lim else None,
+                           "chart_mr_ucl": lim["mr_ucl"] if lim else None,
+                           "chart_mr_bar": lim["mr_bar"] if lim else None,
+                           "baseline": basis,
                            "z": p["z"], "mr": p["mr"], "signals": p["signals"], "reasons": reasons,
                            "status": state})
     if lim is not None:
@@ -270,7 +297,8 @@ def spc_view(ds: Dataset, station: str, start: date, end: date, measure: str = "
                        "MR UCL = 3.267 x MR-bar; the eight tests with zones C (1 sigma), B (2), A (3). "
                        + ("Limits: the last 7 days before each charted day, with readings beyond 3 sigma "
                           "removed and recomputed (they update every day)" if limits == "rolling"
-                          else "Limits: week 1, fixed (comparison mode)")),
+                          else "Limits: previous complete project week, frozen within this week"
+                          if limits == "phase" else "Limits: week 1, fixed (comparison mode)")),
             "note": "the chart plots each reading minus what is usual for that time slot on the "
                     "baseline days, so the normal rush-hour swing is not a signal."}
 

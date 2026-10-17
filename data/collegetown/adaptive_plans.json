@@ -1,0 +1,772 @@
+{
+  "weeks": [
+    {
+      "week": 1,
+      "daily_defects": [
+        109,
+        71,
+        133,
+        99,
+        57,
+        63,
+        75
+      ],
+      "readings_per_day": 320,
+      "defects": 607,
+      "readings": 2240,
+      "rate": 0.27098214285714284,
+      "status": "baseline",
+      "baseline_week": null,
+      "center": 0.27098214285714284,
+      "lcl": null,
+      "ucl": null,
+      "signals": 0,
+      "stable_run": 0
+    },
+    {
+      "week": 2,
+      "daily_defects": [
+        12,
+        28,
+        32,
+        23,
+        24,
+        23,
+        23
+      ],
+      "readings_per_day": 320,
+      "defects": 165,
+      "readings": 2240,
+      "rate": 0.07366071428571429,
+      "status": "improved",
+      "baseline_week": 1,
+      "center": 0.27098214285714284,
+      "lcl": 0.24280891127691978,
+      "ucl": 0.2991553744373659,
+      "daily_lcl": 0.19644277846684138,
+      "daily_ucl": 0.3455215072474443,
+      "sigma": 0.02484645479676715,
+      "signals": 7,
+      "daily_status": [
+        "improved",
+        "improved",
+        "improved",
+        "improved",
+        "improved",
+        "improved",
+        "improved"
+      ],
+      "stable_run": 0
+    },
+    {
+      "week": 3,
+      "daily_defects": [
+        10,
+        5,
+        8,
+        10,
+        8,
+        3,
+        6
+      ],
+      "readings_per_day": 320,
+      "defects": 50,
+      "readings": 2240,
+      "rate": 0.022321428571428572,
+      "status": "improved",
+      "baseline_week": 2,
+      "center": 0.07366071428571429,
+      "lcl": 0.057103005125378845,
+      "ucl": 0.09021842344604973,
+      "daily_lcl": 0.02985313356653061,
+      "daily_ucl": 0.11746829500489797,
+      "sigma": 0.01460252690639456,
+      "signals": 5,
+      "daily_status": [
+        "in control",
+        "improved",
+        "improved",
+        "in control",
+        "improved",
+        "improved",
+        "improved"
+      ],
+      "stable_run": 0
+    },
+    {
+      "week": 4,
+      "daily_defects": [
+        2,
+        0,
+        12,
+        14,
+        1,
+        12,
+        10
+      ],
+      "readings_per_day": 320,
+      "defects": 51,
+      "readings": 2240,
+      "rate": 0.022767857142857142,
+      "status": "stable",
+      "baseline_week": 3,
+      "center": 0.022321428571428572,
+      "lcl": 0.012957538926760895,
+      "ucl": 0.03168531821609625,
+      "daily_lcl": 0.0,
+      "daily_ucl": 0.047095951875472226,
+      "sigma": 0.008258174434681218,
+      "signals": 0,
+      "daily_status": [
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control"
+      ],
+      "stable_run": 1
+    },
+    {
+      "week": 5,
+      "daily_defects": [
+        23,
+        16,
+        19,
+        9,
+        23,
+        22,
+        21
+      ],
+      "readings_per_day": 320,
+      "defects": 133,
+      "readings": 2240,
+      "rate": 0.059375,
+      "status": "worse",
+      "baseline_week": 4,
+      "center": 0.022767857142857142,
+      "lcl": 0.013312951565785176,
+      "ucl": 0.032222762719929104,
+      "daily_lcl": 0.0,
+      "daily_ucl": 0.04778318596938721,
+      "sigma": 0.008338442942176689,
+      "signals": 6,
+      "daily_status": [
+        "worse",
+        "worse",
+        "worse",
+        "in control",
+        "worse",
+        "worse",
+        "worse"
+      ],
+      "stable_run": 0
+    },
+    {
+      "week": 6,
+      "daily_defects": [
+        8,
+        11,
+        12,
+        12,
+        14,
+        16,
+        20
+      ],
+      "readings_per_day": 320,
+      "defects": 93,
+      "readings": 2240,
+      "rate": 0.04151785714285714,
+      "status": "improved",
+      "baseline_week": 5,
+      "center": 0.059375,
+      "lcl": 0.044395155142554876,
+      "ucl": 0.07435484485744512,
+      "daily_lcl": 0.01974205582887041,
+      "daily_ucl": 0.09900794417112958,
+      "sigma": 0.01321098139037653,
+      "signals": 0,
+      "daily_status": [
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control"
+      ],
+      "stable_run": 0
+    },
+    {
+      "week": 7,
+      "daily_defects": [
+        20,
+        2,
+        12,
+        27,
+        16,
+        18,
+        12
+      ],
+      "readings_per_day": 320,
+      "defects": 107,
+      "readings": 2240,
+      "rate": 0.04776785714285714,
+      "status": "stable",
+      "baseline_week": 6,
+      "center": 0.04151785714285714,
+      "lcl": 0.028873209734020643,
+      "ucl": 0.054162504551693635,
+      "daily_lcl": 0.0080632646829785,
+      "daily_ucl": 0.07497244960273577,
+      "sigma": 0.011151530819959546,
+      "signals": 2,
+      "daily_status": [
+        "in control",
+        "improved",
+        "in control",
+        "worse",
+        "in control",
+        "in control",
+        "in control"
+      ],
+      "stable_run": 1
+    },
+    {
+      "week": 8,
+      "daily_defects": [
+        3,
+        5,
+        2,
+        1,
+        1,
+        2,
+        5
+      ],
+      "readings_per_day": 320,
+      "defects": 19,
+      "readings": 2240,
+      "rate": 0.008482142857142856,
+      "status": "improved",
+      "baseline_week": 7,
+      "center": 0.04776785714285714,
+      "lcl": 0.03424910692488061,
+      "ucl": 0.06128660736083367,
+      "daily_lcl": 0.012000606029691017,
+      "daily_ucl": 0.08353510825602325,
+      "sigma": 0.01192241703772204,
+      "signals": 5,
+      "daily_status": [
+        "improved",
+        "in control",
+        "improved",
+        "improved",
+        "improved",
+        "improved",
+        "in control"
+      ],
+      "stable_run": 0
+    },
+    {
+      "week": 9,
+      "daily_defects": [
+        9,
+        15,
+        4,
+        2,
+        6,
+        6,
+        9
+      ],
+      "readings_per_day": 320,
+      "defects": 51,
+      "readings": 2240,
+      "rate": 0.022767857142857142,
+      "status": "worse",
+      "baseline_week": 8,
+      "center": 0.008482142857142856,
+      "lcl": 0.0026691430711319455,
+      "ucl": 0.014295142643153767,
+      "daily_lcl": 0.0,
+      "daily_ucl": 0.023861894662199408,
+      "sigma": 0.005126583935018851,
+      "signals": 3,
+      "daily_status": [
+        "worse",
+        "worse",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "worse"
+      ],
+      "stable_run": 0
+    },
+    {
+      "week": 10,
+      "daily_defects": [
+        6,
+        10,
+        3,
+        0,
+        6,
+        2,
+        4
+      ],
+      "readings_per_day": 320,
+      "defects": 31,
+      "readings": 2240,
+      "rate": 0.013839285714285714,
+      "status": "stable",
+      "baseline_week": 9,
+      "center": 0.022767857142857142,
+      "lcl": 0.013312951565785176,
+      "ucl": 0.032222762719929104,
+      "daily_lcl": 0.0,
+      "daily_ucl": 0.04778318596938721,
+      "sigma": 0.008338442942176689,
+      "signals": 0,
+      "daily_status": [
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control"
+      ],
+      "stable_run": 1
+    },
+    {
+      "week": 11,
+      "daily_defects": [
+        3,
+        2,
+        3,
+        1,
+        5,
+        2,
+        0
+      ],
+      "readings_per_day": 320,
+      "defects": 16,
+      "readings": 2240,
+      "rate": 0.007142857142857143,
+      "status": "stable",
+      "baseline_week": 10,
+      "center": 0.013839285714285714,
+      "lcl": 0.006434236792180851,
+      "ucl": 0.021244334636390576,
+      "daily_lcl": 0.0,
+      "daily_ucl": 0.03343120360844209,
+      "sigma": 0.006530639298052125,
+      "signals": 0,
+      "daily_status": [
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control",
+        "in control"
+      ],
+      "stable_run": 2
+    }
+  ],
+  "plans": {
+    "week2": {
+      "source_week": 1,
+      "targets": {
+        "S01": 15,
+        "S02": 4,
+        "S03": 16,
+        "S04": 8,
+        "S05": 9
+      },
+      "method": "80/20 morning-flow rule"
+    },
+    "week3": {
+      "source_week": 2,
+      "targets": {
+        "S01": 14,
+        "S02": 4,
+        "S03": 15,
+        "S04": 9,
+        "S05": 10
+      },
+      "preferred_targets": {
+        "S01": 14,
+        "S02": 4,
+        "S03": 16,
+        "S04": 7,
+        "S05": 10
+      },
+      "morning_net": {
+        "S01": -4.571428571428571,
+        "S02": 6.857142857142857,
+        "S03": -6.428571428571429,
+        "S04": 3.5714285714285716,
+        "S05": 0.5714285714285714
+      },
+      "target_shares": {
+        "S01": 0.7133333333333334,
+        "S02": 0.2,
+        "S03": 0.8,
+        "S04": 0.34375,
+        "S05": 0.475
+      },
+      "optimization": {
+        "projected_out_of_spec": 283,
+        "preferred_distance": 3,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week4": {
+      "source_week": 3,
+      "targets": {
+        "S01": 13,
+        "S02": 5,
+        "S03": 14,
+        "S04": 10,
+        "S05": 10
+      },
+      "preferred_targets": {
+        "S01": 15,
+        "S02": 4,
+        "S03": 16,
+        "S04": 9,
+        "S05": 10
+      },
+      "morning_net": {
+        "S01": -5.0,
+        "S02": 9.714285714285714,
+        "S03": -6.142857142857143,
+        "S04": 1.5714285714285714,
+        "S05": -0.14285714285714285
+      },
+      "target_shares": {
+        "S01": 0.7441860465116279,
+        "S02": 0.2,
+        "S03": 0.8,
+        "S04": 0.4514705882352941,
+        "S05": 0.5069767441860465
+      },
+      "optimization": {
+        "projected_out_of_spec": 337,
+        "preferred_distance": 6,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week5": {
+      "source_week": 4,
+      "targets": {
+        "S01": 14,
+        "S02": 4,
+        "S03": 13,
+        "S04": 11,
+        "S05": 10
+      },
+      "preferred_targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 16,
+        "S04": 10,
+        "S05": 9
+      },
+      "morning_net": {
+        "S01": -4.142857142857143,
+        "S02": 6.714285714285714,
+        "S03": -4.428571428571429,
+        "S04": 0.42857142857142855,
+        "S05": 1.4285714285714286
+      },
+      "target_shares": {
+        "S01": 0.7806451612903227,
+        "S02": 0.2,
+        "S03": 0.8,
+        "S04": 0.48085106382978726,
+        "S05": 0.43617021276595747
+      },
+      "optimization": {
+        "projected_out_of_spec": 371,
+        "preferred_distance": 7,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week6": {
+      "source_week": 5,
+      "targets": {
+        "S01": 13,
+        "S02": 5,
+        "S03": 13,
+        "S04": 10,
+        "S05": 11
+      },
+      "preferred_targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 15,
+        "S04": 7,
+        "S05": 16
+      },
+      "morning_net": {
+        "S01": -3.7142857142857144,
+        "S02": 6.857142857142857,
+        "S03": -3.142857142857143,
+        "S04": 3.4285714285714284,
+        "S05": -3.4285714285714284
+      },
+      "target_shares": {
+        "S01": 0.8,
+        "S02": 0.2,
+        "S03": 0.7538461538461538,
+        "S04": 0.35,
+        "S05": 0.7769230769230769
+      },
+      "optimization": {
+        "projected_out_of_spec": 503,
+        "preferred_distance": 14,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week7": {
+      "source_week": 6,
+      "targets": {
+        "S01": 13,
+        "S02": 5,
+        "S03": 12,
+        "S04": 10,
+        "S05": 12
+      },
+      "preferred_targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 16,
+        "S04": 7,
+        "S05": 11
+      },
+      "morning_net": {
+        "S01": -4.285714285714286,
+        "S02": 6.142857142857143,
+        "S03": -4.285714285714286,
+        "S04": 3.4285714285714284,
+        "S05": -1.0
+      },
+      "target_shares": {
+        "S01": 0.8,
+        "S02": 0.2,
+        "S03": 0.8,
+        "S04": 0.3325581395348838,
+        "S05": 0.5700000000000001
+      },
+      "optimization": {
+        "projected_out_of_spec": 406,
+        "preferred_distance": 12,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week8": {
+      "source_week": 7,
+      "targets": {
+        "S01": 12,
+        "S02": 5,
+        "S03": 13,
+        "S04": 9,
+        "S05": 13
+      },
+      "preferred_targets": {
+        "S01": 13,
+        "S02": 4,
+        "S03": 16,
+        "S04": 8,
+        "S05": 13
+      },
+      "morning_net": {
+        "S01": -2.857142857142857,
+        "S02": 7.857142857142857,
+        "S03": -5.0,
+        "S04": 2.4285714285714284,
+        "S05": -2.4285714285714284
+      },
+      "target_shares": {
+        "S01": 0.6714285714285715,
+        "S02": 0.2,
+        "S03": 0.8,
+        "S04": 0.4072727272727273,
+        "S05": 0.6457142857142857
+      },
+      "optimization": {
+        "projected_out_of_spec": 352,
+        "preferred_distance": 6,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week9": {
+      "source_week": 8,
+      "targets": {
+        "S01": 13,
+        "S02": 6,
+        "S03": 12,
+        "S04": 9,
+        "S05": 12
+      },
+      "preferred_targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 12,
+        "S04": 10,
+        "S05": 9
+      },
+      "morning_net": {
+        "S01": -6.142857142857143,
+        "S02": 6.714285714285714,
+        "S03": -2.142857142857143,
+        "S04": 0.14285714285714285,
+        "S05": 1.4285714285714286
+      },
+      "target_shares": {
+        "S01": 0.8,
+        "S02": 0.2,
+        "S03": 0.6046511627906976,
+        "S04": 0.49361702127659574,
+        "S05": 0.43617021276595747
+      },
+      "optimization": {
+        "projected_out_of_spec": 363,
+        "preferred_distance": 9,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week10": {
+      "source_week": 9,
+      "targets": {
+        "S01": 14,
+        "S02": 5,
+        "S03": 12,
+        "S04": 10,
+        "S05": 11
+      },
+      "preferred_targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 13,
+        "S04": 8,
+        "S05": 10
+      },
+      "morning_net": {
+        "S01": -7.285714285714286,
+        "S02": 9.0,
+        "S03": -4.142857142857143,
+        "S04": 2.4285714285714284,
+        "S05": 0.0
+      },
+      "target_shares": {
+        "S01": 0.8,
+        "S02": 0.2,
+        "S03": 0.6705882352941177,
+        "S04": 0.41904761904761906,
+        "S05": 0.5
+      },
+      "optimization": {
+        "projected_out_of_spec": 505,
+        "preferred_distance": 7,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week11": {
+      "source_week": 10,
+      "targets": {
+        "S01": 15,
+        "S02": 4,
+        "S03": 13,
+        "S04": 10,
+        "S05": 10
+      },
+      "preferred_targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 14,
+        "S04": 8,
+        "S05": 9
+      },
+      "morning_net": {
+        "S01": -6.428571428571429,
+        "S02": 7.428571428571429,
+        "S03": -3.857142857142857,
+        "S04": 2.142857142857143,
+        "S05": 0.7142857142857143
+      },
+      "target_shares": {
+        "S01": 0.8,
+        "S02": 0.2,
+        "S03": 0.68,
+        "S04": 0.4134615384615385,
+        "S05": 0.47115384615384615
+      },
+      "optimization": {
+        "projected_out_of_spec": 367,
+        "preferred_distance": 5,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    },
+    "week12": {
+      "source_week": 11,
+      "targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 12,
+        "S04": 9,
+        "S05": 11
+      },
+      "preferred_targets": {
+        "S01": 16,
+        "S02": 4,
+        "S03": 13,
+        "S04": 8,
+        "S05": 11
+      },
+      "morning_net": {
+        "S01": -6.571428571428571,
+        "S02": 8.714285714285714,
+        "S03": -3.7142857142857144,
+        "S04": 3.0,
+        "S05": -1.4285714285714286
+      },
+      "target_shares": {
+        "S01": 0.8,
+        "S02": 0.2,
+        "S03": 0.6695652173913044,
+        "S04": 0.39672131147540984,
+        "S05": 0.5652173913043479
+      },
+      "optimization": {
+        "projected_out_of_spec": 315,
+        "preferred_distance": 2,
+        "docked_bikes": 52,
+        "max_change_per_station": 1
+      },
+      "method": "previous-week projected availability"
+    }
+  },
+  "stability_rule": "two consecutive complete weekly points inside the preceding week's 3-sigma p-chart limits (maximum 20 weeks)",
+  "next_week_plan": "week12"
+}

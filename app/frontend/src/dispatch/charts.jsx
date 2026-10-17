@@ -137,3 +137,58 @@ export function PChart({ pc }) {
     </svg>
   )
 }
+
+// One network-level view of the weekly improvement loop. Each week's control limits
+// are the limits learned from the preceding complete week; they are not fixed at W1.
+export function WeeklyDeviationChart({ review }) {
+  const Wp = 560, H = 230, L = 42, R = 42, T = 16, B = 36
+  const weeks = review?.weeks ?? []
+  if (!weeks.length) return <p className="c-note">Weekly results appear after a complete week is available.</p>
+  const ymax = Math.max(0.05, ...weeks.flatMap((w) => [w.rate, w.ucl].filter((v) => Number.isFinite(v)))) * 1.12
+  const x = (idx) => L + (idx * (Wp - L - R)) / Math.max(1, weeks.length - 1)
+  const y = (v) => T + (1 - v / ymax) * (H - T - B)
+  const pathFor = (key) => {
+    const pts = weeks.flatMap((w, idx) => Number.isFinite(w[key]) ? [[x(idx), y(w[key])]] : [])
+    return pts.length > 1 ? line(pts) : ''
+  }
+  const best = review.best_week
+  const stable = review.stable_week
+  const pctText = (n) => `${(n * 100).toFixed(1)}%`
+  const ticks = [0, ymax / 2, ymax]
+  return (
+    <div>
+      <svg viewBox={`0 0 ${Wp} ${H}`} role="img"
+        aria-label={`Weekly share outside the 20 to 80 percent dock range; best week ${best ?? 'not available'}; ${stable ? `stable from week ${stable}` : 'still learning'}`}>
+        {ticks.map((v) => <g key={v}>
+          <line className="c-grid" x1={L} x2={Wp - R} y1={y(v)} y2={y(v)} />
+          <text x={L - 6} y={y(v) + 4} textAnchor="end">{pctText(v)}</text>
+        </g>)}
+        {stable && <rect x={x(stable - 1)} y={T} width={Wp - R - x(stable - 1)} height={H - T - B}
+          fill="rgba(35, 135, 82, 0.08)" />}
+        <path d={pathFor('ucl')} fill="none" stroke="#c43c35" strokeDasharray="6 4" strokeWidth="1.5" />
+        <path d={pathFor('center')} fill="none" stroke="#777" strokeDasharray="2 4" strokeWidth="1.5" />
+        <path d={pathFor('lcl')} fill="none" stroke="#c43c35" strokeDasharray="6 4" strokeWidth="1.5" />
+        <path d={pathFor('rate')} fill="none" stroke="#2463a6" strokeWidth="3" />
+        {weeks.map((w, idx) => <g key={w.week}>
+          <circle cx={x(idx)} cy={y(w.rate)} r={w.week === best ? 5.5 : 4}
+            fill={w.week === best || w.status === 'improved' ? '#18814d' : w.status === 'worse' ? '#c43c35' : '#2463a6'}
+            stroke="white" strokeWidth="1.5">
+            <title>{`Week ${w.week}: ${pctText(w.rate)} outside specification; ${w.status}; limits from ${w.baseline_week ? `Week ${w.baseline_week}` : 'baseline not yet set'}`}</title>
+          </circle>
+          <text x={x(idx)} y={H - B + 17} textAnchor="middle">W{w.week}</text>
+        </g>)}
+        {weeks.some((w) => Number.isFinite(w.ucl)) && <>
+          <text x={Wp - R + 4} y={y(weeks.at(-1).ucl) + 4}>UCL</text>
+          <text x={Wp - R + 4} y={y(weeks.at(-1).center) + 4}>CL</text>
+          <text x={Wp - R + 4} y={y(weeks.at(-1).lcl) + 4}>LCL</text>
+        </>}
+      </svg>
+      <div className="weekly-legend" aria-label="Chart legend">
+        <span><i className="weekly-key actual" />Outside spec</span>
+        <span><i className="weekly-key limits" />Previous week's 3σ limits</span>
+        <span><i className="weekly-key center" />Previous week's center</span>
+      </div>
+      <p className="status">Lowest deviation: {best ? `Week ${best}` : '—'}. {stable ? `Stable from Week ${stable} (two consecutive weeks inside their prior-week limits).` : 'Still learning.'}</p>
+    </div>
+  )
+}

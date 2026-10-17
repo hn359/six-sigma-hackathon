@@ -10,9 +10,10 @@ Demand model (data/README.md):
 - each rider rides to another station, picked with weights attract[station][period];
 - an empty station loses the rental; a full one sends the rider on to the emptiest station.
 Spec limits are 20% and 80% of a station's docks (app/qc.py: spec_limits). The baseline week has
-no van. Week one estimates the 06:00-to-10:00 net flow; the policy week and event day start with
-the same 80/20 overnight targets shown by BikeFlow. After every reading, the run rules check
-slot-adjusted net flow, and the van responds to a signal or an out-of-spec station.
+no van. Week one estimates the 06:00-to-10:00 net flow and sets the initial 80/20 policy week.
+Later weeks and the event day use the plan learned from the latest complete week. After every
+reading, the run rules check slot-adjusted net flow, and the van responds to a signal or an
+out-of-spec station. Each weekly learning update changes any station by at most one bike.
 """
 
 import csv
@@ -26,11 +27,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app.qc import (  # noqa: E402
-    dispatch_trigger, imr_limits_days, run_rules, spec_limits, start_plan, van_move,
+    dispatch_trigger, imr_limits_days, p_chart_phase, run_rules, spec_limits, start_plan, van_move,
 )
 from app.bikeflow.plan import overnight_shares  # noqa: E402
 
 OUT = ROOT / "data"
+MAX_POLICY_WEEKS = 20
+STABLE_WEEKS_REQUIRED = 2
+MAX_WEEKLY_SHIFT_PER_STATION = 1
 
 # Each station: id, name, lat, lon (approximate), docks, role, rates per period, attract per period.
 # Periods are set by the reading's time of day: period n covers times before bounds[n] (hours).
@@ -289,6 +293,129 @@ def overnight_start(city, rows_by_day):
     return starts, net, shares
 
 
+def _rider_paths(city, days):
+    """Cumulative rider-only flow for each station/day, with van moves removed."""
+    paths = []
+    for rows, _, _ in days:
+        by_station = {sid: [] for sid in city.ids}
+        for row in rows:
+            by_station[row["station_id"]].append(row)
+        daily = {}
+        for sid in city.ids:
+            points = by_station[sid]
+            cumulative, path = 0, [0]
+            for k in range(1, len(points)):
+                cumulative += points[k]["bikes"] - points[k - 1]["bikes"] - points[k - 1]["van_moved"]
+                path.append(cumulative)
+            daily[sid] = path
+        paths.append(daily)
+    return paths
+
+
+def adaptive_start(city, previous_days, preferred):
+    """Choose a conserved, in-spec opening allocation that minimizes prior-week projected OOS.
+
+    The previous week's seven rider-flow paths are replayed from each candidate integer start.
+    Ties prefer the ordinary 80/20 morning-flow recommendation; the total docked bikes is held
+    at the previous week's opening total. Each station can change by at most one bike per week,
+    which keeps the plan from chasing random week-to-week noise.
+    """
+    if len(previous_days) != 7:
+        raise ValueError("weekly learning needs exactly seven complete previous-week days")
+    # Keep the number of docked bikes fixed while changing their station allocation.
+    # Using the preceding week's actual opening total also avoids rounding drift from
+    # recomputing and rounding the 80/20 preference independently at every station.
+    target_total = sum(previous_days[0][0][i]["bikes"] for i in range(city.n))
+    previous_starts = [previous_days[0][0][i]["bikes"] for i in range(city.n)]
+    paths = _rider_paths(city, previous_days)
+    candidate_counts = []
+    for i, sid in enumerate(city.ids):
+        low, high = city.lim[i]
+        cost = {}
+        for start in range(max(low, previous_starts[i] - MAX_WEEKLY_SHIFT_PER_STATION),
+                           min(high, previous_starts[i] + MAX_WEEKLY_SHIFT_PER_STATION) + 1):
+            outside = sum(1 for day_path in paths
+                          for bikes in (min(city.cap[i], max(0, start + x)) for x in day_path[sid])
+                          if bikes < low or bikes > high)
+            cost[start] = (outside, abs(start - preferred[i]))
+        candidate_counts.append(cost)
+
+    # Dynamic program over stations and the fixed fleet total. Each score is ordered by projected
+    # out-of-spec readings first, then distance from the prior week's 80/20 recommendation.
+    states = {0: ((0, 0), [])}
+    for cost in candidate_counts:
+        nxt = {}
+        for total, (score, chosen) in states.items():
+            for bikes, local in cost.items():
+                new_total = total + bikes
+                if new_total > target_total:
+                    continue
+                new_score = (score[0] + local[0], score[1] + local[1])
+                current = nxt.get(new_total)
+                if current is None or new_score < current[0]:
+                    nxt[new_total] = (new_score, chosen + [bikes])
+        states = nxt
+    if target_total not in states:
+        raise ValueError(f"cannot place {target_total} bikes within all station spec bands")
+    score, starts = states[target_total]
+    return starts, {"projected_out_of_spec": score[0],
+                    "preferred_distance": score[1], "docked_bikes": target_total,
+                    "max_change_per_station": MAX_WEEKLY_SHIFT_PER_STATION}
+
+
+def weekly_quality(city, days):
+    """Daily network p values for readings outside the 20%-80% dock specification."""
+    n = city.n * city.slots
+    counts = []
+    for rows, _, _ in days:
+        bad = 0
+        for row in rows:
+            i = city.ids.index(row["station_id"])
+            low, high = city.lim[i]
+            bad += int(row["bikes"] < low or row["bikes"] > high)
+        counts.append(bad)
+    return {"daily_defects": counts, "readings_per_day": n,
+            "defects": sum(counts), "readings": n * len(counts),
+            "rate": sum(counts) / (n * len(counts)) if counts else 0.0}
+
+
+def compare_weeks(city, weeks):
+    """Attach previous-week p-chart limits and a plain stability state to each complete week."""
+    results = []
+    stable_run = 0
+    for number, days in enumerate(weeks, start=1):
+        current = weekly_quality(city, days)
+        if number == 1:
+            row = {"week": number, **current, "status": "baseline", "baseline_week": None,
+                   "center": current["rate"], "lcl": None, "ucl": None, "signals": 0}
+        else:
+            prior = results[-1]
+            chart = p_chart_phase(prior["daily_defects"], current["daily_defects"], current["readings_per_day"])
+            statuses = [point["status"] for point in chart["phase2"]]
+            signal_count = sum(status in ("worse", "improved") for status in statuses)
+            # One plotted point represents all readings in this complete week. Use
+            # that weekly sample size for its p-chart limits, then classify the same
+            # point against those limits. The per-day statuses remain diagnostic.
+            weekly_sigma = math.sqrt(prior["rate"] * (1 - prior["rate"]) / current["readings"])
+            weekly_lcl = max(0.0, prior["rate"] - 3 * weekly_sigma)
+            weekly_ucl = min(1.0, prior["rate"] + 3 * weekly_sigma)
+            if current["rate"] > weekly_ucl:
+                state = "worse"
+            elif current["rate"] < weekly_lcl:
+                state = "improved"
+            else:
+                state = "stable"
+            stable_run = stable_run + 1 if state == "stable" else 0
+            row = {"week": number, **current, "status": state, "baseline_week": number - 1,
+                   "center": prior["rate"], "lcl": weekly_lcl, "ucl": weekly_ucl,
+                   "daily_lcl": chart["lcl"], "daily_ucl": chart["ucl"],
+                   "sigma": chart["sigma"], "signals": signal_count,
+                   "daily_status": statuses}
+        row["stable_run"] = stable_run
+        results.append(row)
+    return results
+
+
 def build(key):
     city = City(key)
     rng = random.Random(city.cfg["seed"])
@@ -303,10 +430,53 @@ def build(key):
     policy = {"mu": mu, "imr": imr,
               "path": [[starts[i] + c for c in C[i]] for i in range(city.n)]}
     week2 = [run_day(city, rng, day(7 + d), starts, policy, trips_out=trips) for d in range(7)]
-    event = run_day(city, rng, day(14), starts, policy, event=True, trips_out=trips)
-    return {"city": city, "week1": week1, "week2": week2, "event": event, "mu": mu, "imr": imr,
-            "C": C, "plans": plans, "starts": starts, "morning_net": morning_net,
-            "shares": shares, "trips": trips}
+    weeks = [week1, week2]
+    adaptive_plans = {"week2": {"source_week": 1, "targets": dict(zip(city.ids, starts)),
+                                 "method": "80/20 morning-flow rule"}}
+    for week_number in range(3, MAX_POLICY_WEEKS + 1):
+        previous = weeks[-1]
+        prev_rows = [d[0] for d in previous]
+        pref, prev_morning_net, prev_shares = overnight_start(city, prev_rows)
+        learned_starts, score = adaptive_start(city, previous, pref)
+        mu, imr, C, _ = history(city, prev_rows)
+        policy = {"mu": mu, "imr": imr,
+                  "path": [[learned_starts[i] + c for c in C[i]] for i in range(city.n)]}
+        current = [run_day(city, rng, day((week_number - 1) * 7 + d), learned_starts,
+                           policy, trips_out=trips) for d in range(7)]
+        weeks.append(current)
+        adaptive_plans[f"week{week_number}"] = {
+            "source_week": week_number - 1, "targets": dict(zip(city.ids, learned_starts)),
+            "preferred_targets": dict(zip(city.ids, pref)),
+            "morning_net": prev_morning_net, "target_shares": prev_shares,
+            "optimization": score, "method": "previous-week projected availability"}
+        quality = compare_weeks(city, weeks)[-1]
+        # Stop only after two consecutive complete weeks show no p-chart special cause.
+        if quality["stable_run"] >= STABLE_WEEKS_REQUIRED:
+            break
+    next_number = len(weeks) + 1
+    final_rows = [d[0] for d in weeks[-1]]
+    preferred, final_morning_net, final_shares = overnight_start(city, final_rows)
+    next_starts, next_score = adaptive_start(city, weeks[-1], preferred)
+    adaptive_plans[f"week{next_number}"] = {
+        "source_week": next_number - 1, "targets": dict(zip(city.ids, next_starts)),
+        "preferred_targets": dict(zip(city.ids, preferred)),
+        "morning_net": final_morning_net, "target_shares": final_shares,
+        "optimization": next_score, "method": "previous-week projected availability"}
+    event_offset = len(weeks) * 7
+    latest_rows = [d[0] for d in weeks[-1]]
+    # The event is the next operating day after the final learning week, so use the
+    # plan learned from that final complete week (the plan for the next policy week).
+    event_starts = adaptive_plans[f"week{next_number}"]["targets"]
+    event_start_list = [event_starts[sid] for sid in city.ids]
+    mu, imr, C, _ = history(city, latest_rows)
+    event_policy = {"mu": mu, "imr": imr,
+                    "path": [[event_start_list[i] + c for c in C[i]] for i in range(city.n)]}
+    event = run_day(city, rng, day(event_offset), event_start_list, event_policy,
+                    event=True, trips_out=trips)
+    return {"city": city, "week1": week1, "week2": week2, "weeks": weeks, "event": event,
+            "mu": mu, "imr": imr, "C": C, "plans": plans, "starts": starts,
+            "morning_net": morning_net, "shares": shares, "adaptive_plans": adaptive_plans,
+            "weekly_quality": compare_weeks(city, weeks), "trips": trips}
 
 
 def write(folder, name, rows, fields):
@@ -329,19 +499,44 @@ def main(keys=None):
         sim = build(key)
         city, folder = sim["city"], OUT / key
         fields = ["station_id", "timestamp", "bikes", "capacity", "van_moved"]
-        write(folder, "week1_baseline.csv", [r for d in sim["week1"] for r in d[0]], fields)
-        write(folder, "week2_policy.csv", [r for d in sim["week2"] for r in d[0]], fields)
+        for name, days in [("week1_baseline.csv", sim["week1"]), ("week2_policy.csv", sim["week2"])]:
+            expected = "station_id,timestamp,bikes,capacity,van_moved\n" + "".join(
+                f"{r['station_id']},{r['timestamp']},{r['bikes']},{r['capacity']},{r['van_moved']}\n"
+                for d in days for r in d[0])
+            path = folder / name
+            if path.exists() and path.read_text(encoding="utf-8") != expected:
+                raise RuntimeError(f"refusing to change the frozen {path.relative_to(ROOT)}")
+            if not path.exists():
+                write(folder, name, [r for d in days for r in d[0]], fields)
+        for number, days in enumerate(sim["weeks"][2:], start=3):
+            write(folder, f"week{number}_policy.csv", [r for d in days for r in d[0]], fields)
         write(folder, "event_day.csv", sim["event"][0], fields)
+        for old in folder.glob("week*_policy.csv"):
+            try:
+                number = int(old.name[4:old.name.index("_")])
+            except ValueError:
+                continue
+            if number > len(sim["weeks"]):
+                old.unlink()
         log_fields = ["timestamp", "station_id", "trigger", "direction", "bikes_before", "bikes_moved",
                       "bikes_after", "from_station", "to_station", "station_bikes", "reserve_bikes"]
-        write(folder, "van_log.csv", [r for d in sim["week2"] for r in d[1]] + sim["event"][1], log_fields)
+        write(folder, "van_log.csv", [r for week in sim["weeks"][1:] for d in week for r in d[1]] + sim["event"][1], log_fields)
         # every completed rider trip, stamped with the reading that ends its interval
         write(folder, "trips.csv", sim["trips"], ["timestamp", "from_station", "to_station"])
+        (folder / "adaptive_plans.json").write_text(json.dumps({
+            "weeks": sim["weekly_quality"], "plans": sim["adaptive_plans"],
+            "stability_rule": f"two consecutive complete weekly points inside the preceding week's 3-sigma p-chart limits (maximum {MAX_POLICY_WEEKS} weeks)",
+            "next_week_plan": f"week{len(sim['weeks']) + 1}"
+        }, indent=2) + "\n", encoding="utf-8")
         write(folder, "stations.csv",
               [{"station_id": s[0], "name": s[1], "lat": s[2], "lon": s[3], "capacity": s[4], "role": s[5]}
                for s in city.st], ["station_id", "name", "lat", "lon", "capacity", "role"])
+        first_stamp = sim["weeks"][0][0][0][0]["timestamp"]
+        last_stamp = sim["event"][0][-1]["timestamp"]
         about = {"id": key, "name": city.cfg["name"], "interval_minutes": city.interval,
-                 "first_reading": city.cfg["start"], "last_reading": city.cfg["end"],
+                 "first_reading": first_stamp[11:], "last_reading": last_stamp[11:],
+                 "project_start": first_stamp[:10], "project_weeks": len(sim["weeks"]),
+                 "stable_week": next((w["week"] for w in sim["weekly_quality"] if w["stable_run"] >= STABLE_WEEKS_REQUIRED), None),
                  "readings_per_day": city.slots, "stations": city.n, "docks": city.cap, "fleet": city.fleet,
                  "seed": city.cfg["seed"], "simulated": True,
                  "event": {"slow_drain": {"station": city.cfg["event"]["drain"][0], "from": city.cfg["event"]["drain"][1],
@@ -355,6 +550,9 @@ def main(keys=None):
         print(f"   swing / allowed: {[(round(max(c) - min(c), 1), u - l) for c, (l, u) in zip(sim['C'], city.lim)]}")
         print(f"   week 2 starts {sim['starts']} (80/20 morning plan); sigma {[round(l['sigma'], 2) for l in sim['imr']]}")
         print(f"   out-of-spec readings: baseline {out_of_spec(sim, sim['week1'])}, policy {out_of_spec(sim, sim['week2'])}")
+        print("   weekly outside-spec rates: " + ", ".join(f"W{w['week']} {w['rate']:.1%} ({w['status']})"
+                                                             for w in sim["weekly_quality"]))
+        print(f"   stable week: {about['stable_week'] or 'not reached'}; event day: {last_stamp[:10]}")
         print(f"   lost rentals: baseline {sum(d[2]['lost'] for d in sim['week1'])}, policy {sum(d[2]['lost'] for d in sim['week2'])}")
         print(f"   van stops per day (policy): {[len(d[1]) for d in sim['week2']]}")
         print("   event day: " + "; ".join(f"{v['timestamp'][11:]} {v['station_id']} {v['trigger']} {v['bikes_moved']:+d}"

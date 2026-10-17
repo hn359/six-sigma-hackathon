@@ -154,7 +154,7 @@ def rolling_history(days_by_date, date, station_ids, fallback, window=ROLLING_DA
     the last `window` days before it, cleaned with qc.clean_baseline (readings beyond 3 sigma
     removed, then recomputed). Rider flow is net of van moves, so van-run days are fine to learn
     from. With fewer than 2 earlier days, the station keeps `fallback` (the week-1 history).
-    Only the charts use this; the van's own decisions keep the week-1 history."""
+    This is a chart-only diagnostic; the van continues using the phase baseline passed to day_frames."""
     prior = [d for d in sorted(days_by_date) if d < date][-window:]
     out = {}
     for sid in station_ids:
@@ -189,8 +189,9 @@ def _van_trip(day, k, station_ids, triggered=()):
 def day_frames(day, stations, hist, policy, chart_hist=None):
     """One frame per reading for one day. policy=True: expected path = night plan; False = start as run.
 
-    The van's decisions (x, severity, trigger, bikes_to_move) always use `hist` (week 1). The chart
-    fields (chart_x, chart_rule) use `chart_hist` when given (e.g. rolling_history), else the same.
+    The van's decisions (x, severity, trigger, bikes_to_move) use `hist`, the active phase baseline
+    learned from the preceding complete week. The chart fields (chart_x, chart_rule) use
+    `chart_hist` when given (e.g. a rolling or Week 1 comparison), else the same phase baseline.
 
     The fleet is taken to be as many bikes as docks; the reserve is the fleet minus docked bikes."""
     ids = [sid for sid in sorted(day) if sid in stations]
