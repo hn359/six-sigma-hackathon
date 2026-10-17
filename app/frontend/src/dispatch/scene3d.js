@@ -9,20 +9,20 @@ import maplibregl from 'maplibre-gl'
 const SCALE = 14                      // models are drawn 14x life size so they read at map zoom
 const DOCK_GAP = 0.85                 // metres between docks (life size)
 const RIDER_SCALE = 26                // cyclists are drawn larger still, so a single rider is easy to follow
-const STATUS = { ok: 0x3ddc84, back: 0x3ddc84, sig: 0xff4d4d, oos: 0xffb020, fix: 0x4da3ff }
+const STATUS = { ok: 0x45e3ff, back: 0x45e3ff, sig: 0xe5484d, oos: 0xe0a21a, fix: 0x6f88fc }   // Fairy palette
 
 // shared materials and geometries (one copy, many meshes)
 const mat = {
   plate: new THREE.MeshStandardMaterial({ color: 0x2a3036, roughness: 0.9 }),
   post: new THREE.MeshStandardMaterial({ color: 0x8c98a4, metalness: 0.6, roughness: 0.4 }),
-  frame: new THREE.MeshStandardMaterial({ color: 0x1e88e5, metalness: 0.3, roughness: 0.5 }),
+  frame: new THREE.MeshStandardMaterial({ color: 0x6f88fc, metalness: 0.3, roughness: 0.5 }),
   tyre: new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }),
   seat: new THREE.MeshStandardMaterial({ color: 0x222222 }),
   kiosk: new THREE.MeshStandardMaterial({ color: 0x3a434c, metalness: 0.4, roughness: 0.5 }),
   vanBody: new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.45, metalness: 0.15 }),
-  vanStripe: new THREE.MeshStandardMaterial({ color: 0xffc400, roughness: 0.5 }),
+  vanStripe: new THREE.MeshStandardMaterial({ color: 0xa163f7, roughness: 0.5 }),
   glass: new THREE.MeshStandardMaterial({ color: 0x1b2a3a, metalness: 0.8, roughness: 0.15 }),
-  lightbar: new THREE.MeshStandardMaterial({ color: 0xff9800, emissive: 0xff7a00, emissiveIntensity: 1.2 }),
+  lightbar: new THREE.MeshStandardMaterial({ color: 0x45e3ff, emissive: 0x45e3ff, emissiveIntensity: 1.2 }),
   head: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff3c0, emissiveIntensity: 1 }),
   tail: new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xaa0000, emissiveIntensity: 0.8 }),
   rim: new THREE.MeshStandardMaterial({ color: 0xb0b8c0, metalness: 0.8, roughness: 0.3 }),
@@ -94,11 +94,11 @@ function station(capacity) {
   const k = new THREE.Mesh(new THREE.BoxGeometry(0.45, 2.0, 0.6), mat.kiosk)
   k.position.set(kx, 1.12, 0)
   g.add(k)
-  const screenMat = new THREE.MeshStandardMaterial({ color: 0x3ddc84, emissive: 0x3ddc84, emissiveIntensity: 0.9 })
+  const screenMat = new THREE.MeshStandardMaterial({ color: 0x45e3ff, emissive: 0x45e3ff, emissiveIntensity: 0.9 })
   const screen = new THREE.Mesh(new THREE.BoxGeometry(0.47, 0.6, 0.45), screenMat)
   screen.position.set(kx, 1.5, 0)
   g.add(screen)
-  const beaconMat = new THREE.MeshStandardMaterial({ color: 0x3ddc84, emissive: 0x3ddc84, emissiveIntensity: 1.4 })
+  const beaconMat = new THREE.MeshStandardMaterial({ color: 0x45e3ff, emissive: 0x45e3ff, emissiveIntensity: 1.4 })
   const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), beaconMat)
   beacon.position.set(kx, 2.45, 0)
   g.add(beacon)

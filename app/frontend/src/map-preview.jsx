@@ -284,7 +284,7 @@ function Preview() {
             </div>
             <PChart pc={summary.pcharts[pStation]} />
             <p className="status">p-chart, one point per day: week 1 sets p̄ = {summary.pcharts[pStation].pbar.toFixed(3)},
-              UCL = {summary.pcharts[pStation].ucl.toFixed(3)}, LCL = {summary.pcharts[pStation].lcl.toFixed(3)}; green week-2 days are
+              UCL = {summary.pcharts[pStation].ucl.toFixed(3)}, LCL = {summary.pcharts[pStation].lcl.toFixed(3)}; cyan week-2 days are
               below the LCL ({summary.pcharts[pStation].phase2.filter((d) => d.status === 'improved').length} of 7).</p>
           </div>
         </section>

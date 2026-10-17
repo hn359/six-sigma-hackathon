@@ -5,23 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bikeshare Dispatch</title>
 <style>
-  :root { --bg:#f3f4f6; --card:#ffffff; --ink:#111827; --mute:#4b5563; --line:#e3e6eb; --accent:#1f5fbf;
-          --head:#0f1b2d; --rush:#ffb020; --soft:#eef3fb; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg:#0f1115; --card:#171a21; --ink:#eef0f3; --mute:#b4bac5; --line:#2a2f3a;
-            --accent:#7fb0f0; --head:#0b1220; --soft:#1b2433; } }
+  :root { --bg:#f7f8fd; --card:#ffffff; --ink:#1f2a44; --mute:#5b6680; --line:#e3e6f3; --accent:#6f88fc;
+          --accent2:#a163f7; --cyan:#45e3ff; --cream:#fdfff2;
+          --head:#2b3a52; --rush:#e0a21a; --soft:#f1ecfe; }   /* Fairy palette, white main theme */
   * { box-sizing:border-box; }
   html, body { margin:0; background:var(--bg); color:var(--ink);
                font:15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { background:var(--head); color:#fff; }
+  header { background:var(--head); color:#fff; border-bottom:3px solid transparent;
+           border-image:linear-gradient(90deg, #a163f7, #6f88fc, #45e3ff) 1; }
   header .in { max-width:1240px; margin:0 auto; padding:16px 20px 0; }
   header h1 { margin:0; font-size:20px; letter-spacing:-.01em; }
   header p { margin:2px 0 12px; color:#c3cddc; font-size:13px; }
-  header .repo { color:#fff; font-weight:600; } header .repo:hover { color:var(--rush); }
+  header .repo { color:#fff; font-weight:600; } header .repo:hover { color:var(--cyan); }
   [role="tablist"] { display:flex; gap:4px; }
   [role="tab"] { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:8px 8px 0 0;
                  padding:9px 18px; background:transparent; color:#c3cddc; }
-  [role="tab"]:hover { color:#fff; }
+  [role="tab"]:hover { color:#fff; background:rgba(161, 99, 247, .25); }
   [role="tab"][aria-selected="true"] { background:var(--bg); color:var(--ink); }
   [role="tab"]:focus-visible { outline:2px solid var(--rush); outline-offset:-2px; }
   #tool { display:block; width:100%; height:900px; border:0; background:var(--bg); }
@@ -54,8 +53,8 @@
   .rushchip { background:var(--rush); color:#111827; font-size:11px; font-weight:700; text-transform:uppercase;
               letter-spacing:.04em; padding:1px 7px; border-radius:999px; }
   .go { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:8px; padding:9px 18px;
-        background:#1f5fbf; color:#fff; }
-  .go:hover { background:#1a4f9f; }
+        background:linear-gradient(90deg, #a163f7, #6f88fc); color:#fff; }
+  .go:hover { background:linear-gradient(90deg, #8b4cf0, #5b74f0); }
   @media (max-width:600px) { [role="tab"] { padding:9px 12px; } .doc { padding:20px 16px 48px; } }
 </style>
 </head>

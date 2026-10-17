@@ -9,9 +9,9 @@ export const ITHACA_ZOOM = 14
 export const READING_EVERY_MIN = 15
 
 export const COLORS = {
-  empty: '#d62828', // red: too few bikes, nothing to rent
-  full: '#1f5fa8',  // blue: too many bikes, nowhere to return
-  ok: '#2b8a3e',    // green: in control
+  empty: '#e5484d', // red: too few bikes, nothing to rent
+  full: '#6f88fc',  // periwinkle: too many bikes, nowhere to return
+  ok: '#12b8da',    // cyan: in control (Fairy palette)
 }
 
 // severity: 0 in control, 1 eight in a row on one side, 2 two of three beyond
