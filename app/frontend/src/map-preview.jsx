@@ -11,7 +11,7 @@ import Map3D from './dispatch/Map3D.jsx'
 import { validateFrame } from './map/contract.js'
 import { createSimulationState, publishSimulationState } from './map/sync.js'
 import { bikesToMoveLabel, directionLabel, pct } from './map/stationMap.js'
-import { API_URL, fetchDatasets, fetchFrames, fetchSummary } from './api.js'
+import { API_URL, fetchDatasets, fetchFrames, fetchSummary, fetchTrips } from './api.js'
 import { useVan } from './dispatch/VanLayer.jsx'
 import { BikesChart, IChart, PChart } from './dispatch/charts.jsx'
 import { clock, feedEntries, stationStatus } from './dispatch/feed.js'
@@ -40,6 +40,7 @@ function Preview() {
   const [pStation, setPStation] = useState(0)
   const [selectedId, setSelectedId] = useState(null)
   const [status, setStatus] = useState('') // what the API is doing, or why it failed
+  const [tripsByTime, setTripsByTime] = useState({}) // rider trips per reading time, for the cyclists
 
   const frame = frames[Math.min(i, frames.length - 1)]
   const check = useMemo(() => (frame ? validateFrame(frame) : { ok: true, errors: [] }), [frame])
@@ -67,6 +68,20 @@ function Preview() {
       .catch((err) => { if (!cancelled) setStatus(`Cannot reach ${API_URL || 'the API'}/frames (${err.message}). Is the API running?`) })
     return () => { cancelled = true }
   }, [scenario, day, dataset, limits, about?.interval_minutes])
+
+  useEffect(() => {
+    let cancelled = false
+    setTripsByTime({})
+    fetchTrips(scenario, scenario === 'event' ? 0 : day, dataset)
+      .then((res) => {
+        if (cancelled) return
+        const by = {}
+        for (const t of res.trips) (by[t.timestamp] ??= []).push(t)
+        setTripsByTime(by)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [scenario, day, dataset])
 
   useEffect(() => { fetchDatasets().then(setDatasets).catch(() => {}) }, [])
   useEffect(() => { setSummary(null); setPStation(0); fetchSummary(dataset).then(setSummary).catch(() => {}) }, [dataset])
@@ -180,7 +195,9 @@ function Preview() {
       {frame && (
         <div className="map-grid">
           <Map3D frames={frames} i={Math.min(i, frames.length - 1)} van={van}
-            selectedId={selectedId} onSelect={setSelectedId} />
+            selectedId={selectedId} onSelect={setSelectedId}
+            nextTrips={tripsByTime[frames[Math.min(i + 1, frames.length - 1)]?.as_of] ?? []}
+            playing={playing} stepMs={stepMs} />
           <aside className="side">
             <h2>Stations</h2>
             <ActionList stations={stations} selectedId={selectedId} onSelect={setSelectedId} />

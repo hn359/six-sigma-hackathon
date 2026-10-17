@@ -446,6 +446,7 @@ Column-name mapping for raw GBFS is not built in yet: rename the columns first.
 | `GET /health` | `{"status": "ok"}` |
 | `GET /datasets` | every city: name, interval, readings per day, docks, fleet, event, dates per scenario |
 | `GET /frames/{week1\|week2\|event}?day=0..6&dataset=collegetown` | `{"frames": [Frame per reading], "chart": {station: {xbar, sigma, ucl, lcl, lsl, usl}}}` |
+| `GET /trips/{week1\|week2\|event}?day=0..6&dataset=…` | every rider trip of that day (`timestamp, from, to`), for the map's cyclists; display only, and a test checks it matches the readings exactly |
 | `GET /summary?dataset=…` | night plan (docks, limits, swing, allowed range, start, σ), `rush_times`, weekly `pcharts`, `kpis`, `warnings` |
 | `POST /replay` (multipart `readings`, `stations`) | frames for an upload, plus `history` (where the history came from) |
 | `GET /latest?dataset=…&scenario=event` | a stand-in for a live feed: the frame "now", cycling one reading every 5 seconds (not used by the page) |
@@ -468,6 +469,10 @@ the map's `validateFrame()`.
     whose screen and beacon light up in the status colour (the beacon pulses on a chart signal);
   - a ground **halo** shows severity; a **name card** shows the bikes "7/20" and the status;
   - the **van** is a 3D delivery van that drives its route and turns to face where it is going;
+  - **cyclists** (bike + rider, coloured jersey and helmet) ride the real simulated trips between
+    stations: while a reading is on screen, the riders of the next interval ride from start to end
+    station, so the next reading's bike counts already include them; they are drawn 26× life size;
+  - map **colours follow the time of day** (night, dawn, day, golden afternoon, sunset, dusk);
   - models are drawn **14× life size** so they stay readable at map zoom; the map needs internet
     for its tiles.
 - **Ranked list:** Jim's "act now" list, plus station detail (trigger, expected bikes, chart x).

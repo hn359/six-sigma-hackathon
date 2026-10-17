@@ -6,6 +6,7 @@ Datasets: every folder data/<id>/ holding stations.csv, week1_baseline.csv (no v
 week2_policy.csv and event_day.csv (with van moves) and about.json is loaded at startup.
 """
 
+import csv
 import json
 import time
 from pathlib import Path
@@ -44,7 +45,13 @@ def _load_all():
         stations = engine.parse_stations((folder / "stations.csv").read_text())
         days = {name: engine.parse_readings((folder / f).read_text()) for name, f in FILES.items()}
         about = json.loads((folder / "about.json").read_text()) if (folder / "about.json").exists() else {"id": folder.name}
-        out[folder.name] = {"stations": stations, "days": days, "about": about,
+        trips = {}
+        if (folder / "trips.csv").exists():   # every simulated rider trip, for the map's cyclists
+            with open(folder / "trips.csv") as fh:
+                for r in csv.DictReader(fh):
+                    trips.setdefault(r["timestamp"][:10], []).append(
+                        {"timestamp": r["timestamp"], "from": r["from_station"], "to": r["to_station"]})
+        out[folder.name] = {"stations": stations, "days": days, "about": about, "trips": trips,
                             "hist": engine.learn(days["week1"], sorted(stations))}
     if not out:
         raise RuntimeError("no datasets in data/: run python data/simulate.py")
@@ -150,6 +157,16 @@ async def replay(readings: UploadFile = File(...), stations: UploadFile = File(.
     if not out:
         raise HTTPException(400, "no readings to replay")
     return engine.clean({"frames": out, "chart": engine.chart_meta(hist), "history": source})
+
+
+@app.get("/trips/{scenario}")
+def trips(scenario: str, day: int = Query(0, ge=0), dataset: str = DEFAULT):
+    """Every rider trip of one day: the reading that ends its interval, where it started and ended.
+
+    Display only (the map's cyclists): the statistics use the station readings, not the trips."""
+    ds = _ds(dataset)
+    date, _ = _day(ds, scenario, day)
+    return {"dataset": dataset, "scenario": scenario, "date": str(date), "trips": ds["trips"].get(str(date), [])}
 
 
 @app.get("/summary")
