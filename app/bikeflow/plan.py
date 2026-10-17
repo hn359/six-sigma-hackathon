@@ -267,16 +267,37 @@ def overnight_shares(morning_net: Dict[str, Optional[float]], depart_share: floa
 def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) -> dict:
     s = ds.settings
     nxt = day + timedelta(days=1)
+    # The team's city datasets mark the end of the van-free Phase I week. Once it
+    # has been observed, keep using that week as the 80/20 baseline each night;
+    # week-two policy results must not quietly change the rule they are testing.
+    phase1_end = date.fromisoformat(s.phase1_through) if s.phase1_through else day
+    history_through = min(day, phase1_end)
     first, last = s.slot_of(datetime.strptime(s.morning_window[0], "%H:%M")),         s.slot_of(datetime.strptime(s.morning_window[1], "%H:%M"))
     window = range(first + 1, last + 1)     # flows into 06:15 ... 10:00
     latest, morning_net, hist_days, missing = {}, {}, {}, []
+    baseline_start = min((d for d in ds.days() if not s.phase1_through or
+                          d <= date.fromisoformat(s.phase1_through)), default=None)
+    phase1_dates = ([d for d in ds.days() if baseline_start and d >= baseline_start and
+                     (not s.phase1_through or d <= phase1_end)] if s.phase1_through else [])
+    required_days = ((phase1_end - baseline_start).days + 1
+                     if s.phase1_through and baseline_start else 0)
+    complete_phase1_days = []
+    if phase1_dates:
+        for d in phase1_dates:
+            if all(all(slot in ds.series(sid, d) for slot in range(first, last + 1))
+                   for sid in ds.stations()):
+                complete_phase1_days.append(d)
     for sid in ds.stations():
         r = _latest(ds, sid, day, s.n_slots - 1)
         if r is None:
             missing.append(sid)
             continue
         latest[sid] = r
-        hist = comparable_days(ds, sid, nxt, through=day)
+        hist = comparable_days(ds, sid, nxt, through=history_through)
+        # A day informs the morning pattern only when every reading needed to calculate
+        # each 15-minute net flow in the window is present. This avoids mixing partial days.
+        hist = [d for d in hist if all(slot - 1 in ds.series(sid, d) and slot in ds.series(sid, d)
+                                       for slot in window)]
         prof = [flow_profile(ds, sid, hist)[i] for i in window]
         reliable = bool(prof) and all(n >= s.min_history_days for _, n in prof)
         morning_net[sid] = sum(m for m, _ in prof) if reliable else None
@@ -302,6 +323,7 @@ def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) ->
         stations.append({"station_id": sid, "reading": r.ts.isoformat(timespec="minutes"),
                          "bikes": b, "capacity": cap, "occupancy": b / cap, "target": start,
                          "target_share": shares[sid], "role": role, "morning_net": m,
+                         "history_days": hist_days[sid], "history_day_type": s.kind(nxt),
                          "projected": None, "projection_basis": basis,
                          "gap": b - start, "desired": start, "spare": 0, "priority": pr,
                          "reason": (f"{role}: start at {shares[sid]:.0%} = {start} of {cap} docks"
@@ -320,5 +342,30 @@ def plan_overnight(ds: Dataset, day: date, depot_bikes: Optional[int] = None) ->
         reserve = depot_bikes
     if missing:
         notes.append(f"no reading on {day} for {', '.join(missing)}: left out of the plan")
+    calendar_complete = day >= phase1_end
+    observed_complete = (not s.phase1_through or
+                         (required_days > 0 and len(complete_phase1_days) == required_days))
+    baseline_complete = calendar_complete and observed_complete
+    baseline = {"source": "week 1 baseline" if s.phase1_through else "earlier readings",
+                "from": baseline_start.isoformat() if baseline_start else None,
+                "through": history_through.isoformat(),
+                "window": win,
+                "complete_days": len(complete_phase1_days) if s.phase1_through else max(hist_days.values(), default=0),
+                "required_days": required_days or s.min_history_days,
+                "complete": baseline_complete}
+    if not baseline_complete:
+        # Return readiness metadata only. Do not expose targets or transfer actions before
+        # the required, fully observed Week 1 baseline is available.
+        return {"kind": "overnight", "at": f"{day.isoformat()}T{s.close_time}",
+                "redistribute_by": f"{day.isoformat()}T22:00",
+                "for": f"{nxt.isoformat()}T{s.open_time}",
+                "ready_at": f"{nxt.isoformat()}T{s.open_time}",
+                "baseline": baseline, "rows": [], "transfers": [], "feasible": False,
+                "notes": notes + [f"Learning Week 1: {baseline['complete_days']} of "
+                                  f"{baseline['required_days']} complete morning days are available; "
+                                  "no station targets or transfer plan is published yet."]}
     return _plan(ds, stations, reserve, {"kind": "overnight", "at": f"{day.isoformat()}T{s.close_time}",
-                                         "for": f"{nxt.isoformat()}T{s.open_time}", "notes": notes})
+                                         "redistribute_by": f"{day.isoformat()}T22:00",
+                                         "for": f"{nxt.isoformat()}T{s.open_time}",
+                                         "ready_at": f"{nxt.isoformat()}T{s.open_time}",
+                                         "baseline": baseline, "notes": notes})

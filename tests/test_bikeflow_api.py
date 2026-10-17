@@ -1,9 +1,13 @@
 """End-to-end checks of the BikeFlow API with a tiny CSV built in the test (not the team dataset)."""
 
+from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.bikeflow.api import reset
+from app.bikeflow.api import load_text
+from app.bikeflow.config import Settings
 from app.bikeflow.server import app, load_default
 
 client = TestClient(app)
@@ -64,6 +68,76 @@ def test_plan_changes_with_the_time_filter():
     a = client.get("/api/bikeflow/plan", params={"at": "2026-10-07T08:00"}).json()
     b = client.get("/api/bikeflow/plan", params={"at": "2026-10-07T22:00"}).json()
     assert a["at"] != b["at"]
+
+
+def test_overnight_80_20_uses_week_one_baseline_every_night_after_week_one():
+    load_default()
+    summary = client.get("/api/bikeflow/summary").json()
+    phase1_end = date.fromisoformat(summary["settings"]["phase1_through"])
+    first_day = date.fromisoformat(summary["days"][0])
+    next_week_day = next(date.fromisoformat(d) for d in summary["days"]
+                         if date.fromisoformat(d) > phase1_end)
+
+    partial_week = client.get("/api/bikeflow/plan/overnight",
+                              params={"day": first_day.isoformat()}).json()
+    last_learning_night = client.get("/api/bikeflow/plan/overnight",
+                                     params={"day": phase1_end.isoformat()}).json()
+    later_night = client.get("/api/bikeflow/plan/overnight",
+                             params={"day": next_week_day.isoformat()}).json()
+
+    assert later_night["baseline"] == {
+        "source": "week 1 baseline", "from": summary["phase1_days"][0],
+        "through": phase1_end.isoformat(), "window": "06:00-10:00",
+        "complete_days": 7, "required_days": 7, "complete": True}
+    assert all(row["history_days"] >= 2 for row in later_night["rows"])
+    assert partial_week["baseline"]["complete"] is False
+    assert last_learning_night["baseline"]["complete"] is True
+    assert {r["station_id"]: (r["morning_net"], r["target_share"])
+            for r in later_night["rows"]} == {
+        r["station_id"]: (r["morning_net"], r["target_share"])
+        for r in last_learning_night["rows"]}
+    assert later_night["at"].startswith(next_week_day.isoformat() + "T")
+    assert later_night["redistribute_by"] == next_week_day.isoformat() + "T22:00"
+    assert later_night["ready_at"] == (next_week_day + date.resolution).isoformat() + "T06:00"
+
+
+def test_overnight_plan_is_withheld_until_all_week_one_station_mornings_are_complete():
+    lines = ["station_id,timestamp,bikes_available,capacity"]
+    days = [date(2026, 10, d) for d in range(5, 12)]
+    for day in days:
+        for sid in "ABCDE":
+            for hour, minute in [(6, 0), (6, 15), (6, 30), (6, 45), (7, 0),
+                                 (7, 15), (7, 30), (7, 45), (8, 0), (8, 15),
+                                 (8, 30), (8, 45), (9, 0), (9, 15), (9, 30),
+                                 (9, 45), (10, 0)]:
+                if day == date(2026, 10, 8) and sid == "C" and (hour, minute) == (8, 0):
+                    continue
+                lines.append(f"{sid},{day.isoformat()}T{hour:02d}:{minute:02d},10,20")
+            if day == days[-1]:
+                lines.append(f"{sid},{day.isoformat()}T22:00,10,20")
+    load_text("\n".join(lines), Settings(phase1_through=days[-1].isoformat(), weekends_differ=False))
+
+    response = client.get("/api/bikeflow/plan/overnight", params={"day": days[-1].isoformat()})
+
+    assert response.status_code == 200
+    plan = response.json()
+    assert plan["baseline"]["complete"] is False
+    assert plan["baseline"]["complete_days"] == 6
+    assert plan["baseline"]["required_days"] == 7
+    assert plan["rows"] == [] and plan["transfers"] == []
+    assert "no station targets or transfer plan is published" in plan["notes"][-1]
+
+
+def test_trip_events_returns_individual_rides_for_the_simulation_map():
+    load_default()
+    r = client.get("/api/bikeflow/trips/events", params={
+        "dataset": "collegetown", "start": "2026-10-19T18:15", "end": "2026-10-19T18:15"})
+    assert r.status_code == 200
+    assert r.json()["trips"]
+    assert all(t["timestamp"] == "2026-10-19T18:15" for t in r.json()["trips"])
+    assert all(t["from_station"] != t["to_station"] for t in r.json()["trips"])
+    assert client.get("/api/bikeflow/trips/events", params={
+        "dataset": "collegetown", "start": "2026-10-19T19:00", "end": "2026-10-19T18:00"}).status_code == 400
 
 
 def test_bad_inputs_are_400_not_500():

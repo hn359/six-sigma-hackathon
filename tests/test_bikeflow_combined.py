@@ -1,6 +1,7 @@
 """The combined server: Yash's console and API unchanged at /, BikeFlow beside it."""
 
 from pathlib import Path
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -52,8 +53,41 @@ def test_both_tools_read_the_same_readings(city, at):
     assert his == mine
 
 
+@pytest.mark.parametrize("city", ["collegetown", "downtown", "waterfront"])
+@pytest.mark.parametrize("scenario", ["week1", "week2", "event"])
+def test_every_scenario_has_an_exact_matching_station_snapshot(city, scenario):
+    frames = client.get(f"/frames/{scenario}", params={"dataset": city}).json()
+    frame = frames["frames"][10]  # 08:30 on the scenario's first day
+    day, at = frame["as_of"].split("T")
+    expected = {st["station_id"]: (st["bikes"], st["capacity"]) for st in frame["stations"]}
+    inventory = client.get("/api/bikeflow/inventory", params={
+        "start": day, "end": day, "dataset": city,
+    }).json()
+    actual = {}
+    for station in inventory["stations"]:
+        reading = next(point for point in station["series"] if point["t"] == f"{day}T{at}")
+        actual[station["station_id"]] = (reading["bikes"], reading["capacity"])
+    assert frames["date"] == day
+    assert actual == expected
+
+
 def test_his_console_is_served_at_root_when_built():
     if not DIST.exists():
         return                                   # build it with: cd app/frontend && npm ci && npm run build
     r = client.get("/")
     assert r.status_code == 200 and '<div id="root">' in r.text
+
+
+def test_production_side_by_side_uses_versioned_state_and_exact_snapshot_checks():
+    if not DIST.exists():
+        return
+    console = client.get("/")
+    scripts = re.findall(r'<script[^>]+src="([^"]+\.js)"', console.text)
+    assert console.status_code == 200 and scripts
+    asset = client.get("/" + scripts[0].removeprefix("./"))
+    assert asset.status_code == 200 and "sixsigma.simulation-state" in asset.text
+    dashboard = client.get("/bikeflow/")
+    assert dashboard.status_code == 200
+    assert "onSimulationMessage" in dashboard.text
+    assert "scenario date verified" in dashboard.text.lower()
+    assert "every station count" in dashboard.text.lower()

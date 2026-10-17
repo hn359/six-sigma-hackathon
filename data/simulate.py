@@ -10,9 +10,9 @@ Demand model (data/README.md):
 - each rider rides to another station, picked with weights attract[station][period];
 - an empty station loses the rental; a full one sends the rider on to the emptiest station.
 Spec limits are 20% and 80% of a station's docks (app/qc.py: spec_limits). The baseline week has
-no van. The policy week and the event day run the policy with app/qc.py: the nightly start plan,
-and after every reading the run rules on slot-adjusted net flow, with the van sent on a signal
-or when a station is out of spec.
+no van. Week one estimates the 06:00-to-10:00 net flow; the policy week and event day start with
+the same 80/20 overnight targets shown by BikeFlow. After every reading, the run rules check
+slot-adjusted net flow, and the van responds to a signal or an out-of-spec station.
 """
 
 import csv
@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 from app.qc import (  # noqa: E402
     dispatch_trigger, imr_limits_days, run_rules, spec_limits, start_plan, van_move,
 )
+from app.bikeflow.plan import overnight_shares  # noqa: E402
 
 OUT = ROOT / "data"
 
@@ -266,6 +267,28 @@ def history(city, rows_by_day):
     return mu, imr, C, plans
 
 
+def overnight_start(city, rows_by_day):
+    """Week-two opening inventory from week one's average opening-to-rush net flow.
+
+    Shares use BikeFlow's same 80/20 rule: the greatest average morning net loss starts at 80% of
+    capacity, the greatest net gain at 20%, and stations between them are scaled proportionally.
+    """
+    if not rows_by_day:
+        raise ValueError("week one must contain at least one day")
+    end_slot = 240 // city.interval
+    net = {}
+    for i, sid in enumerate(city.ids):
+        daily = []
+        for rows in rows_by_day:
+            station = [r for r in rows if r["station_id"] == sid]
+            daily.append(sum(station[k]["bikes"] - station[k - 1]["bikes"] - station[k - 1]["van_moved"]
+                             for k in range(1, end_slot + 1)))
+        net[sid] = sum(daily) / len(daily)
+    shares = overnight_shares(net, 0.8, 0.2)
+    starts = [math.floor(shares[sid] * city.cap[i] + 0.5) for i, sid in enumerate(city.ids)]
+    return starts, net, shares
+
+
 def build(key):
     city = City(key)
     rng = random.Random(city.cfg["seed"])
@@ -276,12 +299,14 @@ def build(key):
     bad = [city.ids[i] for i, p in enumerate(plans) if not p["feasible"]]
     if bad:
         raise RuntimeError(f"{key}: normal swing too wide for one start plan at {bad}: retune the rates")
-    starts = [p["start"] for p in plans]
-    policy = {"mu": mu, "imr": imr, "path": [p["path"] for p in plans]}
+    starts, morning_net, shares = overnight_start(city, [w[0] for w in week1])
+    policy = {"mu": mu, "imr": imr,
+              "path": [[starts[i] + c for c in C[i]] for i in range(city.n)]}
     week2 = [run_day(city, rng, day(7 + d), starts, policy, trips_out=trips) for d in range(7)]
     event = run_day(city, rng, day(14), starts, policy, event=True, trips_out=trips)
     return {"city": city, "week1": week1, "week2": week2, "event": event, "mu": mu, "imr": imr,
-            "C": C, "plans": plans, "trips": trips}
+            "C": C, "plans": plans, "starts": starts, "morning_net": morning_net,
+            "shares": shares, "trips": trips}
 
 
 def write(folder, name, rows, fields):
@@ -328,7 +353,7 @@ def main(keys=None):
         print(f"== {key}: {city.n} stations, docks {city.cap}, every {city.interval} min, {city.slots} readings/day")
         print(f"   spec limits {city.lim}")
         print(f"   swing / allowed: {[(round(max(c) - min(c), 1), u - l) for c, (l, u) in zip(sim['C'], city.lim)]}")
-        print(f"   starts {[p['start'] for p in sim['plans']]}  sigma {[round(l['sigma'], 2) for l in sim['imr']]}")
+        print(f"   week 2 starts {sim['starts']} (80/20 morning plan); sigma {[round(l['sigma'], 2) for l in sim['imr']]}")
         print(f"   out-of-spec readings: baseline {out_of_spec(sim, sim['week1'])}, policy {out_of_spec(sim, sim['week2'])}")
         print(f"   lost rentals: baseline {sum(d[2]['lost'] for d in sim['week1'])}, policy {sum(d[2]['lost'] for d in sim['week2'])}")
         print(f"   van stops per day (policy): {[len(d[1]) for d in sim['week2']]}")

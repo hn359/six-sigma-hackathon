@@ -157,6 +157,22 @@ async def trips(start: str, end: str, dataset: Optional[str] = None):
     return analyze.trip_matrix(e["trips"], e["dataset"].stations(), start, end)
 
 
+@router.get("/trips/events")
+async def trip_events(start: str, end: str, dataset: Optional[str] = None):
+    """Individual simulated rider trips during an ISO time window, for map animation."""
+    e = _entry(dataset)
+    if not e.get("trips"):
+        raise HTTPException(404, "this dataset has no trip records (data/<city>/trips.csv)")
+    try:
+        first, last = datetime.fromisoformat(start), datetime.fromisoformat(end)
+    except ValueError:
+        raise HTTPException(400, "start and end must be ISO times such as 2026-10-19T06:00")
+    if first > last:
+        raise HTTPException(400, "start must be before or equal to end")
+    return {"trips": [{"timestamp": t, "from_station": a, "to_station": b}
+                      for t, a, b in e["trips"] if start <= t <= end]}
+
+
 @router.get("/inventory")
 async def inventory(station: Optional[List[str]] = Query(None), start: Optional[str] = None,
                     end: Optional[str] = None, dataset: Optional[str] = None):

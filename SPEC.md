@@ -17,7 +17,7 @@ The examples after each `FILL IN` show the shape of an answer. They are not hint
 ## 2. User and use case (rubric: scope 5, user and use case 5)
 - **User:** the rebalancing dispatcher of a small municipal bikeshare, who runs the one rebalancing van and the reserve depot.
 - **Decision the tool helps them make, and when:** every 15 minutes during the day, whether to send the van and where (move bikes between stations, or bring or take reserve bikes); every night, how many bikes each station should start with at 06:00 tomorrow; and each week, whether the rebalancing policy has really reduced empty/full time.
-- **Why this matches the prompt:** it tracks when and where stations are empty or full, plans each station's start so its normal day stays in spec, sends the van only when a control chart shows a station straying from that normal day, and uses a p-chart to show whether the policy worked.
+- **Why this matches the prompt:** it tracks when and where stations are empty or full, uses week-one morning flow to set 80/20 opening targets, sends the van on a control-chart signal or an out-of-spec condition, and uses a p-chart to test whether this policy improves availability.
 
 ## 3. Inputs (rubric: minimal inputs 5)
 Only what this user can actually measure or already knows. Fewer is better; every input a user
@@ -37,15 +37,18 @@ every 15 minutes, starting Monday 06:00 (t0). A reading is **out of spec** when 
 (close to empty: a few riders can empty it) or `bikes` > USL = 16 (close to full: a few returns
 can fill it). The limits leave a 4-bike buffer at each end of a 20-dock station.
 
-- **Method** (the van moves only when the control chart signals):
-  1. **Every night: tomorrow's start and expected path.** For each station, C(k) = cumulative
-     historical mean rider net flow from 06:00 to slot k over the whole day, C = 0 at 06:00.
-     Feasible starts keep LSL ≤ s + C(k) ≤ USL for every k, so s runs from LSL − min C to
-     USL − max C; the start is the midpoint, rounded. The **expected path** is E(k) = s + C(k): the
-     station's normal day, rush hours included, inside 4-16 by construction. (The simulated demand
-     keeps every station's normal swing, max C − min C, at 12 bikes or less, so a start always
-     exists; if it does not, the tool says so.) Rush slots: a slot whose historical mean network
-     rentals are at least 1.5 × the mean over all slots, shown to the dispatcher.
+- **Method** (the van moves on a control-chart signal or an out-of-spec safety trigger):
+  1. **After week 1: learn the morning pattern and set week 2's opening inventory.** For each
+     station, average its rider net flow from 06:00 through 10:00 across the seven baseline days.
+     The station with the largest net loss (most bikes leaving) starts week 2 at 80% of its docks;
+     the station with the largest net gain (most bikes arriving) starts at 20%. Other stations are
+     placed proportionally between those shares; a station with no history or zero net flow starts
+     at 50%. This is the same 80/20 overnight recommendation shown by BikeFlow. The remaining
+     bikes stay in the depot. This allocation is a policy hypothesis, not a guarantee that every
+     station will stay in spec. For daytime dispatch, E(k) is each station's 80/20 start plus its
+     cumulative historical mean rider net flow from 06:00 to slot k over the whole day. Rush slots:
+     a slot whose historical mean network rentals are at least 1.5 x the mean over all slots,
+     shown to the dispatcher.
   2. **Every 15 minutes: I-MR chart of slot-adjusted net flow, per station** (graded core). Net
      flow = change in bikes since the last reading minus `van_moved` (riders only). x = net flow
      minus the station's historical mean for that slot, so the normal rush-hour pattern is not a
@@ -64,14 +67,12 @@ can fill it). The limits leave a 4-bike buffer at each end of a 20-dock station.
   4. **End of week: p-chart, one chart per station, one point per day** (did the policy work?).
      n = 64 readings a day, d = readings out of spec, p = d / n. Phase I: pbar = sum(d) / sum(n)
      over week 1 (no rebalancing, every station starts at 10), limits pbar ± 3·sqrt(pbar(1 −
-     pbar)/n), LCL floored at 0. Phase II: week 2 (nightly start + chart-driven van) against
+     pbar)/n), LCL floored at 0. Phase II: week 2 (80/20 opening placement + chart-driven van) against
      week 1's limits. Below LCL = the policy really reduced out-of-spec time; above UCL = worse.
-- **Why it fits the use case:** the predictable part of the day (the rush-hour drain and fill) is
-  handled the night before by the start plan; what is left is variation the history did not
-  expect, which is exactly what a control chart detects. So the van moves on statistical evidence,
-  not blindly and not on noise. Charting net flow against its usual slot value (not raw bike
-  counts, which drift on purpose every rush hour) keeps the chart valid; run rules catch a slow
-  drift before it empties a station. The p-chart then tests whether out-of-spec time really fell.
+- **Why it fits the use case:** the 80/20 opening allocation aims to place more bikes where
+  morning rentals start and leave more empty docks where morning trips end. It is a policy
+  hypothesis, not a guarantee: the van and weekly p-chart show whether availability improves.
+  Slot-adjusted net flow and run rules detect unusual drift beyond the normal time-of-day pattern.
 - **Assumptions and how the tool checks them:** (1) I-MR: the slot-adjusted net flows are roughly
   independent, normal and similar in spread all day; the tool reports their lag-1 autocorrelation
   and a normal Q-Q plot in the demo. Run rules raise false alarms more often than rule 1 alone
@@ -131,10 +132,10 @@ Fixed for every team:
   points below the band mean the policy worked.
 
 ## 7. Test datasets and codebook (rubric: demo 10, datasets 5, codebook 5)
-2-3 small CSVs in `data/`, invented but shaped like real field data, each showing one behavior.
+Three simulated city datasets in `data/`, invented but shaped like real field data, each showing different station sizes, demand profiles, and outcomes.
 `data/README.md` is the codebook: every file, every column with units, and what it would take to
 collect this data for real.
-- **Datasets** (made by a seeded simulation, `data/simulate.py`): three simulated cities in `data/<city>/`, chosen to differ (Collegetown: 5 × 20 docks, 15-minute readings; Downtown: 6 stations of 12-31 docks, 10-minute readings; Waterfront: 4 stations of 15-30 docks, 08:00-22:45, leisure demand). Each has `week1_baseline.csv` (7 days, no van), `week2_policy.csv` (7 days, night plan + chart-driven van; far fewer out-of-spec readings), `event_day.csv` (one day with a planted slow drain and a planted crowd that the I-MR chart or the safety net must catch), `van_log.csv`, `stations.csv` and `about.json`. Collegetown is the reference city for every number in section 4. The codebook is `data/README.md`; the full method is in the README.
+- **Datasets** (made by a seeded simulation, `data/simulate.py`): week 1 is a no-van baseline; week 2 starts from the 80/20 morning-flow plan and runs chart-driven dispatch; event day adds a planted slow drain and crowd. The 80/20 policy reduces out-of-spec readings in Collegetown and Downtown but raises them in Waterfront (607 to 165, 838 to 213, and 186 to 238 respectively), so the weekly p-chart is needed to judge the result. Every file and column is documented in `data/README.md`.
 
 ## 8. Documentation and reproducibility (rubric: docs 10, public repo 5)
 - `README.md` says what the tool does, for whom, every input and parameter, how to run it in one
@@ -145,8 +146,9 @@ collect this data for real.
 ## 9. Out of scope
 What we will NOT build, so nobody (human or agent) builds it by accident.
 - Default: logins, databases, real customer data, a second statistic before the first one is tested.
-- No van routing or travel-time model (one van, one stop per reading, no distances); no weekend,
-  weather or seasonal demand; no live feed connection (CSV files only); no broken-dock repair model.
+- No van routing or travel-time model (one van, one stop per reading, no distances, van capacity or
+  labor limits); no weekend, weather or seasonal demand; no live feed connection (CSV files only);
+  no broken-dock repair model; no multi-city comparison.
 - No machine-learning forecasting (the BikeFlow module in `app/bikeflow/` uses historical averages
   only, and says so).
 

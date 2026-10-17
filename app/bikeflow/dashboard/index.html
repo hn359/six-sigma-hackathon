@@ -6,6 +6,7 @@
 <title>BikeFlow QC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css">
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <style>
   :root { --bg:#f3f4f6; --card:#ffffff; --ink:#111827; --mute:#5b6270; --line:#e3e6eb; --accent:#1f5fbf;
@@ -75,6 +76,59 @@
   .move .why { font-size:12px; color:var(--mute); }
   .move .tag { float:right; font-size:11px; font-weight:700; letter-spacing:.04em; }
   .nomoves { color:var(--mute); padding:8px 0; }
+  .night-steps { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  .night-step { border:1px solid var(--line); border-radius:999px; padding:6px 12px; background:var(--bg); font-size:12px; }
+  .night-step b { margin-right:4px; }
+  .night-brief { display:grid; gap:9px; grid-template-columns:repeat(auto-fit,minmax(205px,1fr)); margin:10px 0; }
+  .night-brief-card { border:1px solid var(--line); border-radius:9px; padding:10px 12px; background:var(--bg); }
+  .night-brief-card .label { color:var(--mute); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  .night-brief-card strong { display:block; font-size:15px; margin:2px 0; }
+  .night-brief-card small { color:var(--mute); }
+  .night-brief-card ul { list-style:none; margin:6px 0 0; padding:0; font-size:12px; }
+  .night-brief-card li { padding:2px 0; }
+  .sync-panel { display:none; margin:12px 0; padding:14px 16px; border:1px solid var(--line); border-left:5px solid var(--good); border-radius:12px; background:linear-gradient(110deg,var(--card),var(--bg)); box-shadow:0 3px 12px rgba(16,24,40,.06); }
+  body.follow .sync-panel { display:block; }
+  .sync-panel[data-state="loading"] { border-left-color:var(--accent); }
+  .sync-panel[data-state="stale"], .sync-panel[data-state="mismatch"], .sync-panel[data-state="error"] { border-left-color:var(--crit); }
+  .sync-title { display:flex; align-items:center; gap:11px; }
+  .sync-dot { width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:var(--good); box-shadow:0 0 0 4px rgba(47,133,90,.13); }
+  [data-state="loading"] .sync-dot { background:var(--accent); box-shadow:0 0 0 4px rgba(31,95,191,.12); }
+  [data-state="stale"] .sync-dot, [data-state="mismatch"] .sync-dot, [data-state="error"] .sync-dot { background:var(--crit); box-shadow:0 0 0 4px rgba(197,48,48,.12); }
+  .sync-heading small { display:block; color:var(--mute); font-size:10px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+  .sync-heading strong { display:block; font-size:16px; line-height:1.25; }
+  .sync-badge { margin-left:auto; border-radius:999px; padding:4px 10px; color:var(--good); background:rgba(47,133,90,.1); font-size:11px; letter-spacing:.05em; font-weight:800; }
+  [data-state="loading"] .sync-badge { color:var(--accent); background:rgba(31,95,191,.1); }
+  [data-state="stale"] .sync-badge, [data-state="mismatch"] .sync-badge, [data-state="error"] .sync-badge { color:var(--crit); background:rgba(197,48,48,.1); }
+  .sync-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-top:12px; }
+  .sync-field { min-width:0; border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:var(--card); }
+  .sync-field span { display:block; color:var(--mute); font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+  .sync-field b { display:block; overflow-wrap:anywhere; color:var(--ink); font-size:13px; font-variant-numeric:tabular-nums; }
+  .sync-detail { margin:9px 0 0; color:var(--mute); font-size:12px; }
+  .sync-detail:empty { display:none; }
+  .plan-targets { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:5px 10px; margin-top:6px; font-size:12px; }
+  .plan-targets span { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding:2px 0; }
+  #nightmap { width:100%; height:min(68vh,620px); min-height:390px; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#dce6ee; }
+  .map-note { border:1px solid var(--line); border-radius:10px; background:var(--bg); padding:14px; margin:10px 0; }
+  .map-legend { display:flex; flex-wrap:wrap; gap:10px 18px; margin:8px 0; color:var(--mute); font-size:12px; }
+  .map-routes { margin:10px 0 0; padding:0; list-style:none; display:grid; gap:6px; }
+  .map-routes li { background:var(--bg); border-radius:7px; padding:7px 10px; }
+  .night-marker { width:76px; text-align:center; color:#15283e; font:10px/1.1 Inter,system-ui,sans-serif; cursor:pointer; }
+  .night-marker .station-name { display:block; max-width:76px; margin:0 auto 3px; padding:3px 4px; border-radius:5px; background:#fff;
+    box-shadow:0 2px 7px #14253b55; font-weight:700; white-space:nowrap; }
+  .night-cube { display:block; width:34px; margin:0 auto; padding:6px 2px; border:2px solid #42627e; border-radius:5px;
+    background:linear-gradient(145deg,#f8fbff,#b9cbdc); box-shadow:4px 4px 0 #6e8295,6px 8px 10px #182c4055; font-size:13px; font-weight:800; }
+  .night-dock { min-width:0; border-radius:2px; background:#d4dce4; border:1px solid #aab8c6; }
+  .night-dock.full { background:linear-gradient(135deg,#51a3ed,#1766ae); border-color:#10528c; box-shadow:inset -2px -1px #124b7c; }
+  .night-count { display:block; width:max-content; margin:3px auto 0; padding:3px 5px; color:#fff; background:#173b5e;
+    border-radius:4px; font-size:10px; font-weight:700; box-shadow:0 3px 6px #14253b55; }
+  .night-marker-anchor { background:none; border:0; }
+  .popup-rack { display:grid; grid-template-columns:repeat(5,12px); gap:3px; width:max-content; margin:7px 0; padding:6px;
+    border:1px solid #7890a8; border-radius:5px; background:#eef4f9; }
+  .popup-rack span { height:10px; border-radius:2px; background:#cbd5df; }
+  .popup-rack span.full { background:#2878bd; }
+  .night-route { stroke:#1378c8; stroke-width:5; opacity:.9; filter:drop-shadow(0 1px 2px #122b4666); }
+  .maplibregl-popup-content { font:13px/1.55 Inter,system-ui,sans-serif; border-radius:8px; }
+  .maplibregl-ctrl-attrib { font-size:10px; }
   .move.caught { border-left-color:#0ca30c; } .move.missed { border-left-color:#d03b3b; }
   .board { display:grid; gap:10px; }
   .row { display:grid; grid-template-columns:minmax(150px,220px) 1fr minmax(170px,240px); gap:14px; align-items:center; }
@@ -122,6 +176,7 @@
     <label>Replace data (CSV) <input type="file" id="file" accept=".csv"></label>
   </div>
   <div id="status" class="msg"></div>
+  <div id="sync-state" class="sync-panel" data-state="loading" role="status" aria-live="polite"></div>
   <div class="kpis" id="kpis"></div>
 </header>
 <main>
@@ -167,13 +222,19 @@
   </section>
 
   <section>
-    <div class="eyebrow">05 &middot; Overnight plan</div><h2>Tonight at closing: set up tomorrow's start</h2>
-    <p class="how">Where riders mostly <b>leave</b> in the morning, the station starts full (up to 80%) so there are bikes to take. Where they mostly <b>arrive</b>, it starts nearly empty (down to 20%) so there are docks to park in. Based on each station's average morning flow.</p>
-    <div class="moves" id="nightmoves"></div>
-    <h3>Bikes at each station: at 10 PM and at tomorrow's 6 AM start</h3>
-    <div id="nightbars"></div>
+    <div class="eyebrow">05 &middot; Tomorrow's bike plan</div><h2>Use Week 1's pattern to set bikes tonight</h2>
+    <p class="how">Week 1 teaches us where morning rides start and end. After Week 1, each night the van uses that pattern to set tomorrow's bikes by 10 PM. Stations are ready for riders at 6 AM.</p>
+    <div class="night-steps" aria-label="How the overnight plan works">
+      <div class="night-step"><b>Week 1</b> learn the pattern</div><div class="night-step"><b>10 PM</b> move the bikes</div><div class="night-step"><b>6 AM</b> stations are ready</div>
+    </div>
+    <p class="how">Rule: the station riders most often leave gets up to <b>80% full</b>; the station they most often arrive at gets down to <b>20% full</b>, leaving room for returned bikes.</p>
+    <div class="night-brief" id="nightmoves"></div>
+    <h3>Where the bikes will be tomorrow</h3>
+    <p class="how">The number on each raised station shows planned bikes / capacity. Click a station to see its dock layout and Week 1 pattern. Blue lines show bike transfers, not driving directions.</p>
+    <div id="nightpicture" aria-live="polite"></div>
     <div id="nightmsg"></div>
-    <details><summary>Table: every station's start and why</summary><div class="scroll"><table id="night"></table></div></details>
+    <details><summary>Show the exact counts</summary><h3>Station inventory before and after</h3><div id="nightbars"></div>
+      <h3>Full recommendation details</h3><div class="scroll"><table id="night"></table></div></details>
   </section>
 
   <section>
@@ -234,10 +295,16 @@ async function get(path, params = {}) {
   for (const [k, v] of Object.entries(params)) {
     if (Array.isArray(v)) v.forEach(x => q.append(k, x)); else if (v !== "" && v != null) q.append(k, v);
   }
-  const r = await fetch(`${API}/${path}?${q}`);
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.detail || r.statusText);
-  return body;
+  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const r = await fetch(`${API}/${path}?${q}`, { signal:controller.signal });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    return body;
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error(`${path} request timed out after 10 seconds`);
+    throw e;
+  } finally { clearTimeout(timeout); }
 }
 const msg = (id, text, cls = "warn") => $(id).innerHTML = text ? `<div class="msg ${cls}">${esc(text)}</div>` : "";
 const chosen = () => [...$("stations").selectedOptions].map(o => o.value);
@@ -297,6 +364,7 @@ function setInfo(body) {
   $("status").textContent = `${body.dataset_name || body.dataset || ""}: ${body.stations.length} stations, ${days.length} days (${days[0]} to ${days[days.length - 1]}), ${body.readings} readings every ${s.interval_min} min (${s.open_time}-${s.close_time}); fleet ${s.fleet}, spec ${Math.round(s.band_low_share * 100)}-${Math.round(s.band_high_share * 100)}% of each station's docks. ` +
     `Net flow: ${body.flow_source}.` + (body.issue_count ? ` ${body.issue_count} rows skipped (first: ${body.issues[0]})` : "");
   loadAll();
+  if (FOLLOW && simulationState) applySimulationState(simulationState, ++syncValidationId);
 }
 
 async function loadAll() {
@@ -710,15 +778,113 @@ function planBars(id, p, overnight) {
     text: overnight ? `dotted marks: ${Math.round(S.arrive_share * 100)}% (room to park) and ${Math.round(S.depart_share * 100)}% (bikes to take) of each station's docks; solid tick = docks`
                     : `green = in spec (${Math.round(S.band_low_share * 100)}-${Math.round(S.band_high_share * 100)}% of docks); solid tick = docks` }];
   plot(id, [
-    { type:"bar", orientation:"h", name: overnight ? "6 AM start (after the van)" : "after these moves", y: ticks, x: rows.map(r => r.after),
+    { type:"bar", orientation:"h", name: overnight ? "6 AM readiness target" : "after these moves", y: ticks, x: rows.map(r => r.after),
       marker:{ color: rows.map(r => stationColor(r.station_id)) }, text: rows.map(r => `<b>${r.after}</b>`), textposition:"outside", cliponaxis:false,
       textfont:{ color: ink() }, hovertemplate:"%{x} bikes<extra></extra>" },
-    { type:"bar", orientation:"h", name: overnight ? "at 10 PM" : "now", y: ticks, x: rows.map(r => r.bikes),
+    { type:"bar", orientation:"h", name: overnight ? "latest station snapshot" : "now", y: ticks, x: rows.map(r => r.bikes),
       marker:{ color: dark() ? "#6f6e69" : "#c9c8c2" }, text: rows.map(r => r.bikes), textposition:"outside", cliponaxis:false,
       textfont:{ color: muted() }, hovertemplate:"%{x} bikes<extra></extra>" } ],
     theme({ barmode:"group", bargap:0.3, bargroupgap:0.08, height: 90 + 62 * rows.length, margin:{ t:28, r:30, b:56, l:10 },
       xaxis:{ range:[0, capMax + 1], title:"bikes", gridcolor: grid() }, yaxis:{ automargin:true },
       legend:{ orientation:"h", y:-0.18, traceorder:"reversed" }, shapes, annotations: notes }));
+}
+let nightMap = null, nightMarkers = [], maplibrePromise = null, nightPlanSignature = null;
+async function getMapLibre() {
+  if (!maplibrePromise) maplibrePromise = import("https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs");
+  return maplibrePromise;
+}
+function clockText(value) {
+  if (!value) return "10 PM";
+  const h = Number(value.slice(11, 13)), m = value.slice(14, 16);
+  return `${h % 12 || 12}:${m} ${h < 12 ? "AM" : "PM"}`;
+}
+function clearNightMap(message = "") {
+  if (nightMap) { nightMap.remove(); nightMap = null; }
+  nightMarkers = [];
+  nightPlanSignature = null;
+  $("nightpicture").innerHTML = message ? `<div class="map-note" role="status">${esc(message)}</div>` : "";
+}
+function nightSignature(p) {
+  return JSON.stringify({ city, day:$ ("end").value, depot:$ ("depot").value, baseline:p.baseline,
+    rows:p.rows.map(r => [r.station_id,r.bikes,r.after,r.capacity,r.target_share,r.morning_net]),
+    transfers:p.transfers.map(t => [t.from,t.to,t.bikes]) });
+}
+function renderNightBrief(p) {
+  const usable = p.rows.filter(r => Number.isFinite(r.morning_net));
+  const departures = usable.filter(r => r.morning_net < 0).sort((a,b) => a.morning_net-b.morning_net)[0];
+  const arrivals = usable.filter(r => r.morning_net > 0).sort((a,b) => b.morning_net-a.morning_net)[0];
+  const transfers = p.transfers.filter(t => t.bikes > 0);
+  const moved = transfers.reduce((n,t) => n+t.bikes,0);
+  const pattern = usable.length
+    ? `<div class="night-brief-card"><span class="label">Most morning rides start</span><strong>${departures ? esc(label(departures.station_id)) : "No clear departure station"}</strong><small>${departures ? `${Math.abs(departures.morning_net).toFixed(1)} more bikes leave than arrive on an average morning` : "Week 1 shows no net departures"}</small></div>
+       <div class="night-brief-card"><span class="label">Most morning rides end</span><strong>${arrivals ? esc(label(arrivals.station_id)) : "No clear arrival station"}</strong><small>${arrivals ? `${arrivals.morning_net.toFixed(1)} more bikes arrive than leave on an average morning` : "Week 1 shows no net arrivals"}</small></div>`
+    : `<div class="night-brief-card"><span class="label">Week 1 pattern</span><strong>Still learning</strong><small>Not enough morning readings yet to identify the busiest start and end stations.</small></div>`;
+  const moveText = transfers.length
+    ? transfers.map(t => `<li>${esc(short(t.from))} &rarr; ${esc(short(t.to))}: <b>${t.bikes}</b></li>`).join("")
+    : "No moves needed: stations are already at their target.";
+  const b = p.baseline || {}, from = b.from || b.through || "unknown", through = b.through || "unknown";
+  const targets = p.rows.map(r => `<span><b>${esc(label(r.station_id))}</b><span>${r.after} / ${r.capacity} bikes</span></span>`).join("");
+  const evidence = `<div class="night-brief-card"><span class="label">Evidence used</span><strong>${esc(from)} to ${esc(through)}</strong><small>${b.complete_days ?? "?"} of ${b.required_days ?? "?"} complete days &middot; ${esc(b.window || "morning window")} &middot; per-station sample counts below</small><div class="plan-targets">${p.rows.map(r => `<span><b>${esc(label(r.station_id))}</b><span>${r.history_days ?? "?"} days &rarr; ${r.after} / ${r.capacity}</span></span>`).join("")}</div></div>`;
+  $("nightmoves").innerHTML = evidence + pattern + `<div class="night-brief-card"><span class="label">Tomorrow's opening counts</span><strong>${p.rows.length} stations planned</strong><div class="plan-targets">${targets}</div></div><div class="night-brief-card"><span class="label">Tonight by 10 PM</span><strong>${moved} bike${moved === 1 ? "" : "s"} moved</strong>${transfers.length ? `<ul>${moveText}</ul>` : `<small>${esc(moveText)}</small>`}</div>`;
+}
+async function renderNightMap(p) {
+  const rows = info.stations.map(sid => p.rows.find(r => r.station_id === sid)).filter(Boolean);
+  const located = rows.map(r => {
+    const place = info.places?.[r.station_id];
+    return place && Number.isFinite(Number(place.lat)) && Number.isFinite(Number(place.lon))
+      ? { ...r, lat:Number(place.lat), lon:Number(place.lon) } : null;
+  }).filter(Boolean);
+  if (!located.length) { clearNightMap("This dataset has no station coordinates, so the stations cannot be placed on a map. Use a city dataset with mapped locations."); return false; }
+  const panel = document.createElement("div");
+  panel.innerHTML = `<div class="night-picture-head"><b>Week 1 measured through ${esc(p.baseline.through)}</b>
+    <span>Complete van moves by ${esc(clockText(p.redistribute_by))} on ${esc(p.redistribute_by.slice(0,10))} &rarr; ready at 6 AM ${esc(p.ready_at.slice(0,10))}</span></div>
+    <div class="map-legend"><span>Number = bikes planned for 6 AM</span><span>Blue dock = planned bike</span>
+    <span>Grey dock = empty space</span><span>Blue line = bike transfer</span><span>Drag to rotate; scroll to zoom</span></div>
+    <div id="nightmap" aria-label="Tilted three-dimensional OpenStreetMap with planned station inventories"></div>
+    `;
+  $("nightpicture").replaceChildren(panel);
+  const center = [located.reduce((n,r)=>n+r.lon,0)/located.length, located.reduce((n,r)=>n+r.lat,0)/located.length];
+  let lib;
+  try {
+    lib = await getMapLibre();
+    nightMap = new lib.Map({ container:"nightmap", style:"https://tiles.openfreemap.org/styles/liberty",
+      center, zoom:15.5, pitch:62, bearing:-17, maxPitch:82, attributionControl:{ compact:false } });
+  } catch (e) { clearNightMap(e.message || "The 3D map could not start. Try a browser with WebGL enabled."); return false; }
+  nightMap.addControl(new lib.NavigationControl({ visualizePitch:true }), "top-right");
+  const bounds = located.reduce((b,r)=>b.extend([r.lon,r.lat]), new lib.LngLatBounds());
+  if (located.length > 1) nightMap.fitBounds(bounds, { padding:90, maxZoom:16.5, pitch:62, bearing:-17, duration:0 });
+  for (const r of located) {
+    const docks = Array.from({length:r.capacity}, (_,i) => `<span class="night-dock ${i < r.after ? "full" : ""}" aria-hidden="true"></span>`).join("");
+    const markerEl = document.createElement("div");
+    markerEl.className = "night-marker";
+    markerEl.innerHTML = `<span class="station-name">${stName(r.station_id)}</span><span class="night-cube">${r.after}</span><span class="night-count">${r.after} / ${r.capacity}</span>`;
+    const flow = r.morning_net == null ? "Week 1 flow unavailable"
+      : r.morning_net < 0 ? `${Math.abs(r.morning_net).toFixed(1)} net bikes leave during 6\u201310 AM`
+      : r.morning_net > 0 ? `${r.morning_net.toFixed(1)} net bikes arrive during 6\u201310 AM` : "Morning arrivals and departures balance";
+    const popup = new lib.Popup({ offset:26, maxWidth:"280px" }).setHTML(`<b>${stName(r.station_id)}</b><br>${esc(flow)}<div class="popup-rack" aria-label="${r.after} planned bikes out of ${r.capacity} docks">${docks}</div>Week 1: ${esc(r.role)}<br>Latest: ${r.bikes} / ${r.capacity}<br>At 6 AM: <b>${r.after} / ${r.capacity}</b> (${Math.round(r.target_share*100)}% full)`);
+    const marker = new lib.Marker({ element:markerEl, anchor:"bottom" }).setLngLat([r.lon,r.lat]).setPopup(popup).addTo(nightMap);
+    nightMarkers.push(marker);
+  }
+  const features = [];
+  for (const t of p.transfers.filter(x => x.bikes > 0)) {
+    const from = located.find(r => r.station_id === t.from), to = located.find(r => r.station_id === t.to);
+    if (from && to) features.push({ type:"Feature", properties:{ bikes:t.bikes }, geometry:{ type:"LineString", coordinates:[[from.lon,from.lat],[to.lon,to.lat]] } });
+  }
+  nightMap.on("load", () => {
+    if (!features.length || nightMap.getSource("overnight-transfers")) return;
+    nightMap.addSource("overnight-transfers", { type:"geojson", data:{ type:"FeatureCollection", features } });
+    nightMap.addLayer({ id:"overnight-transfer-lines", type:"line", source:"overnight-transfers",
+      paint:{ "line-color":"#1378c8", "line-width":["interpolate",["linear"],["zoom"],12,3,17,7], "line-opacity":0.9 } });
+  });
+  nightMap.on("error", () => {
+    if (!nightMap || !document.getElementById("nightmap")) return;
+    if (!document.getElementById("nightmap-error")) {
+      const note = document.createElement("div"); note.id="nightmap-error"; note.className="map-note";
+      note.textContent="Some 3D map tiles could not load. Check your connection; station plan details remain below.";
+      $("nightpicture").insertBefore(note, $("nightmap"));
+    }
+  });
+  return true;
 }
 function planTable(id, p) {
   $(id).innerHTML = `<tr><th>Station</th><th>Bikes / cap</th><th>Target</th><th>Projected</th><th>Surplus (+) / shortage (−)</th>
@@ -739,9 +905,22 @@ async function loadPlans() {
   } catch (e) { $("planmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; emptyChart("planbars", ""); $("plan").innerHTML = ""; }
   try {
     const p = await get("plan/overnight", { day: $("end").value, depot_bikes: depot });
-    moveCards("nightmoves", p, "No moves needed tonight: every station already has its morning start.");
-    planBars("nightbars", p, true); planTable("night", p); msg("nightmsg", p.notes.join(" "));
-  } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; emptyChart("nightbars", ""); $("night").innerHTML = ""; }
+    if (p.baseline?.complete === false) {
+      const b = p.baseline;
+      $("nightmoves").innerHTML = `<div class="night-brief-card"><span class="label">Week 1 baseline</span><strong>Learning the pattern: ${b.complete_days} of ${b.required_days} complete days</strong><small>Available period: ${esc(b.from || "not started")} to ${esc(b.through)}; morning window ${esc(b.window)}. A complete day needs every station's readings across the full window. No targets or moves are published until the baseline is complete.</small></div>`;
+      clearNightMap("Learning the average 6\u201310 AM rider flow from Week 1. No map markers or redistribution targets are shown until Week 1 is complete.");
+      emptyChart("nightbars", "The full Week 1 pattern is not ready yet."); $("night").innerHTML = "";
+      msg("nightmsg", p.notes.join(" "));
+    } else {
+      const signature = nightSignature(p);
+      if (signature !== nightPlanSignature) {
+        renderNightBrief(p);
+        await renderNightMap(p);
+        nightPlanSignature = signature;
+        planBars("nightbars", p, true); planTable("night", p); msg("nightmsg", p.notes.join(" "));
+      }
+    }
+  } catch (e) { $("nightmoves").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; $("nightpicture").innerHTML = ""; emptyChart("nightbars", ""); $("night").innerHTML = ""; }
   planBusy = false;
   if (planAgain) { planAgain = false; loadPlans(); }
 }
@@ -777,54 +956,152 @@ document.querySelectorAll("#odwin button").forEach(b => b.addEventListener("clic
 }));
 
 
-/* ---- follow Yash's console (?follow=console): his day and time drive every chart ----
-   His console is served by the same server (combined.py), so this page can read the reading time
-   it prints next to its slider ("2026-10-19 08:30"). In his Live mode the slider is hidden, so the
-   time comes from his /latest route instead. Nothing in his code is changed. */
-let liveAsOf = null, lastLive = 0, followMsg = "";
-function consoleState() {
+/* ---- explicit, versioned state from Yash's console ---- */
+let simulationState = null, lastSyncSeen = 0, lastFrameAdvanced = 0, lastStateSignature = "";
+let syncValidationId = 0, pendingCity = null, scenarioDatesCache = {};
+function paintSync(state, status, detail = "") {
+  const p = $("sync-state");
+  if (!p) return;
+  const title = { matched:"Simulation and charts are aligned", loading:"Matching the simulation", stale:"Simulation state is stale", mismatch:"The two views do not match", error:"Simulation connection error" }[status] || "Checking simulation state";
+  const badge = { matched:"IN SYNC", loading:"UPDATING", stale:"STALE", mismatch:"MISMATCH", error:"ERROR" }[status] || "CHECKING";
+  const fields = [
+    ["City", state?.city], ["Scenario", state?.scenario], ["Source", state?.source === "replay" ? "Simulation replay" : state?.source],
+    ["Reading time", state?.as_of || "Waiting for a frame"],
+    ["Playback", state?.playing == null ? "-" : state.playing ? "Playing" : "Paused"],
+    ["Last message", lastSyncSeen ? `${Math.max(0, Math.floor((Date.now()-lastSyncSeen)/1000))}s ago` : "Waiting"],
+  ];
+  p.dataset.state = status;
+  p.innerHTML = `<div class="sync-title"><span class="sync-dot" aria-hidden="true"></span><div class="sync-heading"><small>Shared simulation state</small><strong>${esc(title)}</strong></div><span class="sync-badge">${badge}</span></div>
+    <div class="sync-fields">${fields.map(([k,v]) => `<div class="sync-field"><span>${esc(k)}</span><b>${esc(v ?? "Waiting")}</b></div>`).join("")}</div>
+    <p class="sync-detail">${esc(detail)}</p>`;
+}
+function validSimulationState(s) {
+  return !!s && s.type === "sixsigma.simulation-state" && s.version === 1 &&
+    ["ready", "loading", "error"].includes(s.status) && typeof s.city === "string" &&
+    ["week1", "week2", "event"].includes(s.scenario) && Number.isInteger(s.day_index) && s.day_index >= 0 &&
+    ["replay", "live"].includes(s.source) && Number.isInteger(s.interval_minutes) && s.interval_minutes > 0 &&
+    typeof s.playing === "boolean" && typeof s.reason === "string" && Array.isArray(s.stations) &&
+    (s.status === "ready" ? (/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(s.as_of || "") &&
+      Number.isInteger(s.reserve) && s.reserve >= 0 && s.stations.length > 0 && s.stations.length <= 100 &&
+      s.stations.every(x => typeof x.station_id === "string" && x.station_id && Number.isInteger(x.bikes) &&
+        Number.isInteger(x.capacity) && x.capacity > 0 && x.bikes >= 0 && x.bikes <= x.capacity) &&
+      new Set(s.stations.map(x => x.station_id)).size === s.stations.length)
+      : s.as_of === null && s.reserve === null && s.stations.length === 0);
+}
+function stateSignature(s) {
+  return JSON.stringify([s.status,s.city,s.scenario,s.day_index,s.source,s.interval_minutes,s.as_of,s.playing,s.reserve,s.stations]);
+}
+async function scenarioDates(cityKey) {
+  if (!scenarioDatesCache[cityKey]) {
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const r = await fetch(`${BASE}scenarios?dataset=${encodeURIComponent(cityKey)}`, { signal:controller.signal });
+      if (!r.ok) throw new Error(`scenario list returned ${r.status}`);
+      scenarioDatesCache[cityKey] = await r.json();
+    } catch (e) {
+      if (e.name === "AbortError") throw new Error("scenario lookup timed out after 10 seconds");
+      throw e;
+    } finally { clearTimeout(timeout); }
+  }
+  return scenarioDatesCache[cityKey];
+}
+async function verifyStateAgainstData(s, id) {
+  const dates = await scenarioDates(s.city);
+  if (id !== syncValidationId) return false;
+  const series = dates[s.scenario];
+  const index = s.scenario === "event" ? 0 : s.day_index;
+  if (!Array.isArray(series) || series[index] !== s.as_of.slice(0,10)) {
+    paintSync(s, "mismatch", `The timestamp is not part of the selected ${s.scenario} scenario/day. Charts are not marked current.`); return false;
+  }
+  const params = { dataset:s.city, start:s.as_of.slice(0,10), end:s.as_of.slice(0,10), station:info.stations };
+  const view = await get("inventory", params);
+  if (id !== syncValidationId) return false;
+  const inventory = new Map(view.stations.map(st => {
+    const point = st.series.find(r => r.t === s.as_of);
+    return [st.station_id, point ? { bikes:point.bikes, capacity:point.capacity } : null];
+  }));
+  const expectedIds = [...info.stations].sort(), actualIds = s.stations.map(x => x.station_id).sort();
+  if (JSON.stringify(expectedIds) !== JSON.stringify(actualIds)) {
+    paintSync(s, "mismatch", "The simulation and analysis contain different station sets. No alignment is claimed."); return false;
+  }
+  const changed = s.stations.find(x => {
+    const actual = inventory.get(x.station_id);
+    return !actual || actual.bikes !== x.bikes || actual.capacity !== x.capacity;
+  });
+  if (changed) {
+    const chartCount = inventory.get(changed.station_id);
+    paintSync(s, "mismatch", `${label(changed.station_id)} shows ${changed.bikes}/${changed.capacity} in the simulation and ${chartCount ? `${chartCount.bikes}/${chartCount.capacity}` : "no reading"} in the analysis at ${s.as_of}.`); return false;
+  }
+  const total = s.stations.reduce((sum, x) => sum + x.bikes, 0) + s.reserve;
+  if (total !== info.settings.fleet) {
+    paintSync(s, "mismatch", `Station bikes plus depot bikes total ${total}; this city dataset defines a fleet of ${info.settings.fleet}.`); return false;
+  }
+  return true;
+}
+async function applySimulationState(s, id) {
+  if (!info) { paintSync(s, "loading", "Loading the analysis dataset before comparing the views."); return; }
+  if (s.status === "loading") { paintSync(s, "loading", "The simulation is loading the selected city or scenario. Previous frames are not used."); return; }
+  if (s.status === "error") { paintSync(s, "error", s.reason || "The simulation could not load a valid frame."); return; }
+  if (s.city !== city) {
+    if (pendingCity === s.city) return;
+    if (![...$("city").options].some(o => o.value === s.city)) {
+      paintSync(s, "mismatch", `City ${s.city} is not available in the BikeFlow dataset.`); return;
+    }
+    pendingCity = s.city; paintSync(s, "loading", `Loading ${s.city} to match the simulation.`);
+    try { await chooseCity(s.city); } catch (e) { paintSync(s, "error", e.message); }
+    finally { pendingCity = null; }
+    if (id !== syncValidationId) return;
+  }
+  if (s.source !== "replay") { paintSync(s, "mismatch", "BikeFlow can verify replay snapshots. This dataset does not provide a matching live station feed."); return; }
+  if (s.interval_minutes !== info.settings.interval_min) {
+    paintSync(s, "mismatch", `Simulation interval is ${s.interval_minutes} minutes; BikeFlow expects ${info.settings.interval_min} minutes.`); return;
+  }
+  const t = s.as_of, day = t.slice(0,10), hm = t.slice(11,16), slot = slotOf(hm);
+  const offset = Number(hm.slice(0,2))*60 + Number(hm.slice(3)) -
+    (Number(info.settings.open_time.slice(0,2))*60 + Number(info.settings.open_time.slice(3)));
+  if (!info.days.includes(day) || slot < 0 || slot > +$("slot").max || offset % info.settings.interval_min !== 0) {
+    paintSync(s, "mismatch", `${t} is not an available ${info.settings.interval_min}-minute BikeFlow reading.`); return;
+  }
+  if (day !== $("end").value) {
+    $("start").value = day; $("end").value = day; $("slot").value = slot;
+    paintSync(s, "loading", "Loading the matching date into the charts."); await loadAll();
+    if (id !== syncValidationId) return;
+    if (!cache.inv || cache.inv.e || !cache.inv.v) {
+      paintSync(s, "error", `The inventory charts did not load: ${cache.inv?.e || "no response"}.`); return;
+    }
+  } else if (slot !== +$("slot").value) { $("slot").value = slot; render(); }
+  if (id !== syncValidationId) return;
+  paintSync(s, "loading", "Checking the scenario date and every station count against the BikeFlow data.");
   try {
-    const doc = $("console").contentDocument;
-    if (!doc) return null;
-    const pick = doc.querySelector('select[aria-label="Simulated city"]');
-    if (pick && pick.value && pick.value !== city) return { city: pick.value };
-    const out = doc.querySelector(".replay output");
-    const m = out && out.textContent.match(/(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d)/);
-    if (m) return { t: `${m[1]}T${m[2]}` };
-    const src = doc.querySelector('[aria-label="Data source"] [aria-checked="true"]');
-    if (src && src.textContent.trim() === "Live") return { live: true };
-  } catch (e) { /* the console is still loading */ }
-  return null;
+    const matched = await verifyStateAgainstData(s, id);
+    if (id === syncValidationId && matched) paintSync(s, "matched", `Scenario date verified; station inventories agree at the exact reading ${t}.`);
+  } catch (e) { if (id === syncValidationId) paintSync(s, "error", `Could not verify this snapshot: ${e.message}`); }
+}
+function onSimulationMessage(event) {
+  if (event.origin !== location.origin || event.source !== $("console").contentWindow || !validSimulationState(event.data)) return;
+  const s = event.data;
+  lastSyncSeen = Date.now();
+  if (s.status === "ready" && s.as_of !== simulationState?.as_of) lastFrameAdvanced = Date.now();
+  simulationState = s;
+  const signature = stateSignature(s);
+  if (signature === lastStateSignature) {
+    if (lastSyncStatus !== "stale") paintSync(s, lastSyncStatus, lastSyncDetail);
+    else if (!(s.status === "ready" && s.playing && Date.now() - lastFrameAdvanced > 16000))
+      applySimulationState(s, ++syncValidationId);
+    return; // heartbeat: refresh freshness without repeating API checks
+  }
+  lastStateSignature = signature;
+  const id = ++syncValidationId;
+  applySimulationState(s, id);
+}
+function checkSyncFreshness() {
+  if (!FOLLOW || !simulationState) return;
+  if (Date.now() - lastSyncSeen > 6000 || (simulationState.status === "ready" && simulationState.playing && Date.now() - lastFrameAdvanced > 16000))
+    paintSync(simulationState, "stale", "The simulation stopped sending fresh state. Resume or reload it before trusting the charts.");
 }
 function slotOf(hm) {
   const s = info.settings, [h, m] = hm.split(":").map(Number), [oh, om] = s.open_time.split(":").map(Number);
   return Math.round((h * 60 + m - oh * 60 - om) / s.interval_min);
-}
-async function follow() {
-  if (!info) return;
-  const c = consoleState();
-  if (c && c.city) {                       // his console switched city: switch with it
-    if ([...$("city").options].some(o => o.value === c.city)) await chooseCity(c.city);
-    return;
-  }
-  let t = c && c.t;
-  if (c && c.live) {
-    if (Date.now() - lastLive > 5000) {
-      lastLive = Date.now();
-      try { liveAsOf = (await (await fetch(BASE + "latest")).json()).as_of; } catch (e) { liveAsOf = null; }
-    }
-    t = liveAsOf;
-  }
-  let note = t ? "" : "Waiting for the console to show a reading time...";
-  if (t && !info.days.includes(t.slice(0, 10))) { note = `The console shows ${t.slice(0, 10)}, which is not in this dataset.`; t = null; }
-  if (note !== followMsg) { followMsg = note; msg("followmsg", note); }
-  if (!t) return;
-  const day = t.slice(0, 10), slot = slotOf(t.slice(11, 16));
-  if (day !== $("end").value) {
-    $("start").value = day; $("end").value = day; $("slot").value = slot; loadAll();
-  } else if (slot !== +$("slot").value) {
-    $("slot").value = slot; render();
-  }
 }
 if (FOLLOW) {
   document.body.classList.add("follow");
@@ -834,8 +1111,9 @@ if (FOLLOW) {
   const wantCity = new URLSearchParams(location.search).get("dataset");
   $("console").src = BASE + (wantCity ? `?dataset=${encodeURIComponent(wantCity)}` : "");
   $("subtitle").textContent = "Following the console above: every chart, signal and plan shows its day up to its current reading.";
-  $("status").insertAdjacentHTML("afterend", '<div id="followmsg"></div>');
-  setInterval(follow, 400);
+  paintSync(null, "loading", "Waiting for a fresh, versioned state message from the simulation.");
+  window.addEventListener("message", onSimulationMessage);
+  setInterval(checkSyncFreshness, 2000);
 }
 
 if (typeof Plotly === "undefined") {
